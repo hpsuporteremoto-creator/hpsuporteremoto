@@ -58,7 +58,10 @@
             "server": "src/main.server.ts",
             "outputMode": "server",
             "security": {
-              "allowedHosts": []
+              "allowedHosts": [
+                "hpsuporteremoto.netlify.app",
+                ".netlify.app"
+              ]
             },
             "ssr": {
               "entry": "src/server.ts"
