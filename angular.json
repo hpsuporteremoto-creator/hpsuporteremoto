@@ -2,11 +2,12 @@
   "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "cli": {
-    "packageManager": "npm"
+    "packageManager": "npm",
+    "analytics": "69364bc9-9fd2-4266-9160-22e4bb94e4a0"
   },
   "newProjectRoot": "projects",
   "projects": {
-    "hpsuporteremoto": {
+    "hp-suporte-remoto": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -91,10 +92,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "hpsuporteremoto:build:production"
+              "buildTarget": "hp-suporte-remoto:build:production"
             },
             "development": {
-              "buildTarget": "hpsuporteremoto:build:development"
+              "buildTarget": "hp-suporte-remoto:build:development"
             }
           },
           "defaultConfiguration": "development"

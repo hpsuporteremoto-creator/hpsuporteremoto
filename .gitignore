@@ -11,6 +11,14 @@
 npm-debug.log
 yarn-error.log
 
+# Netlify CLI local state
+.netlify/
+
+# Secrets (local dev env vars)
+.env
+.env.*
+!.env.example
+
 # IDEs and editors
 .idea/
 .project
