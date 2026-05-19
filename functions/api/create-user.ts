@@ -1,5 +1,11 @@
-import type { Context } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
+
+type Env = {
+  SUPABASE_URL: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
+};
+
+type Context = { request: Request; env: Env };
 
 // Mantenha sincronizado com src/app/core/auth/admin-emails.ts
 const ADMIN_EMAILS = [
@@ -16,24 +22,20 @@ function json(body: unknown, status: number): Response {
   });
 }
 
-export default async (req: Request, _context: Context): Promise<Response> => {
-  if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405);
-  }
+export const onRequestPost = async (context: Context): Promise<Response> => {
+  const { request, env } = context;
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
     return json({ error: 'Servidor mal configurado (env vars ausentes)' }, 500);
   }
 
-  const authHeader = req.headers.get('authorization') ?? '';
+  const authHeader = request.headers.get('authorization') ?? '';
   if (!authHeader.toLowerCase().startsWith('bearer ')) {
     return json({ error: 'Authorization Bearer token ausente' }, 401);
   }
   const token = authHeader.slice('bearer '.length).trim();
 
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
+  const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
@@ -45,14 +47,13 @@ export default async (req: Request, _context: Context): Promise<Response> => {
   if (callerError || !caller?.email) {
     return json({ error: 'Token inválido' }, 401);
   }
-
   if (!ADMIN_EMAILS.includes(caller.email.toLowerCase())) {
     return json({ error: 'Acesso restrito a administradores' }, 403);
   }
 
   let body: unknown;
   try {
-    body = await req.json();
+    body = await request.json();
   } catch {
     return json({ error: 'Corpo JSON inválido' }, 400);
   }
@@ -75,10 +76,5 @@ export default async (req: Request, _context: Context): Promise<Response> => {
     return json({ error: createError.message }, 400);
   }
 
-  return json(
-    { user: { id: data.user.id, email: data.user.email } },
-    201,
-  );
+  return json({ user: { id: data.user.id, email: data.user.email } }, 201);
 };
-
-export const config = { path: '/api/create-user' };

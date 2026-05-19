@@ -53,15 +53,7 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.sass"],
-            "server": "src/main.server.ts",
-            "outputMode": "server",
-            "security": {
-              "allowedHosts": ["hpsuporteremoto.netlify.app", ".netlify.app"]
-            },
-            "ssr": {
-              "entry": "src/server.ts"
-            }
+            "styles": ["src/styles.sass"]
           },
           "configurations": {
             "production": {
