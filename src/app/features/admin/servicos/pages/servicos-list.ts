@@ -4,7 +4,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { Location } from '@angular/common';
+import { CurrencyPipe, Location } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -16,14 +16,10 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { ServicosService } from '../servicos.service';
 import { Servico } from '../servicos.types';
 
-const BRL = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-});
-
 @Component({
   selector: 'hp-servicos-list',
   imports: [
+    CurrencyPipe,
     RouterLink,
     MatButtonModule,
     MatCardModule,
@@ -67,7 +63,7 @@ const BRL = new Intl.NumberFormat('pt-BR', {
                 <mat-card-content class="row">
                   <div class="info">
                     <strong class="nome">{{ servico.nome }}</strong>
-                    <span class="valor">{{ formatar(servico.valor_centavos) }}</span>
+                    <span class="valor">{{ servico.valor_centavos / 100 | currency }}</span>
                   </div>
                   <div class="actions">
                     <mat-slide-toggle
@@ -109,10 +105,6 @@ export class ServicosListPage {
 
   voltar(): void {
     this.location.back();
-  }
-
-  formatar(cents: number): string {
-    return BRL.format(cents / 100);
   }
 
   async carregar(): Promise<void> {

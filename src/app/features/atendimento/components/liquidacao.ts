@@ -1,12 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  computed,
   effect,
   inject,
   input,
   signal,
 } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -15,7 +15,7 @@ import { Atendimento } from '../atendimento.types';
 
 @Component({
   selector: 'hp-liquidacao',
-  imports: [MatButtonModule, MatIconModule],
+  imports: [CurrencyPipe, MatButtonModule, MatIconModule],
   template: `
     <div class="liquidacao">
       <header>
@@ -24,8 +24,9 @@ import { Atendimento } from '../atendimento.types';
         <p class="hint">Pague com PIX para concluir.</p>
       </header>
 
-      @if (valorFormatado(); as valor) {
-        <p class="valor">{{ valor }}</p>
+      @let cents = atendimento().valor_centavos;
+      @if (cents !== null) {
+        <p class="valor">{{ cents / 100 | currency }}</p>
       }
 
       @if (qrCodeDataUrl(); as qr) {
@@ -57,15 +58,6 @@ export class Liquidacao {
   private readonly snackBar = inject(MatSnackBar);
 
   protected readonly qrCodeDataUrl = signal<string | null>(null);
-
-  protected readonly valorFormatado = computed(() => {
-    const cents = this.atendimento().valor_centavos;
-    if (cents === null) return null;
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(cents / 100);
-  });
 
   constructor() {
     effect(async () => {
