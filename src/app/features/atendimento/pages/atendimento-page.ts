@@ -9,6 +9,7 @@ import { AtendimentoService } from '../atendimento.service';
 import { ConexaoForm } from '../components/conexao-form';
 import { EmAtendimento } from '../components/em-atendimento';
 import { Liquidacao } from '../components/liquidacao';
+import { WhatsappStep } from '../components/whatsapp-step';
 
 @Component({
   selector: 'hp-atendimento-page',
@@ -18,6 +19,7 @@ import { Liquidacao } from '../components/liquidacao';
     MatCardModule,
     MatIconModule,
     FunilStepper,
+    WhatsappStep,
     ConexaoForm,
     EmAtendimento,
     Liquidacao,
@@ -40,7 +42,15 @@ import { Liquidacao } from '../components/liquidacao';
         </div>
 
         @if (svc.state() === null) {
-          <hp-conexao-form (created)="onCreated($event)" />
+          @if (svc.lookup(); as pre) {
+            <hp-conexao-form
+              [preFill]="pre"
+              (back)="svc.voltarParaWhatsapp()"
+              (created)="onCreated($event)"
+            />
+          } @else {
+            <hp-whatsapp-step />
+          }
         } @else {
           @switch (svc.state()) {
             @case ('aguardando_confirmacao') {

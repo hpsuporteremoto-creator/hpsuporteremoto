@@ -13,9 +13,18 @@ import {
   ATENDIMENTO_STATE_LABEL,
   Atendimento,
   AtendimentoState,
+  ClienteLookupResult,
   ConexaoFormData,
   STORAGE_KEY,
 } from './atendimento.types';
+
+interface LookupRpcRow {
+  cliente_existe: boolean;
+  ativo: boolean;
+  nome: string | null;
+  instagram: string | null;
+  email: string | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AtendimentoService {
@@ -24,9 +33,11 @@ export class AtendimentoService {
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   private readonly _atendimento = signal<Atendimento | null>(null);
+  private readonly _lookup = signal<ClienteLookupResult | null>(null);
   private channel: RealtimeChannel | null = null;
 
   readonly atendimento = this._atendimento.asReadonly();
+  readonly lookup = this._lookup.asReadonly();
   readonly state = computed<AtendimentoState | null>(
     () => this._atendimento()?.state ?? null,
   );
@@ -35,6 +46,30 @@ export class AtendimentoService {
     if (this.isBrowser) {
       void this.recuperar();
     }
+  }
+
+  async lookupPorWhatsapp(whatsapp: string): Promise<ClienteLookupResult> {
+    const trimmed = whatsapp.trim();
+    const { data, error } = await this.supabase.rpc(
+      'lookup_cliente_por_whatsapp',
+      { p_whatsapp: trimmed },
+    );
+    if (error) throw new Error(error.message);
+    const row = ((data ?? []) as LookupRpcRow[])[0];
+    const result: ClienteLookupResult = {
+      whatsapp: trimmed,
+      cliente_existe: row?.cliente_existe ?? false,
+      ativo: row?.ativo ?? false,
+      nome: row?.nome ?? null,
+      instagram: row?.instagram ?? null,
+      email: row?.email ?? null,
+    };
+    this._lookup.set(result);
+    return result;
+  }
+
+  voltarParaWhatsapp(): void {
+    this._lookup.set(null);
   }
 
   async criar(data: ConexaoFormData): Promise<string> {
@@ -76,6 +111,7 @@ export class AtendimentoService {
       window.localStorage.removeItem(STORAGE_KEY);
     }
     this._atendimento.set(null);
+    this._lookup.set(null);
   }
 
   private async assinar(id: string): Promise<void> {

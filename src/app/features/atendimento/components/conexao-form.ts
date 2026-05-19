@@ -2,7 +2,9 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
+  input,
   output,
   signal,
 } from '@angular/core';
@@ -19,7 +21,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { ServicosService } from '../../admin/servicos/servicos.service';
 import { Servico } from '../../admin/servicos/servicos.types';
 import { AtendimentoService } from '../atendimento.service';
-import { ConexaoFormData } from '../atendimento.types';
+import { ClienteLookupResult, ConexaoFormData } from '../atendimento.types';
 
 const SEM_CATEGORIA = 'Outros';
 
@@ -39,13 +41,35 @@ const SEM_CATEGORIA = 'Outros';
   ],
   template: `
     <div class="conexao">
+      @if (preFill()) {
+        <button
+          mat-button
+          type="button"
+          class="back-btn"
+          (click)="back.emit()"
+        >
+          <mat-icon>arrow_back</mat-icon>
+          <span>Trocar WhatsApp</span>
+        </button>
+      }
+
       <header>
-        <mat-icon class="monitor">desktop_windows</mat-icon>
-        <h1>Solicitar atendimento</h1>
-        <p class="hint">
-          Compartilhe o ID do RustDesk e a senha temporária pra começarmos o
-          suporte. Mantenha o RustDesk aberto.
-        </p>
+        @let pre = preFill();
+        @if (pre?.cliente_existe && pre?.nome) {
+          <mat-icon class="welcome">waving_hand</mat-icon>
+          <h1>Olá, {{ pre?.nome }}!</h1>
+          <p class="hint">
+            Confirme/atualize seus dados e descreva o problema que você
+            precisa de ajuda.
+          </p>
+        } @else {
+          <mat-icon class="monitor">desktop_windows</mat-icon>
+          <h1>Solicitar atendimento</h1>
+          <p class="hint">
+            Compartilhe o ID do RustDesk e a senha temporária pra começarmos o
+            suporte. Mantenha o RustDesk aberto.
+          </p>
+        }
       </header>
 
       @if (loading()) {
@@ -164,8 +188,12 @@ const SEM_CATEGORIA = 'Outros';
               formControlName="whatsapp"
               autocomplete="tel"
               placeholder="(11) 99999-9999"
+              [readonly]="whatsappLocked()"
               required
             />
+            @if (whatsappLocked()) {
+              <mat-hint>Trocar via botão "Trocar WhatsApp" no topo</mat-hint>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -236,7 +264,9 @@ export class ConexaoForm {
   private readonly servicosSvc = inject(ServicosService);
   private readonly fb = inject(FormBuilder).nonNullable;
 
+  readonly preFill = input<ClienteLookupResult | null>(null);
   readonly created = output<string>();
+  readonly back = output<void>();
 
   protected readonly servicos = signal<Servico[]>([]);
   protected readonly servicosLoaded = signal(false);
@@ -247,6 +277,8 @@ export class ConexaoForm {
   protected readonly search = signal('');
   protected readonly categoriaFiltro = signal<string | null>(null);
   protected readonly selectedServicoId = signal<string | null>(null);
+
+  protected readonly whatsappLocked = computed(() => this.preFill() !== null);
 
   protected readonly categorias = computed(() => {
     const set = new Set<string>();
@@ -302,6 +334,20 @@ export class ConexaoForm {
 
   constructor() {
     void this.carregarServicos();
+
+    effect(() => {
+      const pre = this.preFill();
+      if (!pre) return;
+      this.form.patchValue(
+        {
+          whatsapp: pre.whatsapp,
+          nome: pre.nome ?? '',
+          instagram: pre.instagram ?? '',
+          email: pre.email ?? '',
+        },
+        { emitEvent: false },
+      );
+    });
   }
 
   onSearchInput(event: Event): void {

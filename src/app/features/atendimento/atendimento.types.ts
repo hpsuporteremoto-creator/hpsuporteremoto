@@ -27,6 +27,15 @@ export interface Atendimento {
   updated_at: string;
 }
 
+export interface ClienteLookupResult {
+  whatsapp: string;
+  cliente_existe: boolean;
+  ativo: boolean;
+  nome: string | null;
+  instagram: string | null;
+  email: string | null;
+}
+
 export interface ConexaoFormData {
   nome: string;
   whatsapp: string;
