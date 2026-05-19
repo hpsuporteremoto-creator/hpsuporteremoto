@@ -74,7 +74,7 @@ export class AdminHome {
     { label: 'Criar usuário', icon: 'person_add', route: 'usuarios' },
     { label: 'Clientes', icon: 'groups', route: 'clientes' },
     { label: 'Serviços', icon: 'design_services', route: 'servicos' },
-    { label: 'Atendimentos', icon: 'support_agent', route: null },
+    { label: 'Atendimentos', icon: 'support_agent', route: 'atendimentos' },
     { label: 'Financeiro', icon: 'payments', route: null },
   ];
 

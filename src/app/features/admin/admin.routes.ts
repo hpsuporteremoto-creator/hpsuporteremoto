@@ -21,4 +21,11 @@ export const adminRoutes: Routes = [
     loadChildren: () =>
       import('./servicos/servicos.routes').then((m) => m.servicosRoutes),
   },
+  {
+    path: 'atendimentos',
+    loadChildren: () =>
+      import('./atendimentos/atendimentos.routes').then(
+        (m) => m.atendimentosRoutes,
+      ),
+  },
 ];
