@@ -28,6 +28,5 @@ export interface AtendimentoComRelacoes extends Atendimento {
 
 export type AtendimentoListFilter =
   | 'em-andamento'
-  | 'faturamento'
   | 'pagamento'
   | 'concluido';

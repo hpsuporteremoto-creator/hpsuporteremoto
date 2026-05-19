@@ -70,23 +70,16 @@ export default async (req: Request, _context: Context): Promise<Response> => {
     return json({ error: 'Corpo JSON inválido' }, 400);
   }
 
-  const { atendimento_id, valor_centavos } = (body ?? {}) as {
+  const { atendimento_id, servico_id } = (body ?? {}) as {
     atendimento_id?: unknown;
-    valor_centavos?: unknown;
+    servico_id?: unknown;
   };
 
   if (typeof atendimento_id !== 'string' || atendimento_id.length === 0) {
     return json({ error: 'atendimento_id obrigatório' }, 400);
   }
-  if (
-    typeof valor_centavos !== 'number' ||
-    !Number.isInteger(valor_centavos) ||
-    valor_centavos <= 0
-  ) {
-    return json(
-      { error: 'valor_centavos deve ser inteiro positivo' },
-      400,
-    );
+  if (typeof servico_id !== 'string' || servico_id.length === 0) {
+    return json({ error: 'servico_id obrigatório' }, 400);
   }
 
   const { data: atendimento, error: fetchError } = await admin
@@ -98,29 +91,55 @@ export default async (req: Request, _context: Context): Promise<Response> => {
   if (fetchError) return json({ error: fetchError.message }, 500);
   if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
 
-  if (atendimento.state !== 'faturamento') {
+  if (atendimento.state !== 'em_andamento') {
     return json(
       {
-        error:
-          'PIX só pode ser gerado quando o atendimento está em faturamento',
+        error: `PIX só pode ser gerado quando o atendimento está em em_andamento (state atual: ${atendimento.state})`,
       },
       409,
     );
   }
 
-  const brcode = generateStaticBrCode({
-    pixKey,
-    receiverName: projectReceiverName(receiverNameRaw),
-    receiverCity: projectCity(receiverCityRaw),
-    referenceLabel: buildBrCodeRef(atendimento_id),
-    amount: valor_centavos / 100,
-  });
+  const { data: servico, error: servicoError } = await admin
+    .from('servicos')
+    .select('id, nome, valor_centavos, ativo')
+    .eq('id', servico_id)
+    .maybeSingle();
+
+  if (servicoError) return json({ error: servicoError.message }, 500);
+  if (!servico) return json({ error: 'Serviço não encontrado' }, 404);
+  if (!servico.ativo) return json({ error: 'Serviço inativo' }, 400);
+  if (
+    typeof servico.valor_centavos !== 'number' ||
+    servico.valor_centavos <= 0
+  ) {
+    return json({ error: 'Serviço com valor inválido' }, 400);
+  }
+
+  let brcode: string;
+  try {
+    brcode = generateStaticBrCode({
+      pixKey,
+      receiverName: projectReceiverName(receiverNameRaw),
+      receiverCity: projectCity(receiverCityRaw),
+      referenceLabel: buildBrCodeRef(atendimento_id),
+      amount: servico.valor_centavos / 100,
+    });
+  } catch (err) {
+    return json(
+      {
+        error: `Falha ao gerar BR Code: ${err instanceof Error ? err.message : String(err)}`,
+      },
+      500,
+    );
+  }
 
   const { error: updateError } = await admin
     .from('atendimentos')
     .update({
       pix_brcode: brcode,
-      valor_centavos,
+      valor_centavos: servico.valor_centavos,
+      servico_id,
       state: 'pagamento',
     })
     .eq('id', atendimento_id);
@@ -130,7 +149,7 @@ export default async (req: Request, _context: Context): Promise<Response> => {
   return json(
     {
       pix_brcode: brcode,
-      valor_centavos,
+      valor_centavos: servico.valor_centavos,
       state: 'pagamento',
     },
     200,

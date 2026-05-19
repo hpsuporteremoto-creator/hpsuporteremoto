@@ -67,16 +67,6 @@ import { WhatsappStep } from '../components/whatsapp-step';
             @case ('em_andamento') {
               <hp-em-atendimento />
             }
-            @case ('faturamento') {
-              <div class="status status-faturamento">
-                <mat-icon class="wait-glyph">request_quote</mat-icon>
-                <h1>Calculando o valor</h1>
-                <p>
-                  O atendente está finalizando os detalhes do serviço. Em
-                  instantes você verá a cobrança PIX.
-                </p>
-              </div>
-            }
             @case ('pagamento') {
               @if (svc.atendimento(); as atendimento) {
                 <hp-liquidacao [atendimento]="atendimento" />

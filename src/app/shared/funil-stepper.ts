@@ -19,7 +19,6 @@ const STEPS: ReadonlyArray<Step> = [
   { key: 'inicial',                label: 'Solicitação',  icon: 'edit_note' },
   { key: 'aguardando_confirmacao', label: 'Aguardando',   icon: 'hourglass_empty' },
   { key: 'em_andamento',           label: 'Em andamento', icon: 'support_agent' },
-  { key: 'faturamento',            label: 'Faturamento',  icon: 'request_quote' },
   { key: 'pagamento',              label: 'Pagamento',    icon: 'qr_code_2' },
   { key: 'concluido',              label: 'Concluído',    icon: 'check_circle' },
 ];

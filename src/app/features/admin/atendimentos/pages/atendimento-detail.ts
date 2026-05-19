@@ -1,12 +1,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
 } from '@angular/core';
 import { CurrencyPipe, DatePipe, Location } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -31,7 +31,6 @@ import { Servico } from '../../servicos/servicos.types';
   imports: [
     CurrencyPipe,
     DatePipe,
-    ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
@@ -175,54 +174,26 @@ import { Servico } from '../../servicos/servicos.types';
               }
               @case ('em_andamento') {
                 <p class="state-hint">
-                  Suporte em andamento. Quando terminar de resolver, finalize
-                  o suporte pra ir pra etapa de faturamento.
-                </p>
-                <button
-                  mat-flat-button
-                  color="primary"
-                  type="button"
-                  (click)="finalizarSuporte()"
-                  [disabled]="updating()"
-                >
-                  <mat-icon>request_quote</mat-icon>
-                  <span>Finalizar suporte</span>
-                </button>
-              }
-              @case ('faturamento') {
-                <p class="state-hint">
-                  Escolha um serviço (ou digite um valor custom) e gere a
-                  cobrança PIX. O cliente verá o QR Code imediatamente.
+                  Suporte em andamento. Quando terminar, confirme o serviço e
+                  cobre via PIX — o valor é puxado do cadastro do serviço.
                 </p>
 
                 <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Serviço pré-cadastrado</mat-label>
-                  <mat-select (selectionChange)="aplicarServico($event.value)">
-                    <mat-option [value]="null">— Personalizado —</mat-option>
+                  <mat-label>Serviço</mat-label>
+                  <mat-select
+                    [value]="selectedServicoId()"
+                    (selectionChange)="onSelectServico($event.value)"
+                  >
                     @for (s of servicos(); track s.id) {
-                      <mat-option [value]="s">
+                      <mat-option [value]="s.id">
                         {{ s.nome }} — {{ s.valor_centavos / 100 | currency }}
                       </mat-option>
                     }
                   </mat-select>
-                </mat-form-field>
-
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Valor</mat-label>
-                  <span matTextPrefix>R$&nbsp;</span>
-                  <input
-                    matInput
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    [formControl]="valorControl"
-                    required
-                  />
-                  @if (
-                    valorControl.hasError('required') ||
-                    valorControl.hasError('min')
-                  ) {
-                    <mat-error>Informe um valor maior que zero</mat-error>
+                  @if (servicos().length === 0) {
+                    <mat-hint>
+                      Nenhum serviço ativo. Cadastre em /admin/servicos.
+                    </mat-hint>
                   }
                 </mat-form-field>
 
@@ -230,11 +201,17 @@ import { Servico } from '../../servicos/servicos.types';
                   mat-flat-button
                   color="primary"
                   type="button"
-                  (click)="gerarPix()"
-                  [disabled]="valorControl.invalid || updating()"
+                  (click)="cobrarEFinalizar()"
+                  [disabled]="!selectedServicoId() || updating()"
                 >
                   <mat-icon>qr_code_2</mat-icon>
-                  <span>Gerar PIX e cobrar</span>
+                  <span>
+                    @if (selectedServicoValor(); as v) {
+                      Cobrar {{ v / 100 | currency }} e finalizar
+                    } @else {
+                      Selecione um serviço
+                    }
+                  </span>
                 </button>
               }
               @case ('pagamento') {
@@ -301,9 +278,12 @@ export class AtendimentoDetailPage {
   protected readonly updating = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  protected readonly valorControl = new FormControl<number>(0, {
-    nonNullable: true,
-    validators: [Validators.required, Validators.min(0.01)],
+  protected readonly selectedServicoId = signal<string | null>(null);
+  protected readonly selectedServicoValor = computed<number | null>(() => {
+    const id = this.selectedServicoId();
+    if (!id) return null;
+    const s = this.servicos().find((x) => x.id === id);
+    return s?.valor_centavos ?? null;
   });
 
   constructor() {
@@ -326,10 +306,8 @@ export class AtendimentoDetailPage {
     return s.replace(/\D/g, '');
   }
 
-  aplicarServico(servico: Servico | null): void {
-    if (servico) {
-      this.valorControl.setValue(servico.valor_centavos / 100);
-    }
+  onSelectServico(id: string | null): void {
+    this.selectedServicoId.set(id);
   }
 
   async copiar(text: string, msg: string): Promise<void> {
@@ -351,11 +329,10 @@ export class AtendimentoDetailPage {
         this.error.set('Atendimento não encontrado');
         return;
       }
-      // Preenche valor com o do servico vinculado, se houver
-      if (a.servico && a.valor_centavos === null) {
-        this.valorControl.setValue(a.servico.valor_centavos / 100);
-      } else if (a.valor_centavos !== null) {
-        this.valorControl.setValue(a.valor_centavos / 100);
+      // Pré-seleciona o serviço do atendimento (escolhido pelo cliente),
+      // se houver. Admin pode trocar pelo dropdown.
+      if (a.servico_id) {
+        this.selectedServicoId.set(a.servico_id);
       }
     } catch (err) {
       this.error.set(
@@ -371,7 +348,7 @@ export class AtendimentoDetailPage {
       const list = await this.servicosSvc.listAtivos();
       this.servicos.set(list);
     } catch {
-      // silencioso — admin pode usar valor personalizado
+      // silencioso — o picker só fica vazio
     }
   }
 
@@ -381,22 +358,14 @@ export class AtendimentoDetailPage {
     await this.transition(a.id, 'em_andamento');
   }
 
-  async finalizarSuporte(): Promise<void> {
+  async cobrarEFinalizar(): Promise<void> {
     const a = this.atendimento();
-    if (!a) return;
-    await this.transition(a.id, 'faturamento');
-  }
-
-  async gerarPix(): Promise<void> {
-    const a = this.atendimento();
-    if (!a || this.valorControl.invalid) return;
-    const valor = this.valorControl.value;
-    const cents = Math.round(valor * 100);
-    if (cents <= 0) return;
+    const servicoId = this.selectedServicoId();
+    if (!a || !servicoId) return;
 
     this.updating.set(true);
     try {
-      await this.svc.generatePix(a.id, cents);
+      await this.svc.cobrarEFinalizar(a.id, servicoId);
       this.snackBar.open(
         'PIX gerado. Cliente já vê o QR Code.',
         'OK',

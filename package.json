@@ -25,10 +25,8 @@
     "@angular/service-worker": "^22.0.0-next.0",
     "@angular/ssr": "^22.0.0-rc.0",
     "@supabase/supabase-js": "^2.106.0",
-    "@thiagoprazeres/parse-e2eid": "github:thiagoprazeres/parse-e2eid",
     "@thiagoprazeres/pix-static-brcode": "^1.0.1",
     "express": "^5.1.0",
-    "ispb-banks": "^2.1.0",
     "qrcode": "^1.5.4",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"

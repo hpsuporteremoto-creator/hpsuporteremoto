@@ -24,7 +24,6 @@ import {
 
 const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
   'em-andamento',
-  'faturamento',
   'pagamento',
   'concluido',
 ];
@@ -68,7 +67,6 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
       animationDuration="0ms"
     >
       <mat-tab label="Em andamento" />
-      <mat-tab label="Faturamento" />
       <mat-tab label="Pagamento" />
       <mat-tab label="Concluídos" />
     </mat-tab-group>
@@ -131,8 +129,6 @@ export class AtendimentosListPage {
     switch (TAB_TO_FILTER[this.tabIndex()]) {
       case 'em-andamento':
         return 'Nenhum atendimento em andamento.';
-      case 'faturamento':
-        return 'Nenhum atendimento aguardando faturamento.';
       case 'pagamento':
         return 'Nenhum atendimento aguardando pagamento.';
       case 'concluido':

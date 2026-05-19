@@ -108,10 +108,10 @@ export class AtendimentosService {
     if (error) throw new Error(error.message);
   }
 
-  async generatePix(
+  async cobrarEFinalizar(
     atendimento_id: string,
-    valor_centavos: number,
-  ): Promise<{ pix_brcode: string }> {
+    servico_id: string,
+  ): Promise<{ pix_brcode: string; valor_centavos: number }> {
     const token = await this.auth.getAccessToken();
     if (!token) throw new Error('Sessão inválida');
 
@@ -121,17 +121,21 @@ export class AtendimentosService {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ atendimento_id, valor_centavos }),
+      body: JSON.stringify({ atendimento_id, servico_id }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
       pix_brcode?: string;
+      valor_centavos?: number;
     };
 
     if (!response.ok) {
       throw new Error(payload.error ?? `Erro ${response.status}`);
     }
-    return { pix_brcode: payload.pix_brcode ?? '' };
+    return {
+      pix_brcode: payload.pix_brcode ?? '',
+      valor_centavos: payload.valor_centavos ?? 0,
+    };
   }
 }
