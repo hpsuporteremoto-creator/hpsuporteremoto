@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
+  output,
   signal,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -24,6 +25,16 @@ import { AtendimentoService } from '../atendimento.service';
   ],
   template: `
     <div class="step">
+      <button
+        mat-button
+        type="button"
+        class="back-btn"
+        (click)="back.emit()"
+      >
+        <mat-icon>arrow_back</mat-icon>
+        <span>Trocar serviço</span>
+      </button>
+
       <header>
         <mat-icon class="chat">chat</mat-icon>
         <h1>Vamos começar</h1>
@@ -78,6 +89,8 @@ import { AtendimentoService } from '../atendimento.service';
 export class WhatsappStep {
   private readonly svc = inject(AtendimentoService);
   private readonly fb = inject(FormBuilder).nonNullable;
+
+  readonly back = output<void>();
 
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);

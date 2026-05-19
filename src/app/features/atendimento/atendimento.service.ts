@@ -9,6 +9,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { SupabaseService } from '../../core/supabase/supabase.service';
+import { Servico } from '../admin/servicos/servicos.types';
 import {
   ATENDIMENTO_STATE_LABEL,
   Atendimento,
@@ -34,10 +35,12 @@ export class AtendimentoService {
 
   private readonly _atendimento = signal<Atendimento | null>(null);
   private readonly _lookup = signal<ClienteLookupResult | null>(null);
+  private readonly _selectedServico = signal<Servico | null>(null);
   private channel: RealtimeChannel | null = null;
 
   readonly atendimento = this._atendimento.asReadonly();
   readonly lookup = this._lookup.asReadonly();
+  readonly selectedServico = this._selectedServico.asReadonly();
   readonly state = computed<AtendimentoState | null>(
     () => this._atendimento()?.state ?? null,
   );
@@ -69,6 +72,15 @@ export class AtendimentoService {
   }
 
   voltarParaWhatsapp(): void {
+    this._lookup.set(null);
+  }
+
+  selecionarServico(servico: Servico): void {
+    this._selectedServico.set(servico);
+  }
+
+  voltarParaVitrine(): void {
+    this._selectedServico.set(null);
     this._lookup.set(null);
   }
 
@@ -112,6 +124,7 @@ export class AtendimentoService {
     }
     this._atendimento.set(null);
     this._lookup.set(null);
+    this._selectedServico.set(null);
   }
 
   private async assinar(id: string): Promise<void> {

@@ -9,6 +9,7 @@ import { AtendimentoService } from '../atendimento.service';
 import { ConexaoForm } from '../components/conexao-form';
 import { EmAtendimento } from '../components/em-atendimento';
 import { Liquidacao } from '../components/liquidacao';
+import { Vitrine } from '../components/vitrine';
 import { WhatsappStep } from '../components/whatsapp-step';
 
 @Component({
@@ -19,6 +20,7 @@ import { WhatsappStep } from '../components/whatsapp-step';
     MatCardModule,
     MatIconModule,
     FunilStepper,
+    Vitrine,
     WhatsappStep,
     ConexaoForm,
     EmAtendimento,
@@ -42,14 +44,18 @@ import { WhatsappStep } from '../components/whatsapp-step';
         </div>
 
         @if (svc.state() === null) {
-          @if (svc.lookup(); as pre) {
+          @if (!svc.selectedServico()) {
+            <hp-vitrine />
+          } @else if (!svc.lookup()) {
+            <hp-whatsapp-step (back)="svc.voltarParaVitrine()" />
+          } @else {
             <hp-conexao-form
-              [preFill]="pre"
+              [preFill]="svc.lookup()"
+              [servico]="svc.selectedServico()"
               (back)="svc.voltarParaWhatsapp()"
+              (backToVitrine)="svc.voltarParaVitrine()"
               (created)="onCreated($event)"
             />
-          } @else {
-            <hp-whatsapp-step />
           }
         } @else {
           @switch (svc.state()) {
