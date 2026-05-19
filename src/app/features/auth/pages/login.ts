@@ -5,7 +5,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -56,6 +56,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 export class LoginPage {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -63,7 +64,8 @@ export class LoginPage {
   constructor() {
     effect(() => {
       if (this.auth.isAuthenticated()) {
-        this.router.navigate([this.auth.isAdmin() ? '/admin' : '/']);
+        const target = this.resolveTarget();
+        this.router.navigateByUrl(target);
       }
     });
   }
@@ -71,10 +73,34 @@ export class LoginPage {
   async signIn(): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
-    const { error } = await this.auth.signInWithGoogle();
+    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+    const { error } = await this.auth.signInWithGoogle(returnUrl);
     if (error) {
       this.error.set(error.message);
       this.loading.set(false);
     }
+  }
+
+  /**
+   * Decide para onde mandar o usuário recém-autenticado.
+   * Honra `?returnUrl=` quando for um path interno (começa com `/` mas
+   * não `//`) e o usuário for admin (ou estiver indo pra uma rota não-admin).
+   * Senão volta ao default: `/admin` se admin, `/` se cliente comum.
+   */
+  private resolveTarget(): string {
+    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+    const isAdmin = this.auth.isAdmin();
+    if (
+      returnUrl &&
+      returnUrl.startsWith('/') &&
+      !returnUrl.startsWith('//')
+    ) {
+      // Se a returnUrl for admin-only e o usuário não for admin, ignora.
+      if (returnUrl.startsWith('/admin') && !isAdmin) {
+        return '/';
+      }
+      return returnUrl;
+    }
+    return isAdmin ? '/admin' : '/';
   }
 }

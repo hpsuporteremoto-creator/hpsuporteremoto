@@ -35,12 +35,18 @@ export class AuthService {
     });
   }
 
-  signInWithGoogle() {
+  signInWithGoogle(returnUrl?: string | null) {
+    let redirectTo: string | undefined;
+    if (this.isBrowser) {
+      const origin = window.location.origin;
+      redirectTo =
+        returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//')
+          ? `${origin}/login?returnUrl=${encodeURIComponent(returnUrl)}`
+          : `${origin}/login`;
+    }
     return this.supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: {
-        redirectTo: this.isBrowser ? `${window.location.origin}/` : undefined,
-      },
+      options: { redirectTo },
     });
   }
 
