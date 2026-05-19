@@ -8,8 +8,8 @@ export const adminRoutes: Routes = [
   },
   {
     path: 'usuarios',
-    loadComponent: () =>
-      import('./pages/criar-usuario').then((m) => m.CriarUsuarioPage),
+    loadChildren: () =>
+      import('./usuarios/usuarios.routes').then((m) => m.usuariosRoutes),
   },
   {
     path: 'clientes',
