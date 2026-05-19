@@ -28,4 +28,9 @@ export const adminRoutes: Routes = [
         (m) => m.atendimentosRoutes,
       ),
   },
+  {
+    path: 'financeiro',
+    loadChildren: () =>
+      import('./financeiro/financeiro.routes').then((m) => m.financeiroRoutes),
+  },
 ];

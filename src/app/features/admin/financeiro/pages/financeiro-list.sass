@@ -1,0 +1,125 @@
+.spacer
+  flex: 1
+
+.content
+  padding: 1rem
+  max-width: 48rem
+  margin: 0 auto
+  display: flex
+  flex-direction: column
+  gap: 1rem
+
+.error
+  color: #ff6b6b
+  text-align: center
+
+.empty
+  color: var(--mat-sys-on-surface-variant)
+  text-align: center
+  padding: 2rem
+
+.filter-card
+  background: var(--mat-sys-surface-container)
+
+.filter-content
+  display: grid
+  grid-template-columns: 1fr 1fr
+  gap: 0.75rem
+  padding: 1rem 1.25rem !important
+
+  mat-form-field
+    width: 100%
+
+.resumo
+  display: grid
+  grid-template-columns: repeat(3, 1fr)
+  gap: 0.5rem
+
+.resumo-card
+  background: var(--mat-sys-surface-container)
+
+.resumo-card mat-card-content
+  display: flex
+  flex-direction: column
+  gap: 0.25rem
+  padding: 0.75rem 1rem !important
+  text-align: center
+
+  small
+    color: var(--mat-sys-on-surface-variant)
+    font-size: 0.6875rem
+    text-transform: uppercase
+    letter-spacing: 0.04em
+
+  strong
+    font-size: 1rem
+    font-weight: 600
+
+.resumo-card.entrada strong
+  color: #4caf50
+
+.resumo-card.saida strong
+  color: #ef5350
+
+.resumo-card.saldo strong
+  color: var(--mat-sys-tertiary)
+
+.resumo-card.saldo.negativo strong
+  color: #ef5350
+
+.list
+  display: flex
+  flex-direction: column
+  gap: 0.5rem
+
+.transacao-card
+  background: var(--mat-sys-surface-container)
+  border-left: 3px solid transparent
+
+.transacao-card.tipo-entrada
+  border-left-color: #4caf50
+
+.transacao-card.tipo-saida
+  border-left-color: #ef5350
+
+.row
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 0.75rem
+  padding: 0.625rem 1rem !important
+
+.info
+  display: flex
+  flex-direction: column
+  gap: 0.125rem
+  min-width: 0
+  flex: 1
+
+.descricao
+  color: var(--mat-sys-on-surface)
+  font-weight: 500
+
+.data
+  color: var(--mat-sys-on-surface-variant)
+  font-size: 0.75rem
+
+.valor-wrap
+  display: flex
+  align-items: center
+  gap: 0.25rem
+  flex-shrink: 0
+
+.valor
+  font-weight: 600
+  font-variant-numeric: tabular-nums
+
+.tipo-entrada .valor
+  color: #4caf50
+
+.tipo-saida .valor
+  color: #ef5350
+
+@media (max-width: 28rem)
+  .resumo
+    grid-template-columns: 1fr
