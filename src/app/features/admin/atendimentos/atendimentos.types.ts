@@ -24,9 +24,12 @@ export interface AtendimentoServicoRef {
 export interface AtendimentoComRelacoes extends Atendimento {
   cliente: AtendimentoClienteRef;
   servico: AtendimentoServicoRef | null;
+  servicos_solicitados: AtendimentoServicoRef[];
 }
 
 export type AtendimentoListFilter =
-  | 'em-andamento'
+  | 'novos'
+  | 'em_andamento'
   | 'pagamento'
-  | 'concluido';
+  | 'concluido'
+  | 'recusado';

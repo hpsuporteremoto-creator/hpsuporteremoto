@@ -18,7 +18,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { Servico } from '../../admin/servicos/servicos.types';
-import { AtendimentoService } from '../atendimento.service';
 import { ClienteLookupResult, ConexaoFormData } from '../atendimento.types';
 
 @Component({
@@ -37,21 +36,11 @@ import { ClienteLookupResult, ConexaoFormData } from '../atendimento.types';
   template: `
     <div class="conexao">
       <div class="back-row">
-        <button
-          mat-button
-          type="button"
-          class="back-btn"
-          (click)="backToVitrine.emit()"
-        >
+        <button mat-button type="button" class="back-btn" (click)="backToVitrine.emit()">
           <mat-icon>arrow_back</mat-icon>
           <span>Trocar serviço</span>
         </button>
-        <button
-          mat-button
-          type="button"
-          class="back-btn"
-          (click)="back.emit()"
-        >
+        <button mat-button type="button" class="back-btn" (click)="back.emit()">
           <mat-icon>edit</mat-icon>
           <span>Trocar WhatsApp</span>
         </button>
@@ -63,15 +52,14 @@ import { ClienteLookupResult, ConexaoFormData } from '../atendimento.types';
           <mat-icon class="welcome">waving_hand</mat-icon>
           <h1>Olá, {{ pre?.nome }}!</h1>
           <p class="hint">
-            Confirme/atualize seus dados e descreva o problema que você
-            precisa de ajuda.
+            Confirme/atualize seus dados e descreva o problema que você precisa resolver.
           </p>
         } @else {
-          <mat-icon class="monitor">desktop_windows</mat-icon>
+          <mat-icon class="monitor">edit_note</mat-icon>
           <h1>Solicitar atendimento</h1>
           <p class="hint">
-            Compartilhe o ID do RustDesk e a senha temporária pra começarmos o
-            suporte. Mantenha o RustDesk aberto.
+            Conte rapidamente o que você precisa. As credenciais do RustDesk entram na próxima
+            etapa, se você já tiver em mãos.
           </p>
         }
       </header>
@@ -80,14 +68,16 @@ import { ClienteLookupResult, ConexaoFormData } from '../atendimento.types';
         <mat-progress-bar mode="indeterminate" />
       }
 
-      @if (servico(); as s) {
+      @if (servicos().length > 0) {
         <section class="servico-resumo">
-          <h2>Serviço escolhido</h2>
-          <div class="servico-pill">
-            <mat-icon>design_services</mat-icon>
-            <span class="servico-nome">{{ s.nome }}</span>
-            <span class="servico-valor">{{ s.valor_centavos / 100 | currency }}</span>
-          </div>
+          <h2>Serviços escolhidos</h2>
+          @for (s of servicos(); track s.id) {
+            <div class="servico-pill">
+              <mat-icon>design_services</mat-icon>
+              <span class="servico-nome">{{ s.nome }}</span>
+              <span class="servico-valor">{{ s.valor_centavos / 100 | currency }}</span>
+            </div>
+          }
         </section>
       }
 
@@ -140,38 +130,7 @@ import { ClienteLookupResult, ConexaoFormData } from '../atendimento.types';
           <mat-form-field appearance="outline">
             <mat-label>Email (opcional)</mat-label>
             <mat-icon matIconPrefix>mail</mat-icon>
-            <input
-              matInput
-              type="email"
-              formControlName="email"
-              autocomplete="email"
-            />
-          </mat-form-field>
-        </section>
-
-        <section class="rustdesk">
-          <h2>Credenciais do RustDesk</h2>
-
-          <mat-form-field appearance="outline">
-            <mat-label>ID do RustDesk</mat-label>
-            <mat-icon matIconPrefix>desktop_windows</mat-icon>
-            <input
-              matInput
-              formControlName="rustdesk_id"
-              inputmode="numeric"
-              required
-            />
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Senha temporária do RustDesk</mat-label>
-            <mat-icon matIconPrefix>key</mat-icon>
-            <input
-              matInput
-              type="text"
-              formControlName="rustdesk_password"
-              required
-            />
+            <input matInput type="email" formControlName="email" autocomplete="email" />
           </mat-form-field>
         </section>
 
@@ -185,8 +144,8 @@ import { ClienteLookupResult, ConexaoFormData } from '../atendimento.types';
           type="submit"
           [disabled]="form.invalid || submitting()"
         >
-          <mat-icon>send</mat-icon>
-          <span>{{ submitting() ? 'Enviando…' : 'Iniciar atendimento' }}</span>
+          <mat-icon>arrow_forward</mat-icon>
+          <span>Continuar para RustDesk</span>
         </button>
       </form>
     </div>
@@ -195,12 +154,11 @@ import { ClienteLookupResult, ConexaoFormData } from '../atendimento.types';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConexaoForm {
-  private readonly svc = inject(AtendimentoService);
   private readonly fb = inject(FormBuilder).nonNullable;
 
   readonly preFill = input<ClienteLookupResult | null>(null);
-  readonly servico = input<Servico | null>(null);
-  readonly created = output<string>();
+  readonly servicos = input<ReadonlyArray<Servico>>([]);
+  readonly drafted = output<ConexaoFormData>();
   readonly back = output<void>();
   readonly backToVitrine = output<void>();
 
@@ -216,8 +174,6 @@ export class ConexaoForm {
     whatsapp: ['', [Validators.required, Validators.minLength(10)]],
     instagram: [''],
     email: ['', [Validators.email]],
-    rustdesk_id: ['', [Validators.required, Validators.minLength(6)]],
-    rustdesk_password: ['', [Validators.required, Validators.minLength(4)]],
   });
 
   constructor() {
@@ -236,10 +192,9 @@ export class ConexaoForm {
     });
   }
 
-  async onSubmit(): Promise<void> {
+  onSubmit(): void {
     if (this.form.invalid) return;
 
-    this.submitting.set(true);
     this.error.set(null);
 
     const value = this.form.getRawValue();
@@ -248,21 +203,11 @@ export class ConexaoForm {
       whatsapp: value.whatsapp.trim(),
       instagram: value.instagram.trim() || null,
       email: value.email.trim() || null,
-      rustdesk_id: value.rustdesk_id.trim(),
-      rustdesk_password: value.rustdesk_password.trim(),
-      servico_id: this.servico()?.id ?? null,
+      servico_id: this.servicos()[0]?.id ?? null,
+      servico_ids: this.servicos().map((servico) => servico.id),
       descricao_solicitacao: value.descricao_solicitacao.trim() || null,
     };
 
-    try {
-      const id = await this.svc.criar(data);
-      this.created.emit(id);
-    } catch (err) {
-      this.error.set(
-        err instanceof Error ? err.message : 'Erro ao criar atendimento',
-      );
-    } finally {
-      this.submitting.set(false);
-    }
+    this.drafted.emit(data);
   }
 }

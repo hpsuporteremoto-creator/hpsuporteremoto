@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  PLATFORM_ID,
-  inject,
-  signal,
-} from '@angular/core';
+import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -12,12 +7,13 @@ import { SupabaseService } from '../../../core/supabase/supabase.service';
 import {
   Atendimento,
   AtendimentoComRelacoes,
+  AtendimentoServicoRef,
   AtendimentoListFilter,
   AtendimentoState,
 } from './atendimentos.types';
 
 const SELECT = `
-  id, cliente_id, servico_id, rustdesk_id, rustdesk_password,
+  id, cliente_id, servico_id, servico_ids, rustdesk_id, rustdesk_password,
   state, valor_centavos, pix_brcode, descricao_solicitacao,
   created_at, updated_at,
   cliente:clientes ( id, nome, whatsapp, instagram, email ),
@@ -61,7 +57,7 @@ export class AtendimentosService {
           this._newCount.update((n) => n + 1);
           this.notifications.notify(
             'Nova solicitação',
-            `Atendimento via RustDesk ${a.rustdesk_id}`,
+            a.rustdesk_id ? `RustDesk ${a.rustdesk_id}` : 'Cliente ainda não informou RustDesk',
             { tag: `nova:${a.id}` },
           );
         },
@@ -79,15 +75,15 @@ export class AtendimentosService {
       .select(SELECT)
       .order('created_at', { ascending: false });
 
-    if (filter === 'em-andamento') {
-      query = query.in('state', ['aguardando_confirmacao', 'em_andamento']);
+    if (filter === 'novos') {
+      query = query.eq('state', 'aguardando_confirmacao');
     } else {
       query = query.eq('state', filter);
     }
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as AtendimentoComRelacoes[];
+    return this.hydrateServicosSolicitados((data ?? []) as unknown as AtendimentoComRelacoes[]);
   }
 
   async get(id: string): Promise<AtendimentoComRelacoes | null> {
@@ -97,14 +93,14 @@ export class AtendimentosService {
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return (data ?? null) as unknown as AtendimentoComRelacoes | null;
+    const rows = await this.hydrateServicosSolicitados(
+      data ? ([data] as unknown as AtendimentoComRelacoes[]) : [],
+    );
+    return rows[0] ?? null;
   }
 
   async updateState(id: string, state: AtendimentoState): Promise<void> {
-    const { error } = await this.supabase
-      .from('atendimentos')
-      .update({ state })
-      .eq('id', id);
+    const { error } = await this.supabase.from('atendimentos').update({ state }).eq('id', id);
     if (error) throw new Error(error.message);
   }
 
@@ -137,5 +133,46 @@ export class AtendimentosService {
       pix_brcode: payload.pix_brcode ?? '',
       valor_centavos: payload.valor_centavos ?? 0,
     };
+  }
+
+  private async hydrateServicosSolicitados(
+    rows: AtendimentoComRelacoes[],
+  ): Promise<AtendimentoComRelacoes[]> {
+    const ids = Array.from(
+      new Set(
+        rows.flatMap((row) => {
+          const ids = row.servico_ids ?? [];
+          return ids.length > 0 ? ids : row.servico_id ? [row.servico_id] : [];
+        }),
+      ),
+    );
+    if (ids.length === 0) {
+      return rows.map((row) => ({ ...row, servicos_solicitados: [] }));
+    }
+
+    const { data, error } = await this.supabase
+      .from('servicos')
+      .select('id, nome, valor_centavos')
+      .in('id', ids);
+    if (error) throw new Error(error.message);
+
+    const byId = new Map(
+      ((data ?? []) as AtendimentoServicoRef[]).map((servico) => [servico.id, servico]),
+    );
+    return rows.map((row) => {
+      const rowIds =
+        row.servico_ids && row.servico_ids.length > 0
+          ? row.servico_ids
+          : row.servico_id
+            ? [row.servico_id]
+            : [];
+      return {
+        ...row,
+        servicos_solicitados: rowIds.flatMap((id) => {
+          const servico = byId.get(id);
+          return servico ? [servico] : [];
+        }),
+      };
+    });
   }
 }

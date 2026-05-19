@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   inject,
+  output,
   signal,
 } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
@@ -15,7 +16,6 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { ServicosService } from '../../admin/servicos/servicos.service';
 import { Servico } from '../../admin/servicos/servicos.types';
-import { AtendimentoService } from '../atendimento.service';
 
 const SEM_CATEGORIA = 'Outros';
 
@@ -36,9 +36,7 @@ const SEM_CATEGORIA = 'Outros';
       <header>
         <mat-icon class="storefront">storefront</mat-icon>
         <h1>O que você precisa?</h1>
-        <p class="hint">
-          Escolha o serviço que melhor descreve sua necessidade pra começar.
-        </p>
+        <p class="hint">Escolha o serviço que melhor descreve sua necessidade pra começar.</p>
       </header>
 
       @if (loading()) {
@@ -80,10 +78,9 @@ const SEM_CATEGORIA = 'Outros';
               Todos
             </mat-chip-option>
             @for (cat of categorias(); track cat) {
-              <mat-chip-option
-                [selected]="categoriaFiltro() === cat"
-                [value]="cat"
-              >{{ cat }}</mat-chip-option>
+              <mat-chip-option [selected]="categoriaFiltro() === cat" [value]="cat">{{
+                cat
+              }}</mat-chip-option>
             }
           </mat-chip-listbox>
         }
@@ -100,13 +97,18 @@ const SEM_CATEGORIA = 'Outros';
                     <mat-card
                       class="servico-option"
                       appearance="filled"
-                      (click)="escolher(s)"
+                      [class.selected]="isSelected(s.id)"
+                      [attr.aria-pressed]="isSelected(s.id)"
+                      (click)="toggleServico(s.id)"
                       tabindex="0"
-                      (keydown.enter)="escolher(s)"
-                      (keydown.space)="escolher(s); $event.preventDefault()"
+                      (keydown.enter)="toggleServico(s.id)"
+                      (keydown.space)="toggleServico(s.id); $event.preventDefault()"
                       role="button"
                     >
                       <mat-card-content class="servico-option-content">
+                        <mat-icon class="selection-icon">
+                          {{ isSelected(s.id) ? 'check_circle' : 'add_circle' }}
+                        </mat-icon>
                         <strong class="servico-nome">{{ s.nome }}</strong>
                         <span class="servico-valor">
                           {{ s.valor_centavos / 100 | currency }}
@@ -119,6 +121,28 @@ const SEM_CATEGORIA = 'Outros';
             }
           </div>
         }
+
+        <div class="selection-bar" aria-live="polite">
+          <div>
+            <strong>{{ selectedCount() }}</strong>
+            <span>
+              {{ selectedCount() === 1 ? 'serviço selecionado' : 'serviços selecionados' }}
+            </span>
+            @if (selectedTotal() > 0) {
+              <small>{{ selectedTotal() / 100 | currency }}</small>
+            }
+          </div>
+          <button
+            mat-flat-button
+            color="primary"
+            type="button"
+            [disabled]="selectedCount() === 0"
+            (click)="continuar()"
+          >
+            <mat-icon>arrow_forward</mat-icon>
+            <span>Continuar</span>
+          </button>
+        </div>
       }
     </div>
   `,
@@ -127,14 +151,21 @@ const SEM_CATEGORIA = 'Outros';
 })
 export class Vitrine {
   private readonly servicosSvc = inject(ServicosService);
-  private readonly svc = inject(AtendimentoService);
+
+  readonly selected = output<Servico[]>();
 
   protected readonly servicos = signal<Servico[]>([]);
   protected readonly servicosLoaded = signal(false);
   protected readonly loading = signal(false);
   protected readonly search = signal('');
   protected readonly categoriaFiltro = signal<string | null>(null);
-
+  protected readonly selectedIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly selectedCount = computed(() => this.selectedIds().size);
+  protected readonly selectedTotal = computed(() =>
+    this.servicos()
+      .filter((servico) => this.selectedIds().has(servico.id))
+      .reduce((total, servico) => total + servico.valor_centavos, 0),
+  );
   protected readonly categorias = computed(() => {
     const set = new Set<string>();
     for (const s of this.servicos()) {
@@ -193,8 +224,27 @@ export class Vitrine {
     }
   }
 
-  escolher(s: Servico): void {
-    this.svc.selecionarServico(s);
+  isSelected(id: string): boolean {
+    return this.selectedIds().has(id);
+  }
+
+  toggleServico(id: string): void {
+    this.selectedIds.update((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  continuar(): void {
+    const ids = this.selectedIds();
+    const selected = this.servicos().filter((servico) => ids.has(servico.id));
+    if (selected.length === 0) return;
+    this.selected.emit(selected);
   }
 
   async carregar(): Promise<void> {

@@ -1,11 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  effect,
-  inject,
-  input,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -38,14 +31,14 @@ import { Atendimento } from '../atendimento.types';
       }
 
       @if (atendimento().pix_brcode; as brcode) {
-        <button
-          mat-flat-button
-          class="copy"
-          type="button"
-          (click)="copiar(brcode)"
-        >
+        <div class="copy-paste">
+          <strong>Pix copia e cola</strong>
+          <code>{{ brcode }}</code>
+        </div>
+
+        <button mat-flat-button class="copy" type="button" (click)="copiar(brcode)">
           <mat-icon>content_copy</mat-icon>
-          <span>Copiar Chave PIX</span>
+          <span>Copiar Pix copia e cola</span>
         </button>
       }
     </div>

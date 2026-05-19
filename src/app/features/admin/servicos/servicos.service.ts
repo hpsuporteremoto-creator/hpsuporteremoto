@@ -38,6 +38,22 @@ export class ServicosService {
     return data;
   }
 
+  async getMany(ids: readonly string[]): Promise<Servico[]> {
+    if (ids.length === 0) return [];
+    const { data, error } = await this.supabase
+      .from(this.table)
+      .select('*')
+      .in('id', [...ids])
+      .eq('ativo', true);
+    if (error) throw new Error(error.message);
+    const servicos = (data ?? []) as Servico[];
+    const byId = new Map(servicos.map((servico) => [servico.id, servico]));
+    return ids.flatMap((id) => {
+      const servico = byId.get(id);
+      return servico ? [servico] : [];
+    });
+  }
+
   async create(input: ServicoFormData): Promise<Servico> {
     const { data, error } = await this.supabase
       .from(this.table)
@@ -60,10 +76,7 @@ export class ServicosService {
   }
 
   async toggleAtivo(id: string, ativo: boolean): Promise<void> {
-    const { error } = await this.supabase
-      .from(this.table)
-      .update({ ativo })
-      .eq('id', id);
+    const { error } = await this.supabase.from(this.table).update({ ativo }).eq('id', id);
     if (error) throw new Error(error.message);
   }
 }

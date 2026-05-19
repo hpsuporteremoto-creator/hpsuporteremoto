@@ -22,6 +22,10 @@ supabase/.branches/
 .env
 .env.*
 !.env.example
+.dev.vars
+
+# Wrangler local state
+.wrangler/
 
 # IDEs and editors
 .idea/

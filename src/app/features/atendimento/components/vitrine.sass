@@ -71,14 +71,26 @@
   .servico-option:hover
     outline-color: rgba(33, 150, 243, 0.32)
 
+  .servico-option.selected
+    outline-color: var(--mat-sys-primary)
+    background: rgba(33, 150, 243, 0.18)
+
   .servico-option:active
     transform: scale(0.98)
 
   .servico-option-content
-    display: flex
-    flex-direction: column
+    display: grid
+    grid-template-columns: auto 1fr
     gap: 0.25rem
     padding: 0.75rem 1rem !important
+
+  .selection-icon
+    grid-row: 1 / span 2
+    align-self: center
+    color: var(--mat-sys-primary)
+    font-size: 1.25rem
+    height: 1.25rem
+    width: 1.25rem
 
   .servico-nome
     color: var(--mat-sys-on-surface)
@@ -89,3 +101,35 @@
     color: var(--mat-sys-tertiary)
     font-weight: 600
     font-size: 0.9375rem
+
+  .selection-bar
+    position: sticky
+    bottom: 0
+    display: flex
+    align-items: center
+    justify-content: space-between
+    gap: 1rem
+    background: var(--mat-sys-surface-container-high)
+    border-radius: 0.5rem
+    padding: 0.75rem
+
+    div
+      display: flex
+      flex-direction: column
+      gap: 0.125rem
+      color: var(--mat-sys-on-surface)
+
+    strong
+      font-size: 1.125rem
+
+    span,
+    small
+      color: var(--mat-sys-on-surface-variant)
+      font-size: 0.8125rem
+
+    button
+      min-width: 8rem
+      display: inline-flex
+      align-items: center
+      justify-content: center
+      gap: 0.5rem

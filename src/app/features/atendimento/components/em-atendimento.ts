@@ -9,7 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
     <div class="lock">
       <mat-progress-spinner mode="indeterminate" diameter="80" />
       <h1>Suporte em andamento</h1>
-      <p>Não feche o RustDesk. Aguarde até o atendente finalizar.</p>
+      <p>Se estiver usando RustDesk, mantenha aberto até o atendente finalizar.</p>
     </div>
   `,
   styleUrl: './em-atendimento.sass',

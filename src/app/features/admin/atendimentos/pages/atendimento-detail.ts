@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe, Location } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -80,7 +74,8 @@ import { Servico } from '../../servicos/servicos.types';
                 [href]="'https://wa.me/' + onlyDigits(a.cliente.whatsapp)"
                 target="_blank"
                 rel="noopener"
-              >{{ a.cliente.whatsapp }}</a>
+                >{{ a.cliente.whatsapp }}</a
+              >
             </p>
             @if (a.cliente.email) {
               <p><mat-icon>mail</mat-icon> {{ a.cliente.email }}</p>
@@ -90,18 +85,28 @@ import { Servico } from '../../servicos/servicos.types';
             }
             <p class="meta">
               <mat-icon>schedule</mat-icon>
-              Solicitado em {{ a.created_at | date:'short' }}
+              Solicitado em {{ a.created_at | date: 'short' }}
             </p>
           </mat-card-content>
         </mat-card>
 
-        @if (a.descricao_solicitacao || a.servico) {
+        @if (a.descricao_solicitacao || a.servicos_solicitados.length > 0 || a.servico) {
           <mat-card appearance="filled" class="info-card">
             <mat-card-header>
               <mat-card-title>Solicitação</mat-card-title>
             </mat-card-header>
             <mat-card-content class="solicitacao-content">
-              @if (a.servico; as s) {
+              @if (a.servicos_solicitados.length > 0) {
+                @for (s of a.servicos_solicitados; track s.id) {
+                  <div class="servico-pill">
+                    <mat-icon>design_services</mat-icon>
+                    <span class="servico-nome">{{ s.nome }}</span>
+                    <span class="servico-valor">
+                      {{ s.valor_centavos / 100 | currency }}
+                    </span>
+                  </div>
+                }
+              } @else if (a.servico; as s) {
                 <div class="servico-pill">
                   <mat-icon>design_services</mat-icon>
                   <span class="servico-nome">{{ s.nome }}</span>
@@ -125,29 +130,37 @@ import { Servico } from '../../servicos/servicos.types';
             <div class="kv">
               <small>ID</small>
               <div class="copyable">
-                <code>{{ a.rustdesk_id }}</code>
-                <button
-                  mat-icon-button
-                  type="button"
-                  (click)="copiar(a.rustdesk_id, 'ID copiado')"
-                  aria-label="Copiar ID"
-                >
-                  <mat-icon>content_copy</mat-icon>
-                </button>
+                @if (a.rustdesk_id) {
+                  <code>{{ a.rustdesk_id }}</code>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    (click)="copiar(a.rustdesk_id, 'ID copiado')"
+                    aria-label="Copiar ID"
+                  >
+                    <mat-icon>content_copy</mat-icon>
+                  </button>
+                } @else {
+                  <code class="muted">Não informado</code>
+                }
               </div>
             </div>
             <div class="kv">
               <small>Senha temporária</small>
               <div class="copyable">
-                <code>{{ a.rustdesk_password }}</code>
-                <button
-                  mat-icon-button
-                  type="button"
-                  (click)="copiar(a.rustdesk_password, 'Senha copiada')"
-                  aria-label="Copiar senha"
-                >
-                  <mat-icon>content_copy</mat-icon>
-                </button>
+                @if (a.rustdesk_password) {
+                  <code>{{ a.rustdesk_password }}</code>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    (click)="copiar(a.rustdesk_password, 'Senha copiada')"
+                    aria-label="Copiar senha"
+                  >
+                    <mat-icon>content_copy</mat-icon>
+                  </button>
+                } @else {
+                  <code class="muted">Não informada</code>
+                }
               </div>
             </div>
           </mat-card-content>
@@ -158,24 +171,36 @@ import { Servico } from '../../servicos/servicos.types';
             @switch (a.state) {
               @case ('aguardando_confirmacao') {
                 <p class="state-hint">
-                  Cliente enviou as credenciais. Confira o RustDesk e confirme
-                  o atendimento quando estiver pronto pra começar.
+                  Solicitação recebida em tempo real. Aceite para iniciar o serviço ou recuse se não
+                  puder atender agora.
                 </p>
-                <button
-                  mat-flat-button
-                  color="primary"
-                  type="button"
-                  (click)="confirmar()"
-                  [disabled]="updating()"
-                >
-                  <mat-icon>check</mat-icon>
-                  <span>Confirmar atendimento</span>
-                </button>
+                <div class="action-row">
+                  <button
+                    mat-flat-button
+                    color="primary"
+                    type="button"
+                    (click)="confirmar()"
+                    [disabled]="updating()"
+                  >
+                    <mat-icon>check</mat-icon>
+                    <span>Aceitar e iniciar</span>
+                  </button>
+                  <button
+                    mat-stroked-button
+                    color="warn"
+                    type="button"
+                    (click)="recusar()"
+                    [disabled]="updating()"
+                  >
+                    <mat-icon>block</mat-icon>
+                    <span>Recusar</span>
+                  </button>
+                </div>
               }
               @case ('em_andamento') {
                 <p class="state-hint">
-                  Suporte em andamento. Quando terminar, confirme o serviço e
-                  cobre via PIX — o valor é puxado do cadastro do serviço.
+                  Atendimento em execução. Ao terminar, confirme o serviço para gerar o PIX e enviar
+                  o cliente para pagamento.
                 </p>
 
                 <mat-form-field appearance="outline" class="full-width">
@@ -191,9 +216,7 @@ import { Servico } from '../../servicos/servicos.types';
                     }
                   </mat-select>
                   @if (servicos().length === 0) {
-                    <mat-hint>
-                      Nenhum serviço ativo. Cadastre em /admin/servicos.
-                    </mat-hint>
+                    <mat-hint> Nenhum serviço ativo. Cadastre em /admin/servicos. </mat-hint>
                   }
                 </mat-form-field>
 
@@ -207,7 +230,7 @@ import { Servico } from '../../servicos/servicos.types';
                   <mat-icon>qr_code_2</mat-icon>
                   <span>
                     @if (selectedServicoValor(); as v) {
-                      Cobrar {{ v / 100 | currency }} e finalizar
+                      Finalizar e cobrar {{ v / 100 | currency }}
                     } @else {
                       Selecione um serviço
                     }
@@ -216,8 +239,8 @@ import { Servico } from '../../servicos/servicos.types';
               }
               @case ('pagamento') {
                 <p class="state-hint">
-                  PIX gerado. O cliente está vendo o QR Code. Marque como pago
-                  quando confirmar o recebimento na conta.
+                  PIX gerado. O cliente está vendo o QR Code. Marque como pago quando confirmar o
+                  recebimento na conta.
                 </p>
                 @if (a.valor_centavos !== null) {
                   <p class="valor">{{ a.valor_centavos / 100 | currency }}</p>
@@ -252,9 +275,13 @@ import { Servico } from '../../servicos/servicos.types';
                 @if (a.valor_centavos !== null) {
                   <p class="valor">{{ a.valor_centavos / 100 | currency }}</p>
                 }
-                <p class="meta">
-                  Finalizado em {{ a.updated_at | date:'short' }}
+                <p class="meta">Finalizado em {{ a.updated_at | date: 'short' }}</p>
+              }
+              @case ('recusado') {
+                <p class="state-hint">
+                  Atendimento recusado. O cliente foi avisado na tela de status.
                 </p>
+                <p class="meta">Atualizado em {{ a.updated_at | date: 'short' }}</p>
               }
             }
           </mat-card-content>
@@ -333,11 +360,11 @@ export class AtendimentoDetailPage {
       // se houver. Admin pode trocar pelo dropdown.
       if (a.servico_id) {
         this.selectedServicoId.set(a.servico_id);
+      } else if (a.servico_ids?.[0]) {
+        this.selectedServicoId.set(a.servico_ids[0]);
       }
     } catch (err) {
-      this.error.set(
-        err instanceof Error ? err.message : 'Erro ao carregar',
-      );
+      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar');
     } finally {
       this.loading.set(false);
     }
@@ -358,6 +385,12 @@ export class AtendimentoDetailPage {
     await this.transition(a.id, 'em_andamento');
   }
 
+  async recusar(): Promise<void> {
+    const a = this.atendimento();
+    if (!a) return;
+    await this.transition(a.id, 'recusado');
+  }
+
   async cobrarEFinalizar(): Promise<void> {
     const a = this.atendimento();
     const servicoId = this.selectedServicoId();
@@ -366,11 +399,7 @@ export class AtendimentoDetailPage {
     this.updating.set(true);
     try {
       await this.svc.cobrarEFinalizar(a.id, servicoId);
-      this.snackBar.open(
-        'PIX gerado. Cliente já vê o QR Code.',
-        'OK',
-        { duration: 3000 },
-      );
+      this.snackBar.open('PIX gerado. Cliente já vê o QR Code.', 'OK', { duration: 3000 });
       await this.carregar(a.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao gerar PIX';
@@ -386,10 +415,7 @@ export class AtendimentoDetailPage {
     await this.transition(a.id, 'concluido');
   }
 
-  private async transition(
-    id: string,
-    state: AtendimentoState,
-  ): Promise<void> {
+  private async transition(id: string, state: AtendimentoState): Promise<void> {
     this.updating.set(true);
     try {
       await this.svc.updateState(id, state);

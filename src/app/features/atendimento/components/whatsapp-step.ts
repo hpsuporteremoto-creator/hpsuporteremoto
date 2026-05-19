@@ -1,7 +1,9 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  effect,
   inject,
+  input,
   output,
   signal,
 } from '@angular/core';
@@ -12,6 +14,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { AtendimentoService } from '../atendimento.service';
+import { ClienteLookupResult } from '../atendimento.types';
 
 @Component({
   selector: 'hp-whatsapp-step',
@@ -25,12 +28,7 @@ import { AtendimentoService } from '../atendimento.service';
   ],
   template: `
     <div class="step">
-      <button
-        mat-button
-        type="button"
-        class="back-btn"
-        (click)="back.emit()"
-      >
+      <button mat-button type="button" class="back-btn" (click)="back.emit()">
         <mat-icon>arrow_back</mat-icon>
         <span>Trocar serviço</span>
       </button>
@@ -39,8 +37,8 @@ import { AtendimentoService } from '../atendimento.service';
         <mat-icon class="chat">chat</mat-icon>
         <h1>Vamos começar</h1>
         <p class="hint">
-          Informe seu WhatsApp pra agilizar o atendimento. Se você já foi
-          cliente, vamos puxar seus dados automaticamente.
+          Informe seu WhatsApp pra agilizar o atendimento. Se você já foi cliente, vamos puxar seus
+          dados automaticamente.
         </p>
       </header>
 
@@ -90,7 +88,9 @@ export class WhatsappStep {
   private readonly svc = inject(AtendimentoService);
   private readonly fb = inject(FormBuilder).nonNullable;
 
+  readonly whatsapp = input<string | null>(null);
   readonly back = output<void>();
+  readonly lookedUp = output<ClienteLookupResult>();
 
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -99,16 +99,23 @@ export class WhatsappStep {
     whatsapp: ['', [Validators.required, Validators.minLength(10)]],
   });
 
+  constructor() {
+    effect(() => {
+      const whatsapp = this.whatsapp();
+      if (!whatsapp) return;
+      this.form.patchValue({ whatsapp }, { emitEvent: false });
+    });
+  }
+
   async onSubmit(): Promise<void> {
     if (this.form.invalid) return;
     this.loading.set(true);
     this.error.set(null);
     try {
-      await this.svc.lookupPorWhatsapp(this.form.getRawValue().whatsapp);
+      const result = await this.svc.lookupPorWhatsapp(this.form.getRawValue().whatsapp);
+      this.lookedUp.emit(result);
     } catch (err) {
-      this.error.set(
-        err instanceof Error ? err.message : 'Erro ao consultar WhatsApp',
-      );
+      this.error.set(err instanceof Error ? err.message : 'Erro ao consultar WhatsApp');
     } finally {
       this.loading.set(false);
     }

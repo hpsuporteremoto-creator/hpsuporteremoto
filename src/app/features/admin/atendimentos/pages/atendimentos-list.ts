@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe, Location } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -23,9 +17,11 @@ import {
 } from '../atendimentos.types';
 
 const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
-  'em-andamento',
+  'novos',
+  'em_andamento',
   'pagamento',
   'concluido',
+  'recusado',
 ];
 
 @Component({
@@ -66,9 +62,11 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
       mat-stretch-tabs="false"
       animationDuration="0ms"
     >
-      <mat-tab label="Em andamento" />
+      <mat-tab label="Novos" />
+      <mat-tab label="Em atendimento" />
       <mat-tab label="Pagamento" />
       <mat-tab label="Concluídos" />
+      <mat-tab label="Recusados" />
     </mat-tab-group>
 
     @if (loading()) {
@@ -92,10 +90,18 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
                     <div class="info">
                       <strong class="cliente">{{ a.cliente.nome }}</strong>
                       <small class="meta">
-                        {{ a.cliente.whatsapp }} · RustDesk {{ a.rustdesk_id }}
+                        {{ a.cliente.whatsapp }}
+                        @if (a.rustdesk_id) {
+                          · RustDesk {{ a.rustdesk_id }}
+                        }
                       </small>
+                      @if (a.servicos_solicitados.length > 0) {
+                        <small class="meta">
+                          {{ servicosLabel(a.servicos_solicitados) }}
+                        </small>
+                      }
                       <small class="meta">
-                        {{ a.created_at | date:'short' }}
+                        {{ a.created_at | date: 'short' }}
                       </small>
                     </div>
                     <span class="state-badge state-{{ a.state }}">
@@ -118,21 +124,23 @@ export class AtendimentosListPage {
   private readonly location = inject(Location);
   protected readonly notifications = inject(NotificationService);
 
-  protected readonly atendimentos = signal<AtendimentoComRelacoes[] | null>(
-    null,
-  );
+  protected readonly atendimentos = signal<AtendimentoComRelacoes[] | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly tabIndex = signal(0);
 
   protected readonly emptyMessage = computed(() => {
     switch (TAB_TO_FILTER[this.tabIndex()]) {
-      case 'em-andamento':
-        return 'Nenhum atendimento em andamento.';
+      case 'novos':
+        return 'Nenhuma solicitação nova.';
+      case 'em_andamento':
+        return 'Nenhum atendimento em execução.';
       case 'pagamento':
         return 'Nenhum atendimento aguardando pagamento.';
       case 'concluido':
         return 'Nenhum atendimento concluído ainda.';
+      case 'recusado':
+        return 'Nenhum atendimento recusado.';
       default:
         return 'Nada por aqui.';
     }
@@ -156,6 +164,10 @@ export class AtendimentosListPage {
     return ATENDIMENTO_STATE_LABEL[state];
   }
 
+  servicosLabel(servicos: AtendimentoComRelacoes['servicos_solicitados']): string {
+    return servicos.map((servico) => servico.nome).join(', ');
+  }
+
   async ativarNotificacoes(): Promise<void> {
     await this.notifications.requestPermission();
   }
@@ -167,9 +179,7 @@ export class AtendimentosListPage {
       const data = await this.svc.list(TAB_TO_FILTER[this.tabIndex()]);
       this.atendimentos.set(data);
     } catch (err) {
-      this.error.set(
-        err instanceof Error ? err.message : 'Erro ao carregar atendimentos',
-      );
+      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar atendimentos');
     } finally {
       this.loading.set(false);
     }
