@@ -8,13 +8,18 @@ import {
 import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../../core/auth/auth.service';
-import { IonIcon } from '../../../shared/ion-icon';
 
 @Component({
   selector: 'hp-login',
-  imports: [MatButtonModule, MatCardModule, MatProgressSpinnerModule, IonIcon],
+  imports: [
+    MatButtonModule,
+    MatCardModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+  ],
   template: `
     <main class="login-wrap">
       <mat-card class="login-card" appearance="filled">
@@ -34,7 +39,7 @@ import { IonIcon } from '../../../shared/ion-icon';
             @if (loading()) {
               <mat-progress-spinner mode="indeterminate" diameter="20" />
             } @else {
-              <ion-icon name="log-in-outline" />
+              <mat-icon>login</mat-icon>
             }
             <span>{{ loading() ? 'Entrando…' : 'Entrar com Google' }}</span>
           </button>
@@ -58,7 +63,6 @@ export class LoginPage {
   constructor() {
     effect(() => {
       if (this.auth.isAuthenticated()) {
-        // Admin cai no painel; cliente comum cai no fluxo de atendimento.
         this.router.navigate([this.auth.isAdmin() ? '/admin' : '/']);
       }
     });

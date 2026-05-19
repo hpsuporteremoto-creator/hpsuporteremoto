@@ -2,11 +2,11 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
 import { AtendimentoService } from '../atendimento.service';
 import { ConexaoForm } from '../components/conexao-form';
 import { EmAtendimento } from '../components/em-atendimento';
 import { Liquidacao } from '../components/liquidacao';
-import { IonIcon } from '../../../shared/ion-icon';
 
 @Component({
   selector: 'hp-atendimento-page',
@@ -14,7 +14,7 @@ import { IonIcon } from '../../../shared/ion-icon';
     RouterLink,
     MatButtonModule,
     MatCardModule,
-    IonIcon,
+    MatIconModule,
     ConexaoForm,
     EmAtendimento,
     Liquidacao,
@@ -27,7 +27,7 @@ import { IonIcon } from '../../../shared/ion-icon';
       aria-label="Acesso admin"
       title="Acesso admin"
     >
-      <ion-icon name="lock-closed-outline" />
+      <mat-icon>lock</mat-icon>
     </a>
 
     <main class="page">
