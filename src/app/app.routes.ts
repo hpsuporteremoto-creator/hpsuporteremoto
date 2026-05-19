@@ -1,21 +1,25 @@
 import { Routes } from '@angular/router';
-import { adminGuard, authGuard } from './core/auth/auth.guard';
+import { adminGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   {
+    path: '',
+    pathMatch: 'full',
+    loadComponent: () =>
+      import('./features/atendimento/pages/atendimento-page').then(
+        (m) => m.AtendimentoPage,
+      ),
+  },
+  {
     path: 'login',
-    loadComponent: () => import('./pages/login/login').then((m) => m.LoginComponent),
+    loadComponent: () =>
+      import('./features/auth/pages/login').then((m) => m.LoginPage),
   },
   {
     path: 'admin',
     canActivate: [adminGuard],
-    loadComponent: () => import('./pages/admin/admin').then((m) => m.AdminComponent),
-  },
-  {
-    path: '',
-    canActivate: [authGuard],
-    pathMatch: 'full',
-    loadComponent: () => import('./pages/home/home').then((m) => m.HomeComponent),
+    loadChildren: () =>
+      import('./features/admin/admin.routes').then((m) => m.adminRoutes),
   },
   { path: '**', redirectTo: '' },
 ];

@@ -11,7 +11,7 @@
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
-          "style": "scss",
+          "style": "sass",
           "skipTests": true
         },
         "@schematics/angular:class": {
@@ -45,23 +45,19 @@
           "options": {
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
-            "inlineStyleLanguage": "scss",
+            "inlineStyleLanguage": "sass",
+            "allowedCommonJsDependencies": ["qrcode"],
             "assets": [
               {
                 "glob": "**/*",
                 "input": "public"
               }
             ],
-            "styles": [
-              "src/styles.scss"
-            ],
+            "styles": ["src/styles.sass"],
             "server": "src/main.server.ts",
             "outputMode": "server",
             "security": {
-              "allowedHosts": [
-                "hpsuporteremoto.netlify.app",
-                ".netlify.app"
-              ]
+              "allowedHosts": ["hpsuporteremoto.netlify.app", ".netlify.app"]
             },
             "ssr": {
               "entry": "src/server.ts"
@@ -81,7 +77,8 @@
                   "maximumError": "8kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "serviceWorker": "ngsw-config.json"
             },
             "development": {
               "optimization": false,
