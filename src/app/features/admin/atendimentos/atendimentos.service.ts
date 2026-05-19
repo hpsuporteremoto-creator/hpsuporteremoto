@@ -1,7 +1,16 @@
-import { Injectable, inject } from '@angular/core';
+import {
+  Injectable,
+  PLATFORM_ID,
+  inject,
+  signal,
+} from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import { RealtimeChannel } from '@supabase/supabase-js';
 import { AuthService } from '../../../core/auth/auth.service';
+import { NotificationService } from '../../../core/notifications/notification.service';
 import { SupabaseService } from '../../../core/supabase/supabase.service';
 import {
+  Atendimento,
   AtendimentoComRelacoes,
   AtendimentoListFilter,
   AtendimentoState,
@@ -9,7 +18,8 @@ import {
 
 const SELECT = `
   id, cliente_id, servico_id, rustdesk_id, rustdesk_password,
-  state, valor_centavos, pix_brcode, created_at, updated_at,
+  state, valor_centavos, pix_brcode, descricao_solicitacao,
+  created_at, updated_at,
   cliente:clientes ( id, nome, whatsapp, instagram, email ),
   servico:servicos ( id, nome, valor_centavos )
 `;
@@ -18,6 +28,50 @@ const SELECT = `
 export class AtendimentosService {
   private readonly supabase = inject(SupabaseService).client;
   private readonly auth = inject(AuthService);
+  private readonly notifications = inject(NotificationService);
+  private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+
+  private adminChannel: RealtimeChannel | null = null;
+
+  private readonly _newCount = signal(0);
+  readonly newCount = this._newCount.asReadonly();
+
+  constructor() {
+    if (this.isBrowser) {
+      void this.bootstrapAdminRealtime();
+    }
+  }
+
+  private async bootstrapAdminRealtime(): Promise<void> {
+    await this.auth.ready;
+    if (!this.auth.isAdmin()) return;
+    if (this.adminChannel) return;
+
+    this.adminChannel = this.supabase
+      .channel('atendimentos-admin')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'atendimentos',
+        },
+        (payload) => {
+          const a = payload.new as Atendimento;
+          this._newCount.update((n) => n + 1);
+          this.notifications.notify(
+            'Nova solicitação',
+            `Atendimento via RustDesk ${a.rustdesk_id}`,
+            { tag: `nova:${a.id}` },
+          );
+        },
+      )
+      .subscribe();
+  }
+
+  resetNewCount(): void {
+    this._newCount.set(0);
+  }
 
   async list(filter: AtendimentoListFilter): Promise<AtendimentoComRelacoes[]> {
     let query = this.supabase
@@ -26,7 +80,7 @@ export class AtendimentosService {
       .order('created_at', { ascending: false });
 
     if (filter === 'em-andamento') {
-      query = query.in('state', ['conexao', 'em_atendimento']);
+      query = query.in('state', ['aguardando_confirmacao', 'em_andamento']);
     } else {
       query = query.eq('state', filter);
     }

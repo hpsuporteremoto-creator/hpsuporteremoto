@@ -7,8 +7,10 @@ import {
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { NotificationService } from '../../core/notifications/notification.service';
 import { SupabaseService } from '../../core/supabase/supabase.service';
 import {
+  ATENDIMENTO_STATE_LABEL,
   Atendimento,
   AtendimentoState,
   ConexaoFormData,
@@ -18,14 +20,15 @@ import {
 @Injectable({ providedIn: 'root' })
 export class AtendimentoService {
   private readonly supabase = inject(SupabaseService).client;
+  private readonly notifications = inject(NotificationService);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   private readonly _atendimento = signal<Atendimento | null>(null);
   private channel: RealtimeChannel | null = null;
 
   readonly atendimento = this._atendimento.asReadonly();
-  readonly state = computed<AtendimentoState>(
-    () => this._atendimento()?.state ?? 'conexao',
+  readonly state = computed<AtendimentoState | null>(
+    () => this._atendimento()?.state ?? null,
   );
 
   constructor() {
@@ -83,7 +86,6 @@ export class AtendimentoService {
       .maybeSingle<Atendimento>();
 
     if (error || !data) {
-      // ID inválido ou expirado: limpa estado e localStorage
       this.limpar();
       return;
     }
@@ -106,8 +108,17 @@ export class AtendimentoService {
           filter: `id=eq.${id}`,
         },
         (payload) => {
+          const previousState = this._atendimento()?.state ?? null;
           const next = payload.new as Atendimento;
           this._atendimento.set(next);
+
+          if (previousState && previousState !== next.state) {
+            this.notifications.notify(
+              'HP suporte remoto',
+              `Status: ${ATENDIMENTO_STATE_LABEL[next.state]}`,
+              { tag: `atendimento:${next.id}` },
+            );
+          }
         },
       )
       .subscribe();

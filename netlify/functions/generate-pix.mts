@@ -98,6 +98,16 @@ export default async (req: Request, _context: Context): Promise<Response> => {
   if (fetchError) return json({ error: fetchError.message }, 500);
   if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
 
+  if (atendimento.state !== 'faturamento') {
+    return json(
+      {
+        error:
+          'PIX só pode ser gerado quando o atendimento está em faturamento',
+      },
+      409,
+    );
+  }
+
   const brcode = generateStaticBrCode({
     pixKey,
     receiverName: projectReceiverName(receiverNameRaw),
@@ -111,7 +121,7 @@ export default async (req: Request, _context: Context): Promise<Response> => {
     .update({
       pix_brcode: brcode,
       valor_centavos,
-      state: 'liquidacao',
+      state: 'pagamento',
     })
     .eq('id', atendimento_id);
 
@@ -121,7 +131,7 @@ export default async (req: Request, _context: Context): Promise<Response> => {
     {
       pix_brcode: brcode,
       valor_centavos,
-      state: 'liquidacao',
+      state: 'pagamento',
     },
     200,
   );

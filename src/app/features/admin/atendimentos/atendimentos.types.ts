@@ -1,6 +1,11 @@
-import { Atendimento, AtendimentoState } from '../../atendimento/atendimento.types';
+import {
+  Atendimento,
+  AtendimentoState,
+  ATENDIMENTO_STATE_LABEL,
+} from '../../atendimento/atendimento.types';
 
 export type { Atendimento, AtendimentoState };
+export { ATENDIMENTO_STATE_LABEL };
 
 export interface AtendimentoClienteRef {
   id: string;
@@ -23,5 +28,6 @@ export interface AtendimentoComRelacoes extends Atendimento {
 
 export type AtendimentoListFilter =
   | 'em-andamento'
-  | 'liquidacao'
-  | 'finalizado';
+  | 'faturamento'
+  | 'pagamento'
+  | 'concluido';

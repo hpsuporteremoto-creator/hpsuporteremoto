@@ -16,20 +16,15 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { FunilStepper } from '../../../../shared/funil-stepper';
 import { AtendimentosService } from '../atendimentos.service';
 import {
+  ATENDIMENTO_STATE_LABEL,
   AtendimentoComRelacoes,
   AtendimentoState,
 } from '../atendimentos.types';
 import { ServicosService } from '../../servicos/servicos.service';
 import { Servico } from '../../servicos/servicos.types';
-
-const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
-  conexao: 'Conexão',
-  em_atendimento: 'Em atendimento',
-  liquidacao: 'Pagamento',
-  finalizado: 'Concluído',
-};
 
 @Component({
   selector: 'hp-atendimento-detail',
@@ -45,6 +40,7 @@ const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
     MatProgressBarModule,
     MatSelectModule,
     MatToolbarModule,
+    FunilStepper,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -70,6 +66,10 @@ const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
       }
 
       @if (atendimento(); as a) {
+        <div class="stepper-wrap">
+          <hp-funil-stepper [currentState]="a.state" />
+        </div>
+
         <mat-card appearance="filled" class="info-card">
           <mat-card-header>
             <mat-card-title>{{ a.cliente.nome }}</mat-card-title>
@@ -157,26 +157,42 @@ const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
         <mat-card appearance="filled" class="info-card">
           <mat-card-content class="state-content">
             @switch (a.state) {
-              @case ('conexao') {
+              @case ('aguardando_confirmacao') {
                 <p class="state-hint">
-                  Cliente enviou as credenciais. Conecte no RustDesk e inicie
-                  quando estiver dentro.
+                  Cliente enviou as credenciais. Confira o RustDesk e confirme
+                  o atendimento quando estiver pronto pra começar.
                 </p>
                 <button
                   mat-flat-button
                   color="primary"
                   type="button"
-                  (click)="iniciar()"
+                  (click)="confirmar()"
                   [disabled]="updating()"
                 >
-                  <mat-icon>play_arrow</mat-icon>
-                  <span>Iniciar atendimento</span>
+                  <mat-icon>check</mat-icon>
+                  <span>Confirmar atendimento</span>
                 </button>
               }
-              @case ('em_atendimento') {
+              @case ('em_andamento') {
                 <p class="state-hint">
-                  Suporte em andamento. Quando terminar, escolha um serviço (ou
-                  digite um valor custom) e gere a cobrança PIX.
+                  Suporte em andamento. Quando terminar de resolver, finalize
+                  o suporte pra ir pra etapa de faturamento.
+                </p>
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="button"
+                  (click)="finalizarSuporte()"
+                  [disabled]="updating()"
+                >
+                  <mat-icon>request_quote</mat-icon>
+                  <span>Finalizar suporte</span>
+                </button>
+              }
+              @case ('faturamento') {
+                <p class="state-hint">
+                  Escolha um serviço (ou digite um valor custom) e gere a
+                  cobrança PIX. O cliente verá o QR Code imediatamente.
                 </p>
 
                 <mat-form-field appearance="outline" class="full-width">
@@ -221,10 +237,10 @@ const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
                   <span>Gerar PIX e cobrar</span>
                 </button>
               }
-              @case ('liquidacao') {
+              @case ('pagamento') {
                 <p class="state-hint">
-                  PIX gerado. O cliente está vendo o QR Code agora. Marque como
-                  pago quando confirmar o recebimento.
+                  PIX gerado. O cliente está vendo o QR Code. Marque como pago
+                  quando confirmar o recebimento na conta.
                 </p>
                 @if (a.valor_centavos !== null) {
                   <p class="valor">{{ a.valor_centavos / 100 | currency }}</p>
@@ -247,14 +263,14 @@ const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
                   mat-flat-button
                   color="primary"
                   type="button"
-                  (click)="finalizar()"
+                  (click)="marcarPago()"
                   [disabled]="updating()"
                 >
                   <mat-icon>check_circle</mat-icon>
                   <span>Marcar como pago e finalizar</span>
                 </button>
               }
-              @case ('finalizado') {
+              @case ('concluido') {
                 <p class="state-hint">Atendimento concluído.</p>
                 @if (a.valor_centavos !== null) {
                   <p class="valor">{{ a.valor_centavos / 100 | currency }}</p>
@@ -303,7 +319,7 @@ export class AtendimentoDetailPage {
   }
 
   stateLabel(state: AtendimentoState): string {
-    return STATE_LABEL[state];
+    return ATENDIMENTO_STATE_LABEL[state];
   }
 
   onlyDigits(s: string): string {
@@ -333,6 +349,13 @@ export class AtendimentoDetailPage {
       this.atendimento.set(a);
       if (!a) {
         this.error.set('Atendimento não encontrado');
+        return;
+      }
+      // Preenche valor com o do servico vinculado, se houver
+      if (a.servico && a.valor_centavos === null) {
+        this.valorControl.setValue(a.servico.valor_centavos / 100);
+      } else if (a.valor_centavos !== null) {
+        this.valorControl.setValue(a.valor_centavos / 100);
       }
     } catch (err) {
       this.error.set(
@@ -345,17 +368,23 @@ export class AtendimentoDetailPage {
 
   async carregarServicos(): Promise<void> {
     try {
-      const list = await this.servicosSvc.list();
-      this.servicos.set(list.filter((s) => s.ativo));
+      const list = await this.servicosSvc.listAtivos();
+      this.servicos.set(list);
     } catch {
       // silencioso — admin pode usar valor personalizado
     }
   }
 
-  async iniciar(): Promise<void> {
+  async confirmar(): Promise<void> {
     const a = this.atendimento();
     if (!a) return;
-    await this.transition(a.id, 'em_atendimento');
+    await this.transition(a.id, 'em_andamento');
+  }
+
+  async finalizarSuporte(): Promise<void> {
+    const a = this.atendimento();
+    if (!a) return;
+    await this.transition(a.id, 'faturamento');
   }
 
   async gerarPix(): Promise<void> {
@@ -382,10 +411,10 @@ export class AtendimentoDetailPage {
     }
   }
 
-  async finalizar(): Promise<void> {
+  async marcarPago(): Promise<void> {
     const a = this.atendimento();
     if (!a) return;
-    await this.transition(a.id, 'finalizado');
+    await this.transition(a.id, 'concluido');
   }
 
   private async transition(

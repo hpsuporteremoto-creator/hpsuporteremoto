@@ -13,8 +13,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { NotificationService } from '../../../../core/notifications/notification.service';
 import { AtendimentosService } from '../atendimentos.service';
 import {
+  ATENDIMENTO_STATE_LABEL,
   AtendimentoComRelacoes,
   AtendimentoListFilter,
   AtendimentoState,
@@ -22,16 +24,10 @@ import {
 
 const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
   'em-andamento',
-  'liquidacao',
-  'finalizado',
+  'faturamento',
+  'pagamento',
+  'concluido',
 ];
-
-const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
-  conexao: 'Conexão',
-  em_atendimento: 'Em atendimento',
-  liquidacao: 'Pagamento',
-  finalizado: 'Concluído',
-};
 
 @Component({
   selector: 'hp-atendimentos-list',
@@ -51,6 +47,18 @@ const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
         <mat-icon>arrow_back</mat-icon>
       </button>
       <span>Atendimentos</span>
+      <span class="spacer"></span>
+      @if (notifications.canRequest()) {
+        <button
+          mat-icon-button
+          type="button"
+          (click)="ativarNotificacoes()"
+          aria-label="Ativar notificações"
+          title="Ativar notificações"
+        >
+          <mat-icon>notifications</mat-icon>
+        </button>
+      }
     </mat-toolbar>
 
     <mat-tab-group
@@ -60,6 +68,7 @@ const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
       animationDuration="0ms"
     >
       <mat-tab label="Em andamento" />
+      <mat-tab label="Faturamento" />
       <mat-tab label="Pagamento" />
       <mat-tab label="Concluídos" />
     </mat-tab-group>
@@ -109,6 +118,7 @@ const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
 export class AtendimentosListPage {
   private readonly svc = inject(AtendimentosService);
   private readonly location = inject(Location);
+  protected readonly notifications = inject(NotificationService);
 
   protected readonly atendimentos = signal<AtendimentoComRelacoes[] | null>(
     null,
@@ -121,9 +131,11 @@ export class AtendimentosListPage {
     switch (TAB_TO_FILTER[this.tabIndex()]) {
       case 'em-andamento':
         return 'Nenhum atendimento em andamento.';
-      case 'liquidacao':
+      case 'faturamento':
+        return 'Nenhum atendimento aguardando faturamento.';
+      case 'pagamento':
         return 'Nenhum atendimento aguardando pagamento.';
-      case 'finalizado':
+      case 'concluido':
         return 'Nenhum atendimento concluído ainda.';
       default:
         return 'Nada por aqui.';
@@ -131,6 +143,7 @@ export class AtendimentosListPage {
   });
 
   constructor() {
+    this.svc.resetNewCount();
     void this.carregar();
   }
 
@@ -144,7 +157,11 @@ export class AtendimentosListPage {
   }
 
   stateLabel(state: AtendimentoState): string {
-    return STATE_LABEL[state];
+    return ATENDIMENTO_STATE_LABEL[state];
+  }
+
+  async ativarNotificacoes(): Promise<void> {
+    await this.notifications.requestPermission();
   }
 
   async carregar(): Promise<void> {

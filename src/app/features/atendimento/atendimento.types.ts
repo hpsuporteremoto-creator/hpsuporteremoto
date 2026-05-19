@@ -1,8 +1,17 @@
 export type AtendimentoState =
-  | 'conexao'
-  | 'em_atendimento'
-  | 'liquidacao'
-  | 'finalizado';
+  | 'aguardando_confirmacao'
+  | 'em_andamento'
+  | 'faturamento'
+  | 'pagamento'
+  | 'concluido';
+
+export const ATENDIMENTO_STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
+  aguardando_confirmacao: 'Aguardando confirmação',
+  em_andamento: 'Em andamento',
+  faturamento: 'Faturamento',
+  pagamento: 'Pagamento',
+  concluido: 'Concluído',
+};
 
 export interface Atendimento {
   id: string;
