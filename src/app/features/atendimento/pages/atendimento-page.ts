@@ -3,7 +3,6 @@ import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { FunilStepper } from '../../../shared/funil-stepper';
 import { AtendimentoService } from '../atendimento.service';
@@ -18,7 +17,6 @@ import { Liquidacao } from '../components/liquidacao';
     MatButtonModule,
     MatCardModule,
     MatIconModule,
-    MatProgressSpinnerModule,
     FunilStepper,
     ConexaoForm,
     EmAtendimento,
@@ -47,7 +45,7 @@ import { Liquidacao } from '../components/liquidacao';
           @switch (svc.state()) {
             @case ('aguardando_confirmacao') {
               <div class="status status-aguardando">
-                <mat-progress-spinner mode="indeterminate" diameter="64" />
+                <mat-icon class="wait-glyph">hourglass_empty</mat-icon>
                 <h1>Solicitação enviada</h1>
                 <p>
                   Estamos verificando sua solicitação. Aguarde alguns instantes
@@ -61,7 +59,7 @@ import { Liquidacao } from '../components/liquidacao';
             }
             @case ('faturamento') {
               <div class="status status-faturamento">
-                <mat-progress-spinner mode="indeterminate" diameter="64" />
+                <mat-icon class="wait-glyph">request_quote</mat-icon>
                 <h1>Calculando o valor</h1>
                 <p>
                   O atendente está finalizando os detalhes do serviço. Em

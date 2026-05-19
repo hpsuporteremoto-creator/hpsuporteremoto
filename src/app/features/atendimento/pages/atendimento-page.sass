@@ -52,6 +52,27 @@
     color: var(--mat-sys-on-surface-variant)
     opacity: 0.8
 
+.wait-glyph
+  font-size: 4rem
+  width: 4rem
+  height: 4rem
+  line-height: 4rem
+  color: var(--mat-sys-primary)
+  animation: hp-wait-breath 2.4s ease-in-out infinite
+
+@keyframes hp-wait-breath
+  0%, 100%
+    opacity: 0.45
+    transform: scale(0.96)
+  50%
+    opacity: 1
+    transform: scale(1)
+
+@media (prefers-reduced-motion: reduce)
+  .wait-glyph
+    animation: none
+    opacity: 0.8
+
 .status-concluido .check
   font-size: 4rem
   width: 4rem
