@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { AuthService } from '../../../core/auth/auth.service';
+import { IonIcon } from '../../../shared/ion-icon';
 
 interface AdminShortcut {
   readonly label: string;
@@ -18,8 +18,8 @@ interface AdminShortcut {
     RouterLink,
     MatButtonModule,
     MatCardModule,
-    MatIconModule,
     MatToolbarModule,
+    IonIcon,
   ],
   template: `
     <mat-toolbar color="primary" class="topbar">
@@ -34,7 +34,7 @@ interface AdminShortcut {
         (click)="signOut()"
         aria-label="Sair"
       >
-        <mat-icon>logout</mat-icon>
+        <ion-icon name="log-out-outline" />
       </button>
     </mat-toolbar>
 
@@ -48,12 +48,12 @@ interface AdminShortcut {
           >
             @if (item.route) {
               <a [routerLink]="item.route" class="shortcut-link">
-                <mat-icon class="shortcut-icon">{{ item.icon }}</mat-icon>
+                <ion-icon class="shortcut-icon" [name]="item.icon" />
                 <span class="shortcut-label">{{ item.label }}</span>
               </a>
             } @else {
               <span class="shortcut-link">
-                <mat-icon class="shortcut-icon">{{ item.icon }}</mat-icon>
+                <ion-icon class="shortcut-icon" [name]="item.icon" />
                 <span class="shortcut-label">{{ item.label }}</span>
                 <small>em breve</small>
               </span>
@@ -71,11 +71,11 @@ export class AdminHome {
   private readonly router = inject(Router);
 
   protected readonly shortcuts: ReadonlyArray<AdminShortcut> = [
-    { label: 'Criar usuário', icon: 'person_add', route: 'usuarios' },
-    { label: 'Clientes', icon: 'groups', route: null },
-    { label: 'Serviços', icon: 'design_services', route: null },
-    { label: 'Financeiro', icon: 'payments', route: null },
-    { label: 'Atendimentos', icon: 'support_agent', route: null },
+    { label: 'Criar usuário', icon: 'person-add-outline', route: 'usuarios' },
+    { label: 'Clientes', icon: 'people-outline', route: null },
+    { label: 'Serviços', icon: 'briefcase-outline', route: null },
+    { label: 'Financeiro', icon: 'cash-outline', route: null },
+    { label: 'Atendimentos', icon: 'headset-outline', route: null },
   ];
 
   async signOut(): Promise<void> {

@@ -8,18 +8,13 @@ import {
 import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../../core/auth/auth.service';
+import { IonIcon } from '../../../shared/ion-icon';
 
 @Component({
   selector: 'hp-login',
-  imports: [
-    MatButtonModule,
-    MatCardModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-  ],
+  imports: [MatButtonModule, MatCardModule, MatProgressSpinnerModule, IonIcon],
   template: `
     <main class="login-wrap">
       <mat-card class="login-card" appearance="filled">
@@ -39,7 +34,7 @@ import { AuthService } from '../../../core/auth/auth.service';
             @if (loading()) {
               <mat-progress-spinner mode="indeterminate" diameter="20" />
             } @else {
-              <mat-icon>login</mat-icon>
+              <ion-icon name="log-in-outline" />
             }
             <span>{{ loading() ? 'Entrando…' : 'Entrar com Google' }}</span>
           </button>

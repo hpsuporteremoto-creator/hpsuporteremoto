@@ -28,6 +28,7 @@
     "@thiagoprazeres/parse-e2eid": "github:thiagoprazeres/parse-e2eid",
     "@thiagoprazeres/pix-static-brcode": "^1.0.1",
     "express": "^5.1.0",
+    "ionicons": "^8.0.13",
     "ispb-banks": "^2.1.0",
     "qrcode": "^1.5.4",
     "rxjs": "~7.8.0",

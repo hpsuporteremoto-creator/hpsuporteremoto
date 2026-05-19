@@ -9,12 +9,12 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { AuthService } from '../../../core/auth/auth.service';
+import { IonIcon } from '../../../shared/ion-icon';
 
 @Component({
   selector: 'hp-criar-usuario',
@@ -23,10 +23,10 @@ import { AuthService } from '../../../core/auth/auth.service';
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
-    MatIconModule,
     MatInputModule,
     MatProgressBarModule,
     MatToolbarModule,
+    IonIcon,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -36,7 +36,7 @@ import { AuthService } from '../../../core/auth/auth.service';
         (click)="voltar()"
         aria-label="Voltar"
       >
-        <mat-icon>arrow_back</mat-icon>
+        <ion-icon name="arrow-back-outline" />
       </button>
       <span>Criar novo usuário</span>
     </mat-toolbar>
@@ -56,7 +56,7 @@ import { AuthService } from '../../../core/auth/auth.service';
           <form [formGroup]="form" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Email</mat-label>
-              <mat-icon matIconPrefix>mail</mat-icon>
+              <ion-icon matIconPrefix name="mail-outline" />
               <input
                 matInput
                 type="email"
@@ -77,7 +77,7 @@ import { AuthService } from '../../../core/auth/auth.service';
               type="submit"
               [disabled]="form.invalid || loading()"
             >
-              <mat-icon>person_add</mat-icon>
+              <ion-icon name="person-add-outline" />
               <span>Criar usuário</span>
             </button>
           </form>

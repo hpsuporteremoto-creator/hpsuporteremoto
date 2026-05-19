@@ -8,18 +8,18 @@ import {
   signal,
 } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import QRCode from 'qrcode';
 import { Atendimento } from '../atendimento.types';
+import { IonIcon } from '../../../shared/ion-icon';
 
 @Component({
   selector: 'hp-liquidacao',
-  imports: [MatButtonModule, MatIconModule],
+  imports: [MatButtonModule, IonIcon],
   template: `
     <div class="liquidacao">
       <header>
-        <mat-icon class="check">check_circle</mat-icon>
+        <ion-icon class="check" name="checkmark-circle-outline" />
         <h1>Atendimento finalizado</h1>
         <p class="hint">Pague com PIX para concluir.</p>
       </header>
@@ -43,7 +43,7 @@ import { Atendimento } from '../atendimento.types';
           type="button"
           (click)="copiar(brcode)"
         >
-          <mat-icon>content_copy</mat-icon>
+          <ion-icon name="copy-outline" />
           <span>Copiar Chave PIX</span>
         </button>
       }

@@ -8,11 +8,11 @@ import {
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { AtendimentoService } from '../atendimento.service';
 import { ConexaoFormData } from '../atendimento.types';
+import { IonIcon } from '../../../shared/ion-icon';
 
 @Component({
   selector: 'hp-conexao-form',
@@ -20,14 +20,14 @@ import { ConexaoFormData } from '../atendimento.types';
     ReactiveFormsModule,
     MatButtonModule,
     MatFormFieldModule,
-    MatIconModule,
     MatInputModule,
     MatProgressBarModule,
+    IonIcon,
   ],
   template: `
     <div class="conexao">
       <header>
-        <mat-icon class="monitor">desktop_windows</mat-icon>
+        <ion-icon class="monitor" name="desktop-outline" />
         <h1>Solicitar atendimento</h1>
         <p class="hint">
           Compartilhe o ID do RustDesk e a senha temporária pra começarmos o
@@ -47,7 +47,7 @@ import { ConexaoFormData } from '../atendimento.types';
 
         <mat-form-field appearance="outline">
           <mat-label>WhatsApp</mat-label>
-          <mat-icon matIconPrefix>chat</mat-icon>
+          <ion-icon matIconPrefix name="logo-whatsapp" />
           <input
             matInput
             type="tel"
@@ -66,7 +66,7 @@ import { ConexaoFormData } from '../atendimento.types';
 
         <mat-form-field appearance="outline">
           <mat-label>Email (opcional)</mat-label>
-          <mat-icon matIconPrefix>mail</mat-icon>
+          <ion-icon matIconPrefix name="mail-outline" />
           <input
             matInput
             type="email"
@@ -77,7 +77,7 @@ import { ConexaoFormData } from '../atendimento.types';
 
         <mat-form-field appearance="outline">
           <mat-label>ID do RustDesk</mat-label>
-          <mat-icon matIconPrefix>desktop_windows</mat-icon>
+          <ion-icon matIconPrefix name="desktop-outline" />
           <input
             matInput
             formControlName="rustdesk_id"
@@ -88,7 +88,7 @@ import { ConexaoFormData } from '../atendimento.types';
 
         <mat-form-field appearance="outline">
           <mat-label>Senha temporária do RustDesk</mat-label>
-          <mat-icon matIconPrefix>key</mat-icon>
+          <ion-icon matIconPrefix name="key-outline" />
           <input
             matInput
             type="text"
@@ -107,7 +107,7 @@ import { ConexaoFormData } from '../atendimento.types';
           type="submit"
           [disabled]="form.invalid || loading()"
         >
-          <mat-icon>send</mat-icon>
+          <ion-icon name="paper-plane-outline" />
           <span>{{ loading() ? 'Enviando…' : 'Iniciar atendimento' }}</span>
         </button>
       </form>
