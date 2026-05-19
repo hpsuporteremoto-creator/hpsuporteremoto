@@ -21,7 +21,7 @@ import { IonIcon } from '../../../shared/ion-icon';
         <mat-card-content class="login-content">
           <h1>HP suporte remoto</h1>
           <p class="hint">
-            Faça login com sua conta Google autorizada para acessar o sistema.
+            Entre com sua conta Google para acessar o sistema.
           </p>
           <button
             mat-flat-button
@@ -58,7 +58,8 @@ export class LoginPage {
   constructor() {
     effect(() => {
       if (this.auth.isAuthenticated()) {
-        this.router.navigate(['/admin']);
+        // Admin cai no painel; cliente comum cai no fluxo de atendimento.
+        this.router.navigate([this.auth.isAdmin() ? '/admin' : '/']);
       }
     });
   }
