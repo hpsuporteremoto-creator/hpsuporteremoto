@@ -4,7 +4,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -37,21 +37,21 @@ import { AtendimentoService } from '../atendimento.service';
         <mat-progress-bar mode="indeterminate" />
       }
 
-      <form (ngSubmit)="onSubmit()">
+      <form [formGroup]="form" (ngSubmit)="onSubmit()">
         <mat-form-field appearance="outline">
           <mat-label>WhatsApp</mat-label>
           <mat-icon matIconPrefix>chat</mat-icon>
           <input
             matInput
             type="tel"
-            [formControl]="whatsapp"
+            formControlName="whatsapp"
             autocomplete="tel"
             placeholder="(11) 99999-9999"
             required
           />
-          @if (whatsapp.hasError('required')) {
+          @if (form.controls.whatsapp.hasError('required')) {
             <mat-error>WhatsApp é obrigatório</mat-error>
-          } @else if (whatsapp.hasError('minlength')) {
+          } @else if (form.controls.whatsapp.hasError('minlength')) {
             <mat-error>Informe pelo menos 10 dígitos</mat-error>
           }
         </mat-form-field>
@@ -64,7 +64,7 @@ import { AtendimentoService } from '../atendimento.service';
           mat-flat-button
           color="primary"
           type="submit"
-          [disabled]="whatsapp.invalid || loading()"
+          [disabled]="form.invalid || loading()"
         >
           <mat-icon>arrow_forward</mat-icon>
           <span>Continuar</span>
@@ -77,21 +77,21 @@ import { AtendimentoService } from '../atendimento.service';
 })
 export class WhatsappStep {
   private readonly svc = inject(AtendimentoService);
+  private readonly fb = inject(FormBuilder).nonNullable;
 
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  protected readonly whatsapp = new FormControl('', {
-    nonNullable: true,
-    validators: [Validators.required, Validators.minLength(10)],
+  protected readonly form = this.fb.group({
+    whatsapp: ['', [Validators.required, Validators.minLength(10)]],
   });
 
   async onSubmit(): Promise<void> {
-    if (this.whatsapp.invalid) return;
+    if (this.form.invalid) return;
     this.loading.set(true);
     this.error.set(null);
     try {
-      await this.svc.lookupPorWhatsapp(this.whatsapp.value);
+      await this.svc.lookupPorWhatsapp(this.form.getRawValue().whatsapp);
     } catch (err) {
       this.error.set(
         err instanceof Error ? err.message : 'Erro ao consultar WhatsApp',
