@@ -1,14 +1,35 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { AtendimentoService } from '../atendimento.service';
 import { ConexaoForm } from '../components/conexao-form';
 import { EmAtendimento } from '../components/em-atendimento';
 import { Liquidacao } from '../components/liquidacao';
+import { IonIcon } from '../../../shared/ion-icon';
 
 @Component({
   selector: 'hp-atendimento-page',
-  imports: [MatCardModule, ConexaoForm, EmAtendimento, Liquidacao],
+  imports: [
+    RouterLink,
+    MatButtonModule,
+    MatCardModule,
+    IonIcon,
+    ConexaoForm,
+    EmAtendimento,
+    Liquidacao,
+  ],
   template: `
+    <a
+      routerLink="/login"
+      mat-icon-button
+      class="admin-link"
+      aria-label="Acesso admin"
+      title="Acesso admin"
+    >
+      <ion-icon name="lock-closed-outline" />
+    </a>
+
     <main class="page">
       <mat-card class="atendimento-card" appearance="filled">
         @switch (svc.state()) {
