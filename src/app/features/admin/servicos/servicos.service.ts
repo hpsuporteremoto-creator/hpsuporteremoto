@@ -11,6 +11,18 @@ export class ServicosService {
     const { data, error } = await this.supabase
       .from(this.table)
       .select('*')
+      .order('categoria', { ascending: true, nullsFirst: false })
+      .order('nome', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Servico[];
+  }
+
+  async listAtivos(): Promise<Servico[]> {
+    const { data, error } = await this.supabase
+      .from(this.table)
+      .select('*')
+      .eq('ativo', true)
+      .order('categoria', { ascending: true, nullsFirst: false })
       .order('nome', { ascending: true });
     if (error) throw new Error(error.message);
     return (data ?? []) as Servico[];

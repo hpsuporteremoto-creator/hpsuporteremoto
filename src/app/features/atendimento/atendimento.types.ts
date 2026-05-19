@@ -13,6 +13,7 @@ export interface Atendimento {
   state: AtendimentoState;
   valor_centavos: number | null;
   pix_brcode: string | null;
+  descricao_solicitacao: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -24,6 +25,8 @@ export interface ConexaoFormData {
   email: string | null;
   rustdesk_id: string;
   rustdesk_password: string;
+  servico_id: string | null;
+  descricao_solicitacao: string | null;
 }
 
 export const STORAGE_KEY = 'hp-atendimento-id' as const;

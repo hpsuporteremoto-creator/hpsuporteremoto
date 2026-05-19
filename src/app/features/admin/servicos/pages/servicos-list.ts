@@ -63,6 +63,9 @@ import { Servico } from '../servicos.types';
                 <mat-card-content class="row">
                   <div class="info">
                     <strong class="nome">{{ servico.nome }}</strong>
+                    @if (servico.categoria) {
+                      <small class="categoria">{{ servico.categoria }}</small>
+                    }
                     <span class="valor">{{ servico.valor_centavos / 100 | currency }}</span>
                   </div>
                   <div class="actions">

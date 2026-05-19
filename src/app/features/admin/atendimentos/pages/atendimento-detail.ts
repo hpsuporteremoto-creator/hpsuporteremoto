@@ -96,6 +96,28 @@ const STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
           </mat-card-content>
         </mat-card>
 
+        @if (a.descricao_solicitacao || a.servico) {
+          <mat-card appearance="filled" class="info-card">
+            <mat-card-header>
+              <mat-card-title>Solicitação</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="solicitacao-content">
+              @if (a.servico; as s) {
+                <div class="servico-pill">
+                  <mat-icon>design_services</mat-icon>
+                  <span class="servico-nome">{{ s.nome }}</span>
+                  <span class="servico-valor">
+                    {{ s.valor_centavos / 100 | currency }}
+                  </span>
+                </div>
+              }
+              @if (a.descricao_solicitacao) {
+                <p class="descricao">{{ a.descricao_solicitacao }}</p>
+              }
+            </mat-card-content>
+          </mat-card>
+        }
+
         <mat-card appearance="filled" class="info-card">
           <mat-card-header>
             <mat-card-title>Credenciais RustDesk</mat-card-title>

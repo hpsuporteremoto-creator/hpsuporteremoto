@@ -42,6 +42,8 @@ export class AtendimentoService {
       p_email: data.email,
       p_rustdesk_id: data.rustdesk_id,
       p_rustdesk_password: data.rustdesk_password,
+      p_servico_id: data.servico_id,
+      p_descricao_solicitacao: data.descricao_solicitacao,
     });
 
     if (error || typeof id !== 'string') {

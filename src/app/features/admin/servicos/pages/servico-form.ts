@@ -58,6 +58,17 @@ import { ServicoFormData } from '../servicos.types';
             </mat-form-field>
 
             <mat-form-field appearance="outline">
+              <mat-label>Categoria (opcional)</mat-label>
+              <mat-icon matIconPrefix>category</mat-icon>
+              <input
+                matInput
+                formControlName="categoria"
+                placeholder="Ex: Hardware, Software, Redes"
+              />
+              <mat-hint>Agrupa o serviço no picker do cliente</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
               <mat-label>Valor (R$)</mat-label>
               <span matTextPrefix>R$&nbsp;</span>
               <input
@@ -111,6 +122,7 @@ export class ServicoFormPage {
 
   protected readonly form = this.fb.group({
     nome: ['', [Validators.required, Validators.minLength(2)]],
+    categoria: [''],
     valor_reais: [0, [Validators.required, Validators.min(0)]],
     ativo: [true],
   });
@@ -138,6 +150,7 @@ export class ServicoFormPage {
       }
       this.form.setValue({
         nome: servico.nome,
+        categoria: servico.categoria ?? '',
         valor_reais: servico.valor_centavos / 100,
         ativo: servico.ativo,
       });
@@ -156,6 +169,7 @@ export class ServicoFormPage {
     const value = this.form.getRawValue();
     const data: ServicoFormData = {
       nome: value.nome.trim(),
+      categoria: value.categoria.trim() || null,
       valor_centavos: Math.round(value.valor_reais * 100),
       ativo: value.ativo,
     };
