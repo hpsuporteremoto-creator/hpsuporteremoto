@@ -2,9 +2,10 @@ import {
   Atendimento,
   AtendimentoState,
   ATENDIMENTO_STATE_LABEL,
+  CriarAtendimentoData,
 } from '../../atendimento/atendimento.types';
 
-export type { Atendimento, AtendimentoState };
+export type { Atendimento, AtendimentoState, CriarAtendimentoData };
 export { ATENDIMENTO_STATE_LABEL };
 
 export interface AtendimentoClienteRef {

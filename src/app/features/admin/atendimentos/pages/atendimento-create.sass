@@ -1,0 +1,73 @@
+.content
+  padding: 1rem
+  max-width: 58rem
+  margin: 0 auto
+
+.error
+  color: #ff6b6b
+  text-align: center
+
+.form-card
+  background: var(--mat-sys-surface-container)
+
+.card-content
+  padding: 1.25rem !important
+
+form
+  display: flex
+  flex-direction: column
+  gap: 1.25rem
+
+.section
+  display: flex
+  flex-direction: column
+  gap: 0.75rem
+
+  h2
+    margin: 0
+    font-size: 1rem
+    font-weight: 700
+
+.field-grid
+  display: grid
+  grid-template-columns: repeat(2, minmax(0, 1fr))
+  gap: 0.75rem
+
+mat-form-field
+  width: 100%
+
+.total
+  margin: -0.25rem 0 0
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 1rem
+  border-radius: 0.5rem
+  background: rgba(255, 181, 17, 0.12)
+  color: var(--mat-sys-on-surface)
+  padding: 0.75rem 1rem
+
+  strong
+    color: var(--mat-sys-tertiary)
+    font-size: 1.125rem
+
+.actions
+  display: flex
+  justify-content: flex-end
+
+  button
+    min-height: 2.75rem
+
+@media (max-width: 720px)
+  .content
+    padding: 0.75rem
+
+  .card-content
+    padding: 1rem !important
+
+  .field-grid
+    grid-template-columns: 1fr
+
+  .actions
+    button
+      width: 100%

@@ -1,191 +1,166 @@
 # HP suporte remoto
 
-Sistema interno de suporte remoto. Frontend em Angular 22 SSR + autenticação Google via Supabase + Netlify Functions para operações admin (criação de usuários com `service_role`).
+Sistema de suporte remoto com fluxo público para clientes e painel administrativo para operação ponta a ponta.
 
-**Stack:**
-- Angular 22 (SSR ativo, render mode `Client` em todas as rotas)
-- Supabase (Auth + Postgres + RLS)
-- Netlify (hospedagem do Angular SSR via `@netlify/angular-runtime` + Functions)
-- Google OAuth (provider nativo do Supabase)
+## Stack
 
-**Admins** (hardcoded em `src/app/core/auth/admin-emails.ts`, função SQL `public.is_admin()` e `netlify/functions/create-user.mts`):
+- Angular 22, standalone components, signals e lazy routes.
+- Supabase Auth, Postgres, RLS e Realtime.
+- Apache ECharts com `ngx-echarts` no dashboard administrativo.
+- Cloudflare Pages para hospedagem.
+- Cloudflare Pages Functions para endpoints admin em `/api/*`.
+- GitHub Actions para deploy automático na `main`.
+
+## URLs
+
+- Cliente: <https://www.hpsuporteremoto.com.br>
+- Admin principal: <https://hpsuporteremoto.com.br/admin>
+- Admin em subdomínio: <https://admin.hpsuporteremoto.com.br> pode continuar existindo, mas `/admin` no domínio principal é a entrada oficial.
+
+## Fluxos
+
+### Cliente
+
+1. Escolhe um ou mais serviços.
+2. Informa WhatsApp.
+3. Preenche solicitação.
+4. Informa credenciais RustDesk, se souber.
+5. Aguarda o admin aceitar ou recusar.
+6. Vê QR Code PIX quando o admin finaliza o atendimento.
+7. Acompanha conclusão.
+
+### Admin
+
+O admin acessa `/admin`, usa o drawer responsivo para navegar e pode fazer o pedido inteiro sem depender do cliente:
+
+1. Abre o **Dashboard** para ver KPIs, fila por status e receita.
+2. Abre **Novo atendimento**.
+3. Preenche cliente, serviços, descrição e RustDesk opcional.
+4. O pedido é criado já em `em_andamento`.
+5. No detalhe do atendimento, finaliza e gera PIX.
+6. Copia o BR Code se necessário.
+7. Marca como pago e conclui.
+
+## Admins
+
+Admins ficam sincronizados em:
+
+- `src/app/core/auth/admin-emails.ts`
+- função SQL `public.is_admin()`
+- Cloudflare Pages Functions em `functions/api/*`
+
+Emails atuais:
+
 - `heriveltonpiresalves@gmail.com`
 - `hpsuporteremoto@gmail.com`
 
-Apenas esses dois emails podem criar novos usuários. Sign-up aberto é desabilitado no Supabase, então só quem foi criado pelos admins consegue entrar.
+## Desenvolvimento local
 
----
-
-## Setup inicial (faça uma vez)
-
-### 1. Criar o projeto no Supabase
-
-1. Vá em [supabase.com](https://supabase.com), faça login com `hpsuporteremoto@gmail.com`.
-2. Crie um novo projeto (nome sugerido: **hp-suporte-remoto**, escolha uma região próxima).
-3. Anote a **senha do banco**.
-4. Em **Project Settings → API**, copie:
-   - `Project URL` → use em `SUPABASE_URL`
-   - `anon public` key → use em `SUPABASE_ANON_KEY`
-   - `service_role` key → use em `SUPABASE_SERVICE_ROLE_KEY` ⚠️ NUNCA commitar nem expor no frontend
-
-### 2. Aplicar a migration SQL
-
-No dashboard do Supabase → **SQL Editor**, abra um novo query, cole o conteúdo de [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) e execute.
-
-Isso cria a tabela `profiles`, RLS, função `public.is_admin()` e trigger que cria o profile automaticamente quando um novo `auth.user` aparece.
-
-### 3. Desabilitar sign-up aberto
-
-No dashboard do Supabase → **Authentication → Providers → Email**: desligue `Enable Signup`.
-Em **Authentication → Settings → User Signups**: desmarque `Allow new users to sign up`.
-
-Resultado: só quem foi criado via `auth.admin.createUser` (rota `/api/create-user`) consegue logar.
-
-### 4. Configurar Google OAuth
-
-#### 4.1 Google Cloud Console
-
-1. [console.cloud.google.com](https://console.cloud.google.com) → crie um projeto (ou use um existente).
-2. **APIs & Services → OAuth consent screen**: configure como External, preencha nome do app, suporte e dev email.
-3. **APIs & Services → Credentials → Create Credentials → OAuth client ID**:
-   - Application type: **Web application**
-   - Authorized JavaScript origins: `http://localhost:4200`, `https://SEU-DOMINIO-NETLIFY.netlify.app` (ajuste depois do deploy)
-   - Authorized redirect URIs: `https://YOUR-PROJECT-REF.supabase.co/auth/v1/callback`
-4. Copie **Client ID** e **Client Secret**.
-
-#### 4.2 Supabase
-
-Em **Authentication → Providers → Google**:
-- Ative o provider.
-- Cole o Client ID e Client Secret do Google.
-- Salve. Copie a `Callback URL (for OAuth)` que aparece — ela deve bater com o redirect URI configurado no Google.
-
-#### 4.3 URLs autorizados
-
-Em **Authentication → URL Configuration**:
-- **Site URL**: `https://SEU-DOMINIO-NETLIFY.netlify.app`
-- **Redirect URLs**: adicione `http://localhost:4200/`, `https://SEU-DOMINIO-NETLIFY.netlify.app/`
-
-### 5. Criar os dois admins iniciais
-
-Como sign-up está desabilitado, os 2 admins precisam ser pré-criados. No dashboard do Supabase → **SQL Editor**:
-
-```sql
--- Cria os admins iniciais. Eles vão logar via Google com esses mesmos emails.
-select auth.users.id from auth.admin_create_user(
-  jsonb_build_object('email', 'heriveltonpiresalves@gmail.com', 'email_confirm', true)
-);
-select auth.users.id from auth.admin_create_user(
-  jsonb_build_object('email', 'hpsuporteremoto@gmail.com', 'email_confirm', true)
-);
-```
-
-*Alternativa via dashboard:* **Authentication → Users → Add user → Create new user**, marque "Auto Confirm User", deixe senha em branco (vai logar via Google).
-
-### 6. Preencher `src/environments/environment.ts`
-
-Substitua os placeholders pelos valores reais (a `anon key` é pública, pode ser commitada):
-
-```ts
-export const environment = {
-  supabaseUrl: 'https://YOUR-PROJECT-REF.supabase.co',
-  supabaseAnonKey: 'eyJ...sua-anon-key',
-};
-```
-
----
-
-## Rodar localmente
+Instale dependências:
 
 ```bash
 npm install
+```
+
+Cliente principal:
+
+```bash
 npm start
 ```
 
-Abra http://localhost:4200/. Clique em "Entrar com Google" → autorize com um dos emails admin → vai pro `/`. O link "Painel admin" aparece pra admins.
-
-⚠️ A função Netlify (`/api/create-user`) NÃO roda com `ng serve` puro. Pra testar localmente:
+Admin em app separado, útil para validar o subdomínio:
 
 ```bash
-npx netlify dev
+npm run start:admin
 ```
 
-Isso sobe o Angular + functions na mesma porta com proxy.
+Build completo:
 
-Variáveis de ambiente locais (`.env` na raiz, **não commitar**):
-
-```
-SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...sua-service-role-key
+```bash
+npm run build
 ```
 
----
+O build gera:
 
-## Deploy no Netlify
+- `dist/hp-suporte-remoto-client/browser`
+- `dist/hp-suporte-remoto-admin/browser`
 
-1. **Conectar repositório**: New site → import from Git → escolha o repo.
-2. **Build settings** já estão em `netlify.toml`:
-   - Build command: `npm run build`
-   - Plugin `@netlify/angular-runtime` cuida do SSR.
-   - Functions em `netlify/functions/`.
-3. **Environment variables** (Site settings → Environment variables):
-   - `SUPABASE_URL` → URL do projeto Supabase
-   - `SUPABASE_SERVICE_ROLE_KEY` → service_role key (⚠️ scope: Functions only)
-4. **Deploy**. Pegue o domínio final e atualize:
-   - Google Cloud → OAuth client → Authorized origins/redirects
-   - Supabase → Authentication → URL Configuration
+## Variáveis
 
----
+A anon key do Supabase fica em `src/environments/environment.ts` e é pública.
 
-## Como funciona a criação de usuários
+Secrets de runtime das Pages Functions:
 
-1. Admin loga em `/admin` (a rota é protegida pelo `adminGuard` que checa o email contra `ADMIN_EMAILS`).
-2. Admin digita o email do novo usuário → POST `/api/create-user` com `Authorization: Bearer <token>`.
-3. A função Netlify:
-   - Valida o JWT do chamador via `supabase.auth.getUser(token)`.
-   - Confere se o email do chamador está em `ADMIN_EMAILS` (defense in depth).
-   - Chama `supabase.auth.admin.createUser({ email, email_confirm: true })` usando `service_role`.
-4. O trigger `on_auth_user_created` insere a linha em `public.profiles`.
-5. Novo usuário acessa o site, clica em "Entrar com Google", autoriza com o email cadastrado → Supabase encontra o `auth.user` correspondente → sessão criada → entra no `/`.
+```txt
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+PIX_KEY
+PIX_RECEIVER_NAME
+PIX_RECEIVER_CITY
+```
 
-Se alguém não cadastrado tentar logar, a OAuth falha (porque `Allow new users to sign up` está desabilitado).
+Secrets do GitHub Actions:
 
----
+```txt
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_API_TOKEN
+```
+
+O token da Cloudflare para deploy precisa permitir editar Cloudflare Pages. Para mexer em DNS pelo CLI/API, também precisa de permissão `Zone DNS Edit`.
+
+## Deploy Cloudflare Pages
+
+O workflow `.github/workflows/deploy.yml` roda em push na `main`:
+
+1. Instala dependências com `npm ci`.
+2. Executa `npm run build`.
+3. Publica o cliente no projeto Pages `hpsuporteremoto`.
+4. Publica o admin separado no projeto Pages `hpsuporteremoto-admin`.
+5. Garante o domínio customizado `admin.hpsuporteremoto.com.br`.
+
+DNS esperado na Cloudflare:
+
+```txt
+CNAME  @      hpsuporteremoto.pages.dev
+CNAME  www    hpsuporteremoto.pages.dev
+CNAME  admin  hpsuporteremoto-admin.pages.dev
+```
 
 ## Estrutura
 
-```
+```txt
 src/app/
   core/
     auth/
-      admin-emails.ts        # lista canônica de admins (frontend)
-      auth.service.ts        # signals de sessão, signIn/signOut
-      auth.guard.ts          # authGuard + adminGuard
+    notifications/
     supabase/
-      supabase.service.ts    # SupabaseClient (SSR-safe)
-  pages/
-    login/login.ts           # botão Google
-    home/home.ts             # página autenticada
-    admin/admin.ts           # form de criar usuário
-  app.routes.ts              # / (auth), /admin (admin), /login
-  app.routes.server.ts       # RenderMode.Client em todas as rotas
+  features/
+    atendimento/          # fluxo público do cliente
+    admin/
+      layout/             # shell responsivo com drawer
+      dashboard/          # KPIs e charts com Apache ECharts
+      atendimentos/       # lista, detalhe e criação manual
+      clientes/
+      servicos/
+      financeiro/
+      usuarios/
+  client.routes.ts        # app público com /admin oficial
+  admin-app.routes.ts     # app do subdomínio admin
 
-netlify/
-  functions/
-    create-user.mts          # endpoint admin (service_role)
+functions/api/
+  create-user.ts
+  delete-user.ts
+  generate-pix.ts
 
-supabase/
-  migrations/
-    0001_init.sql            # profiles + RLS + triggers
+supabase/migrations/
 ```
 
----
-
-## Comandos
+## Comandos úteis
 
 | Comando | O que faz |
 | --- | --- |
-| `npm start` | Dev server Angular (sem functions) |
-| `npx netlify dev` | Dev server completo (Angular + functions) |
-| `npm run build` | Build de produção (SSR) |
-| `npm run serve:ssr:hp-suporte-remoto` | Roda build SSR localmente |
+| `npm start` | Sobe o app cliente em dev |
+| `npm run start:admin` | Sobe o app admin separado na porta 4300 |
+| `npm run build` | Builda cliente e admin |
+| `npm run build:client` | Builda só o cliente |
+| `npm run build:admin` | Builda só o admin |

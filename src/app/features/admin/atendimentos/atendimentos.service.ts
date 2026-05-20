@@ -10,6 +10,7 @@ import {
   AtendimentoServicoRef,
   AtendimentoListFilter,
   AtendimentoState,
+  CriarAtendimentoData,
 } from './atendimentos.types';
 
 const SELECT = `
@@ -102,6 +103,27 @@ export class AtendimentosService {
   async updateState(id: string, state: AtendimentoState): Promise<void> {
     const { error } = await this.supabase.from('atendimentos').update({ state }).eq('id', id);
     if (error) throw new Error(error.message);
+  }
+
+  async criarManual(data: CriarAtendimentoData): Promise<string> {
+    const { data: id, error } = await this.supabase.rpc('criar_atendimento', {
+      p_nome: data.nome,
+      p_whatsapp: data.whatsapp,
+      p_instagram: data.instagram,
+      p_email: data.email,
+      p_rustdesk_id: data.rustdesk_id,
+      p_rustdesk_password: data.rustdesk_password,
+      p_servico_id: data.servico_id,
+      p_servico_ids: data.servico_ids,
+      p_descricao_solicitacao: data.descricao_solicitacao,
+    });
+
+    if (error || typeof id !== 'string') {
+      throw new Error(error?.message ?? 'Falha ao criar atendimento');
+    }
+
+    await this.updateState(id, 'em_andamento');
+    return id;
   }
 
   async cobrarEFinalizar(

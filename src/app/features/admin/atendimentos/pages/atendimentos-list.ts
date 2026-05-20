@@ -43,6 +43,9 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
       </button>
       <span>Atendimentos</span>
       <span class="spacer"></span>
+      <a mat-icon-button routerLink="novo" aria-label="Novo atendimento" title="Novo atendimento">
+        <mat-icon>add</mat-icon>
+      </a>
       @if (notifications.canRequest()) {
         <button
           mat-icon-button

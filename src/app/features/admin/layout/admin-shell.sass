@@ -1,0 +1,194 @@
+.admin-shell
+  --drawer-open-width: 16.5rem
+  --drawer-close-width: 4.75rem
+  min-height: 100dvh
+  background: var(--mat-sys-background)
+  color: var(--mat-sys-on-surface)
+
+.drawer
+  width: var(--drawer-open-width)
+  border-right: 1px solid rgba(255, 255, 255, 0.08)
+  background: #171717
+  color: var(--mat-sys-on-surface)
+  transition: width 0.18s ease
+
+  ::ng-deep .mat-drawer-inner-container
+    display: flex
+    flex-direction: column
+    gap: 1rem
+    overflow-x: hidden
+
+.brand
+  display: flex
+  align-items: center
+  gap: 0.75rem
+  min-height: 4.25rem
+  padding: 0.75rem 0.875rem
+
+.drawer-toggle
+  flex: 0 0 auto
+
+.brand-copy
+  min-width: 0
+  display: flex
+  flex-direction: column
+  line-height: 1.15
+  white-space: nowrap
+  overflow: hidden
+
+  strong
+    font-size: 0.9375rem
+    font-weight: 700
+
+  span
+    color: var(--mat-sys-on-surface-variant)
+    font-size: 0.75rem
+
+.nav-list
+  display: flex
+  flex-direction: column
+  gap: 0.25rem
+  padding: 0 0.625rem
+
+.nav-link
+  min-height: 2.75rem
+  display: flex
+  align-items: center
+  gap: 0.875rem
+  border-radius: 0.5rem
+  padding: 0 0.875rem
+  color: var(--mat-sys-on-surface-variant)
+  text-decoration: none
+  outline-offset: 0.125rem
+  overflow: hidden
+
+  mat-icon
+    flex: 0 0 auto
+
+  &:hover,
+  &:focus-visible,
+  &.active
+    background: rgba(33, 150, 243, 0.16)
+    color: #ffffff
+
+  &.active mat-icon
+    color: var(--mat-sys-primary)
+
+.nav-label
+  white-space: nowrap
+  overflow: hidden
+  text-overflow: ellipsis
+
+.drawer-footer
+  margin-top: auto
+  display: grid
+  grid-template-columns: 1fr auto
+  gap: 0.5rem
+  align-items: center
+  padding: 0.875rem
+  border-top: 1px solid rgba(255, 255, 255, 0.08)
+
+.user-chip
+  min-width: 0
+  display: flex
+  align-items: center
+  gap: 0.5rem
+  color: var(--mat-sys-on-surface-variant)
+  font-size: 0.8125rem
+
+  mat-icon
+    flex: 0 0 auto
+
+  span
+    min-width: 0
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+
+.sign-out
+  flex: 0 0 auto
+
+.main-area
+  min-height: 100dvh
+  background: var(--mat-sys-background)
+
+.topbar
+  position: sticky
+  top: 0
+  z-index: 10
+  min-height: 4.25rem
+  display: flex
+  align-items: center
+  gap: 0.75rem
+  padding: 0.75rem 1rem
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08)
+  background: rgba(18, 18, 18, 0.92)
+  backdrop-filter: blur(16px)
+
+.mobile-toggle
+  display: none
+
+.page-title
+  display: flex
+  flex-direction: column
+  min-width: 0
+
+  span
+    font-weight: 700
+    line-height: 1.2
+
+  small
+    color: var(--mat-sys-on-surface-variant)
+    font-size: 0.8125rem
+
+.is-drawer-close
+  .drawer
+    width: var(--drawer-close-width)
+
+  .brand-copy,
+  .nav-label,
+  .user-chip
+    opacity: 0
+    width: 0
+    pointer-events: none
+
+  .nav-link
+    justify-content: center
+    padding-inline: 0
+
+  .drawer-footer
+    grid-template-columns: 1fr
+    justify-items: center
+
+@media (max-width: 760px)
+  .admin-shell
+    --drawer-open-width: min(18rem, 86vw)
+
+  .drawer
+    width: var(--drawer-open-width)
+    box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.36)
+
+  .mobile-toggle
+    display: inline-flex
+
+  .topbar
+    min-height: 3.75rem
+
+  .is-drawer-close
+    .drawer
+      width: var(--drawer-open-width)
+
+    .brand-copy,
+    .nav-label,
+    .user-chip
+      opacity: 1
+      width: auto
+      pointer-events: auto
+
+    .nav-link
+      justify-content: flex-start
+      padding: 0 0.875rem
+
+    .drawer-footer
+      grid-template-columns: 1fr auto
+      justify-items: stretch
