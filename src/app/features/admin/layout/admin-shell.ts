@@ -151,12 +151,6 @@ export class AdminShell {
   protected readonly navItems: ReadonlyArray<AdminNavItem> = [
     { label: 'Início', icon: 'space_dashboard', route: ['./'], exact: true },
     {
-      label: 'Novo atendimento',
-      icon: 'add_task',
-      route: ['./atendimentos/novo'],
-      exact: true,
-    },
-    {
       label: 'Atendimentos',
       icon: 'support_agent',
       route: ['./atendimentos'],
