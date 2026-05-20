@@ -1,10 +1,7 @@
 import { Routes } from '@angular/router';
 import { adminGuard } from './core/auth/auth.guard';
 
-/**
- * Legacy routes kept for `ng serve` and old local entrypoints.
- * Production builds use `client.routes.ts` and `admin-app.routes.ts`.
- */
+/** Legacy routes kept for `ng serve` and old local entrypoints. */
 export const routes: Routes = [
   {
     path: '',

@@ -4,10 +4,8 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve hp-suporte-remoto-client",
-    "start:admin": "ng serve hp-suporte-remoto-admin --port 4300",
-    "build": "npm run build:client && npm run build:admin",
+    "build": "npm run build:client",
     "build:client": "ng build hp-suporte-remoto-client",
-    "build:admin": "ng build hp-suporte-remoto-admin",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "serve:ssr:hp-suporte-remoto": "node dist/hp-suporte-remoto/server/server.mjs"

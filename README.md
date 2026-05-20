@@ -15,7 +15,6 @@ Sistema de suporte remoto com fluxo público para clientes e painel administrati
 
 - Cliente: <https://www.hpsuporteremoto.com.br>
 - Admin principal: <https://hpsuporteremoto.com.br/admin>
-- Admin em subdomínio: <https://admin.hpsuporteremoto.com.br> pode continuar existindo, mas `/admin` no domínio principal é a entrada oficial.
 
 ## Fluxos
 
@@ -68,22 +67,15 @@ Cliente principal:
 npm start
 ```
 
-Admin em app separado, útil para validar o subdomínio:
-
-```bash
-npm run start:admin
-```
-
-Build completo:
+Build:
 
 ```bash
 npm run build
 ```
 
-O build gera:
+O build gera apenas:
 
 - `dist/hp-suporte-remoto-client/browser`
-- `dist/hp-suporte-remoto-admin/browser`
 
 ## Variáveis
 
@@ -114,16 +106,15 @@ O workflow `.github/workflows/deploy.yml` roda em push na `main`:
 
 1. Instala dependências com `npm ci`.
 2. Executa `npm run build`.
-3. Publica o cliente no projeto Pages `hpsuporteremoto`.
-4. Publica o admin separado no projeto Pages `hpsuporteremoto-admin`.
-5. Garante o domínio customizado `admin.hpsuporteremoto.com.br`.
+3. Publica o app no projeto Pages `hpsuporteremoto`.
+
+O ADMIN fica dentro do mesmo build e é servido pela rota `/admin`.
 
 DNS esperado na Cloudflare:
 
 ```txt
 CNAME  @      hpsuporteremoto.pages.dev
 CNAME  www    hpsuporteremoto.pages.dev
-CNAME  admin  hpsuporteremoto-admin.pages.dev
 ```
 
 ## Estrutura
@@ -145,7 +136,6 @@ src/app/
       financeiro/
       usuarios/
   client.routes.ts        # app público com /admin oficial
-  admin-app.routes.ts     # app do subdomínio admin
 
 functions/api/
   create-user.ts
@@ -160,7 +150,5 @@ supabase/migrations/
 | Comando | O que faz |
 | --- | --- |
 | `npm start` | Sobe o app cliente em dev |
-| `npm run start:admin` | Sobe o app admin separado na porta 4300 |
-| `npm run build` | Builda cliente e admin |
+| `npm run build` | Builda o app cliente com `/admin` incluído |
 | `npm run build:client` | Builda só o cliente |
-| `npm run build:admin` | Builda só o admin |
