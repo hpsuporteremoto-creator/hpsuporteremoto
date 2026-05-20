@@ -38,7 +38,15 @@
 
 .cliente-card
   background: var(--mat-sys-surface-container)
-  transition: opacity 0.15s ease
+  cursor: pointer
+  transition: background 0.15s ease, opacity 0.15s ease
+
+.cliente-card:hover
+  background: var(--mat-sys-surface-container-high)
+
+.cliente-card:focus-visible
+  outline: 3px solid var(--mat-sys-primary)
+  outline-offset: 2px
 
 .cliente-card.inativo
   opacity: 0.55

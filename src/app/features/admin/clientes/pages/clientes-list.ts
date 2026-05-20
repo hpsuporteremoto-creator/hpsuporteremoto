@@ -6,7 +6,7 @@ import {
   signal,
 } from '@angular/core';
 import { Location } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -94,6 +94,12 @@ import { Cliente } from '../clientes.types';
                 class="cliente-card"
                 appearance="filled"
                 [class.inativo]="!cliente.ativo"
+                tabindex="0"
+                role="link"
+                [attr.aria-label]="'Ver atendimentos de ' + cliente.nome"
+                (click)="abrirAtendimentos(cliente)"
+                (keydown.enter)="abrirAtendimentos(cliente)"
+                (keydown.space)="abrirAtendimentos(cliente); $event.preventDefault()"
               >
                 <mat-card-content class="row">
                   <div class="info">
@@ -106,12 +112,14 @@ import { Cliente } from '../clientes.types';
                   <div class="actions">
                     <mat-slide-toggle
                       [checked]="cliente.ativo"
+                      (click)="$event.stopPropagation()"
                       (change)="onToggle(cliente, $event.checked)"
                       aria-label="Ativo"
                     />
                     <a
                       mat-icon-button
                       [routerLink]="[cliente.id, 'editar']"
+                      (click)="$event.stopPropagation()"
                       aria-label="Editar"
                     >
                       <mat-icon>edit</mat-icon>
@@ -132,6 +140,7 @@ export class ClientesListPage {
   private readonly svc = inject(ClientesService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly location = inject(Location);
+  private readonly router = inject(Router);
 
   protected readonly clientes = signal<Cliente[] | null>(null);
   protected readonly searchTerm = signal('');
@@ -166,6 +175,15 @@ export class ClientesListPage {
 
   clearSearch(): void {
     this.searchTerm.set('');
+  }
+
+  abrirAtendimentos(cliente: Cliente): void {
+    void this.router.navigate(['/admin/atendimentos'], {
+      queryParams: {
+        clienteId: cliente.id,
+        clienteNome: cliente.nome,
+      },
+    });
   }
 
   async carregar(): Promise<void> {

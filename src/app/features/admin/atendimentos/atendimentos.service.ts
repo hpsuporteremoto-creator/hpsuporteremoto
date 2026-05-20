@@ -5,6 +5,7 @@ import {
   AtendimentoComRelacoes,
   AtendimentoServicoRef,
   AtendimentoListFilter,
+  AtendimentoListOptions,
   AtendimentoState,
   CriarAtendimentoData,
 } from './atendimentos.types';
@@ -22,16 +23,25 @@ export class AtendimentosService {
   private readonly supabase = inject(SupabaseService).client;
   private readonly auth = inject(AuthService);
 
-  async list(filter: AtendimentoListFilter): Promise<AtendimentoComRelacoes[]> {
+  async list(
+    filter: AtendimentoListFilter,
+    options: AtendimentoListOptions = {},
+  ): Promise<AtendimentoComRelacoes[]> {
     let query = this.supabase
       .from('atendimentos')
       .select(SELECT)
       .order('created_at', { ascending: false });
 
-    if (filter === 'novos') {
-      query = query.eq('state', 'aguardando_confirmacao');
-    } else {
-      query = query.eq('state', filter);
+    if (!options.todosOsStatus) {
+      if (filter === 'novos') {
+        query = query.eq('state', 'aguardando_confirmacao');
+      } else {
+        query = query.eq('state', filter);
+      }
+    }
+
+    if (options.clienteId) {
+      query = query.eq('cliente_id', options.clienteId);
     }
 
     const { data, error } = await query;

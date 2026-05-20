@@ -66,3 +66,8 @@ export type AtendimentoListFilter =
   | 'pagamento'
   | 'concluido'
   | 'recusado';
+
+export interface AtendimentoListOptions {
+  clienteId?: string;
+  todosOsStatus?: boolean;
+}

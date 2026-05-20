@@ -15,6 +15,32 @@
   text-align: center
   padding: 2rem
 
+.client-filter
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 1rem
+  padding: 1rem
+  background: var(--mat-sys-surface-container)
+  border-bottom: 1px solid var(--mat-sys-outline-variant)
+
+.client-filter div
+  display: flex
+  flex-direction: column
+  gap: 0.125rem
+  min-width: 0
+
+.client-filter strong
+  overflow: hidden
+  text-overflow: ellipsis
+  white-space: nowrap
+
+.filter-label
+  color: var(--mat-sys-on-surface-variant)
+  font-size: 0.75rem
+  text-transform: uppercase
+  letter-spacing: 0.04em
+
 .list
   display: flex
   flex-direction: column
@@ -77,3 +103,8 @@
 .state-badge.state-recusado
   background: rgba(255, 107, 107, 0.18)
   color: #ff8a8a
+
+@media (max-width: 640px)
+  .client-filter
+    align-items: stretch
+    flex-direction: column

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe, Location } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -47,18 +47,28 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
       </a>
     </mat-toolbar>
 
-    <mat-tab-group
-      [selectedIndex]="tabIndex()"
-      (selectedIndexChange)="onTabChange($event)"
-      mat-stretch-tabs="false"
-      animationDuration="0ms"
-    >
-      <mat-tab label="Novos" />
-      <mat-tab label="Em atendimento" />
-      <mat-tab label="Pagamento" />
-      <mat-tab label="Concluídos" />
-      <mat-tab label="Recusados" />
-    </mat-tab-group>
+    @if (clienteFilterId()) {
+      <section class="client-filter" aria-live="polite">
+        <div>
+          <span class="filter-label">Cliente selecionado</span>
+          <strong>{{ clienteFilterName() }}</strong>
+        </div>
+        <a mat-stroked-button routerLink="/admin/clientes">Trocar cliente</a>
+      </section>
+    } @else {
+      <mat-tab-group
+        [selectedIndex]="tabIndex()"
+        (selectedIndexChange)="onTabChange($event)"
+        mat-stretch-tabs="false"
+        animationDuration="0ms"
+      >
+        <mat-tab label="Novos" />
+        <mat-tab label="Em atendimento" />
+        <mat-tab label="Pagamento" />
+        <mat-tab label="Concluídos" />
+        <mat-tab label="Recusados" />
+      </mat-tab-group>
+    }
 
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" />
@@ -113,13 +123,20 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
 export class AtendimentosListPage {
   private readonly svc = inject(AtendimentosService);
   private readonly location = inject(Location);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly atendimentos = signal<AtendimentoComRelacoes[] | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly tabIndex = signal(0);
+  protected readonly clienteFilterId = signal<string | null>(null);
+  protected readonly clienteFilterName = signal('cliente selecionado');
 
   protected readonly emptyMessage = computed(() => {
+    if (this.clienteFilterId()) {
+      return 'Nenhum atendimento encontrado para este cliente.';
+    }
+
     switch (TAB_TO_FILTER[this.tabIndex()]) {
       case 'novos':
         return 'Nenhuma solicitação nova.';
@@ -137,6 +154,9 @@ export class AtendimentosListPage {
   });
 
   constructor() {
+    const params = this.route.snapshot.queryParamMap;
+    this.clienteFilterId.set(params.get('clienteId'));
+    this.clienteFilterName.set(params.get('clienteNome') ?? 'cliente selecionado');
     void this.carregar();
   }
 
@@ -161,7 +181,10 @@ export class AtendimentosListPage {
     this.loading.set(true);
     this.error.set(null);
     try {
-      const data = await this.svc.list(TAB_TO_FILTER[this.tabIndex()]);
+      const data = await this.svc.list(TAB_TO_FILTER[this.tabIndex()], {
+        clienteId: this.clienteFilterId() ?? undefined,
+        todosOsStatus: Boolean(this.clienteFilterId()),
+      });
       this.atendimentos.set(data);
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Erro ao carregar atendimentos');
