@@ -1,6 +1,6 @@
-# HP suporte remoto
+# HP Suporte Remoto
 
-Sistema de suporte remoto com fluxo público para clientes e painel administrativo para operação ponta a ponta.
+Sistema administrativo de suporte remoto para operação ponta a ponta.
 
 ## Stack
 
@@ -13,20 +13,10 @@ Sistema de suporte remoto com fluxo público para clientes e painel administrati
 
 ## URLs
 
-- Cliente: <https://www.hpsuporteremoto.com.br>
-- Admin principal: <https://hpsuporteremoto.com.br/admin>
+- Admin: <https://hpsuporteremoto.com.br/admin>
+- Raiz: <https://hpsuporteremoto.com.br> redireciona para `/admin`.
 
 ## Fluxos
-
-### Cliente
-
-1. Escolhe um ou mais serviços.
-2. Informa WhatsApp.
-3. Preenche solicitação.
-4. Informa credenciais RustDesk, se souber.
-5. Aguarda o admin aceitar ou recusar.
-6. Vê QR Code PIX quando o admin finaliza o atendimento.
-7. Acompanha conclusão.
 
 ### Admin
 
@@ -61,7 +51,7 @@ Instale dependências:
 npm install
 ```
 
-Cliente principal:
+Aplicação administrativa:
 
 ```bash
 npm start
@@ -108,7 +98,7 @@ O workflow `.github/workflows/deploy.yml` roda em push na `main`:
 2. Executa `npm run build`.
 3. Publica o app no projeto Pages `hpsuporteremoto`.
 
-O ADMIN fica dentro do mesmo build e é servido pela rota `/admin`.
+O ADMIN é servido pela rota `/admin`; a raiz do domínio redireciona para essa rota.
 
 DNS esperado na Cloudflare:
 
@@ -126,7 +116,6 @@ src/app/
     notifications/
     supabase/
   features/
-    atendimento/          # fluxo público do cliente
     admin/
       layout/             # shell responsivo com drawer
       dashboard/          # KPIs e charts com Apache ECharts
@@ -135,7 +124,7 @@ src/app/
       servicos/
       financeiro/
       usuarios/
-  client.routes.ts        # app público com /admin oficial
+  client.routes.ts        # app administrativo com redirect da raiz para /admin
 
 functions/api/
   create-user.ts
@@ -149,6 +138,6 @@ supabase/migrations/
 
 | Comando | O que faz |
 | --- | --- |
-| `npm start` | Sobe o app cliente em dev |
-| `npm run build` | Builda o app cliente com `/admin` incluído |
-| `npm run build:client` | Builda só o cliente |
+| `npm start` | Sobe o app admin em dev |
+| `npm run build` | Builda o app admin |
+| `npm run build:client` | Builda o mesmo app admin |

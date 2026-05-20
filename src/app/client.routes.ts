@@ -5,10 +5,7 @@ export const clientRoutes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    loadComponent: () =>
-      import('./features/atendimento/pages/atendimento-page').then(
-        (m) => m.AtendimentoPage,
-      ),
+    redirectTo: 'admin',
   },
   {
     path: 'login',
@@ -21,5 +18,5 @@ export const clientRoutes: Routes = [
     loadChildren: () =>
       import('./features/admin/admin.routes').then((m) => m.adminRoutes),
   },
-  { path: '**', redirectTo: '' },
+  { path: '**', redirectTo: 'admin' },
 ];

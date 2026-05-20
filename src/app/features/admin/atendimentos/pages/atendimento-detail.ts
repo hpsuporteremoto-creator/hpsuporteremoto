@@ -399,7 +399,7 @@ export class AtendimentoDetailPage {
     this.updating.set(true);
     try {
       await this.svc.cobrarEFinalizar(a.id, servicoId);
-      this.snackBar.open('PIX gerado. Cliente já vê o QR Code.', 'OK', { duration: 3000 });
+      this.snackBar.open('PIX gerado para cobrança.', 'OK', { duration: 3000 });
       await this.carregar(a.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao gerar PIX';

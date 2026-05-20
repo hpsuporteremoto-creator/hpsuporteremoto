@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
-import { AtendimentoState } from '../features/atendimento/atendimento.types';
+import { AtendimentoState } from '../features/admin/atendimentos/atendimentos.types';
 
 export type FunilStepKey =
   | AtendimentoState

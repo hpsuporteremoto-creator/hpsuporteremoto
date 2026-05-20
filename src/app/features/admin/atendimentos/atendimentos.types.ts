@@ -1,12 +1,44 @@
-import {
-  Atendimento,
-  AtendimentoState,
-  ATENDIMENTO_STATE_LABEL,
-  CriarAtendimentoData,
-} from '../../atendimento/atendimento.types';
+export type AtendimentoState =
+  | 'aguardando_confirmacao'
+  | 'recusado'
+  | 'em_andamento'
+  | 'pagamento'
+  | 'concluido';
 
-export type { Atendimento, AtendimentoState, CriarAtendimentoData };
-export { ATENDIMENTO_STATE_LABEL };
+export const ATENDIMENTO_STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
+  aguardando_confirmacao: 'Aguardando confirmação',
+  recusado: 'Recusado',
+  em_andamento: 'Em andamento',
+  pagamento: 'Pagamento',
+  concluido: 'Concluído',
+};
+
+export interface Atendimento {
+  id: string;
+  cliente_id: string;
+  servico_id: string | null;
+  servico_ids: string[] | null;
+  rustdesk_id: string | null;
+  rustdesk_password: string | null;
+  state: AtendimentoState;
+  valor_centavos: number | null;
+  pix_brcode: string | null;
+  descricao_solicitacao: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CriarAtendimentoData {
+  nome: string;
+  whatsapp: string;
+  instagram: string | null;
+  email: string | null;
+  servico_id: string | null;
+  servico_ids: string[];
+  descricao_solicitacao: string | null;
+  rustdesk_id: string | null;
+  rustdesk_password: string | null;
+}
 
 export interface AtendimentoClienteRef {
   id: string;
