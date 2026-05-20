@@ -23,12 +23,74 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Angular app
+      - name: Build Angular apps
         run: npm run build
 
-      - name: Deploy to Cloudflare Pages
+      - name: Ensure admin Cloudflare Pages project
+        run: npx wrangler pages project create hpsuporteremoto-admin --production-branch main || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy client to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist/hp-suporte-remoto/browser --project-name=hpsuporteremoto --branch=main
+          command: pages deploy dist/hp-suporte-remoto-client/browser --project-name=hpsuporteremoto --branch=main
+
+      - name: Deploy admin to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist/hp-suporte-remoto-admin/browser --project-name=hpsuporteremoto-admin --branch=main
+
+      - name: Ensure admin custom domain
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          account_id = os.environ["CLOUDFLARE_ACCOUNT_ID"]
+          token = os.environ["CLOUDFLARE_API_TOKEN"]
+          url = (
+              "https://api.cloudflare.com/client/v4/accounts/"
+              f"{account_id}/pages/projects/hpsuporteremoto-admin/domains"
+          )
+          payload = json.dumps({"name": "admin.hpsuporteremoto.com.br"})
+          result = subprocess.run(
+              [
+                  "curl",
+                  "-sS",
+                  "-X",
+                  "POST",
+                  url,
+                  "-H",
+                  f"Authorization: Bearer {token}",
+                  "-H",
+                  "Content-Type: application/json",
+                  "--data",
+                  payload,
+              ],
+              check=False,
+              capture_output=True,
+              text=True,
+          )
+          response = json.loads(result.stdout)
+          if response.get("success"):
+              print("Admin custom domain attached.")
+              raise SystemExit(0)
+
+          errors = response.get("errors", [])
+          if any("already" in error.get("message", "").lower() for error in errors):
+              print("Admin custom domain already attached.")
+              raise SystemExit(0)
+
+          print(json.dumps(response, indent=2))
+          raise SystemExit(1)
+          PY
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

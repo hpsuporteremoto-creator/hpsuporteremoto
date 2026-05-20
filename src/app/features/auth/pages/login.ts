@@ -96,11 +96,11 @@ export class LoginPage {
       !returnUrl.startsWith('//')
     ) {
       // Se a returnUrl for admin-only e o usuário não for admin, ignora.
-      if (returnUrl.startsWith('/admin') && !isAdmin) {
+      if ((returnUrl.startsWith('/admin') || returnUrl === '/') && !isAdmin) {
         return '/';
       }
       return returnUrl;
     }
-    return isAdmin ? '/admin' : '/';
+    return '/';
   }
 }

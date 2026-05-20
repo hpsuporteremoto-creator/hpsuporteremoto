@@ -1,26 +1,14 @@
 import { Routes } from '@angular/router';
 import { adminGuard } from './core/auth/auth.guard';
 
-/**
- * Legacy routes kept for `ng serve` and old local entrypoints.
- * Production builds use `client.routes.ts` and `admin-app.routes.ts`.
- */
-export const routes: Routes = [
-  {
-    path: '',
-    pathMatch: 'full',
-    loadComponent: () =>
-      import('./features/atendimento/pages/atendimento-page').then(
-        (m) => m.AtendimentoPage,
-      ),
-  },
+export const adminAppRoutes: Routes = [
   {
     path: 'login',
     loadComponent: () =>
       import('./features/auth/pages/login').then((m) => m.LoginPage),
   },
   {
-    path: 'admin',
+    path: '',
     canActivate: [adminGuard],
     loadChildren: () =>
       import('./features/admin/admin.routes').then((m) => m.adminRoutes),

@@ -1,3 +1,3 @@
 name = "hpsuporteremoto"
 compatibility_date = "2025-05-19"
-pages_build_output_dir = "./dist/hp-suporte-remoto/browser"
+pages_build_output_dir = "./dist/hp-suporte-remoto-client/browser"
