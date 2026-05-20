@@ -13,20 +13,17 @@ import {
   RouterLinkActive,
   RouterOutlet,
 } from '@angular/router';
-import { MatBadgeModule } from '@angular/material/badge';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../../core/auth/auth.service';
-import { AtendimentosService } from '../atendimentos/atendimentos.service';
 
 interface AdminNavItem {
   readonly label: string;
   readonly icon: string;
   readonly route: readonly string[];
   readonly exact: boolean;
-  readonly showBadge?: boolean;
 }
 
 @Component({
@@ -35,7 +32,6 @@ interface AdminNavItem {
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
-    MatBadgeModule,
     MatButtonModule,
     MatIconModule,
     MatSidenavModule,
@@ -87,13 +83,7 @@ interface AdminNavItem {
               matTooltipPosition="right"
               (click)="closeOnMobile()"
             >
-              <mat-icon
-                [matBadge]="item.showBadge && atendimentos.newCount() > 0 ? atendimentos.newCount() : null"
-                matBadgeColor="warn"
-                matBadgeSize="small"
-                [matBadgeHidden]="!item.showBadge || atendimentos.newCount() === 0"
-                >{{ item.icon }}</mat-icon
-              >
+              <mat-icon>{{ item.icon }}</mat-icon>
               <span class="nav-label">{{ item.label }}</span>
             </a>
           }
@@ -146,7 +136,6 @@ interface AdminNavItem {
 })
 export class AdminShell {
   protected readonly auth = inject(AuthService);
-  protected readonly atendimentos = inject(AtendimentosService);
   private readonly breakpointObserver = inject(BreakpointObserver);
   private readonly router = inject(Router);
 
@@ -172,7 +161,6 @@ export class AdminShell {
       icon: 'support_agent',
       route: ['./atendimentos'],
       exact: false,
-      showBadge: true,
     },
     { label: 'Clientes', icon: 'groups', route: ['./clientes'], exact: false },
     {

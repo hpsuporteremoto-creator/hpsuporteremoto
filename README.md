@@ -113,7 +113,6 @@ CNAME  www    hpsuporteremoto.pages.dev
 src/app/
   core/
     auth/
-    notifications/
     supabase/
   features/
     admin/

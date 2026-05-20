@@ -1,11 +1,7 @@
-import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import { Injectable, inject } from '@angular/core';
 import { AuthService } from '../../../core/auth/auth.service';
-import { NotificationService } from '../../../core/notifications/notification.service';
 import { SupabaseService } from '../../../core/supabase/supabase.service';
 import {
-  Atendimento,
   AtendimentoComRelacoes,
   AtendimentoServicoRef,
   AtendimentoListFilter,
@@ -25,50 +21,6 @@ const SELECT = `
 export class AtendimentosService {
   private readonly supabase = inject(SupabaseService).client;
   private readonly auth = inject(AuthService);
-  private readonly notifications = inject(NotificationService);
-  private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
-
-  private adminChannel: RealtimeChannel | null = null;
-
-  private readonly _newCount = signal(0);
-  readonly newCount = this._newCount.asReadonly();
-
-  constructor() {
-    if (this.isBrowser) {
-      void this.bootstrapAdminRealtime();
-    }
-  }
-
-  private async bootstrapAdminRealtime(): Promise<void> {
-    await this.auth.ready;
-    if (!this.auth.isAdmin()) return;
-    if (this.adminChannel) return;
-
-    this.adminChannel = this.supabase
-      .channel('atendimentos-admin')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'atendimentos',
-        },
-        (payload) => {
-          const a = payload.new as Atendimento;
-          this._newCount.update((n) => n + 1);
-          this.notifications.notify(
-            'Nova solicitação',
-            a.rustdesk_id ? `RustDesk ${a.rustdesk_id}` : 'Cliente ainda não informou RustDesk',
-            { tag: `nova:${a.id}` },
-          );
-        },
-      )
-      .subscribe();
-  }
-
-  resetNewCount(): void {
-    this._newCount.set(0);
-  }
 
   async list(filter: AtendimentoListFilter): Promise<AtendimentoComRelacoes[]> {
     let query = this.supabase

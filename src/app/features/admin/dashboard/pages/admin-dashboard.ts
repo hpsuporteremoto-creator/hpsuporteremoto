@@ -174,7 +174,7 @@ export class AdminDashboardPage {
         label: 'Novos',
         value: this.formatNumber(novos),
         helper: 'aguardando aceite',
-        icon: 'notifications_active',
+        icon: 'pending_actions',
         tone: 'warning',
         route: 'atendimentos',
       },

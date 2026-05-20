@@ -7,7 +7,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { NotificationService } from '../../../../core/notifications/notification.service';
 import { AtendimentosService } from '../atendimentos.service';
 import {
   ATENDIMENTO_STATE_LABEL,
@@ -46,17 +45,6 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
       <a mat-icon-button routerLink="novo" aria-label="Novo atendimento" title="Novo atendimento">
         <mat-icon>add</mat-icon>
       </a>
-      @if (notifications.canRequest()) {
-        <button
-          mat-icon-button
-          type="button"
-          (click)="ativarNotificacoes()"
-          aria-label="Ativar notificações"
-          title="Ativar notificações"
-        >
-          <mat-icon>notifications</mat-icon>
-        </button>
-      }
     </mat-toolbar>
 
     <mat-tab-group
@@ -125,7 +113,6 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
 export class AtendimentosListPage {
   private readonly svc = inject(AtendimentosService);
   private readonly location = inject(Location);
-  protected readonly notifications = inject(NotificationService);
 
   protected readonly atendimentos = signal<AtendimentoComRelacoes[] | null>(null);
   protected readonly loading = signal(false);
@@ -150,7 +137,6 @@ export class AtendimentosListPage {
   });
 
   constructor() {
-    this.svc.resetNewCount();
     void this.carregar();
   }
 
@@ -169,10 +155,6 @@ export class AtendimentosListPage {
 
   servicosLabel(servicos: AtendimentoComRelacoes['servicos_solicitados']): string {
     return servicos.map((servico) => servico.nome).join(', ');
-  }
-
-  async ativarNotificacoes(): Promise<void> {
-    await this.notifications.requestPermission();
   }
 
   async carregar(): Promise<void> {
