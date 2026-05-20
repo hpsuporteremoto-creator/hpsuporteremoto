@@ -6,6 +6,7 @@
     "start": "ng serve hp-suporte-remoto-client",
     "build": "npm run build:client",
     "build:client": "ng build hp-suporte-remoto-client",
+    "import:faturamento": "node scripts/import-faturamento-csv.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "serve:ssr:hp-suporte-remoto": "node dist/hp-suporte-remoto/server/server.mjs"
