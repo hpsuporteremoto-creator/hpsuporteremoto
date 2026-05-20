@@ -10,7 +10,6 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { FunilStepper } from '../../../../shared/funil-stepper';
 import { AtendimentosService } from '../atendimentos.service';
 import {
   ATENDIMENTO_STATE_LABEL,
@@ -33,7 +32,6 @@ import { Servico } from '../../servicos/servicos.types';
     MatProgressBarModule,
     MatSelectModule,
     MatToolbarModule,
-    FunilStepper,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -59,10 +57,6 @@ import { Servico } from '../../servicos/servicos.types';
       }
 
       @if (atendimento(); as a) {
-        <div class="stepper-wrap">
-          <hp-funil-stepper [currentState]="a.state" />
-        </div>
-
         <mat-card appearance="filled" class="info-card">
           <mat-card-header>
             <mat-card-title>{{ a.cliente.nome }}</mat-card-title>
@@ -200,7 +194,7 @@ import { Servico } from '../../servicos/servicos.types';
               @case ('em_andamento') {
                 <p class="state-hint">
                   Atendimento em execução. Ao terminar, confirme o serviço para gerar o PIX e enviar
-                  o cliente para pagamento.
+                  o atendimento para pagamento.
                 </p>
 
                 <mat-form-field appearance="outline" class="full-width">
@@ -239,8 +233,7 @@ import { Servico } from '../../servicos/servicos.types';
               }
               @case ('pagamento') {
                 <p class="state-hint">
-                  PIX gerado. O cliente está vendo o QR Code. Marque como pago quando confirmar o
-                  recebimento na conta.
+                  PIX gerado. Copie o BR Code ou confirme o recebimento na conta para finalizar.
                 </p>
                 @if (a.valor_centavos !== null) {
                   <p class="valor">{{ a.valor_centavos / 100 | currency }}</p>
@@ -278,9 +271,7 @@ import { Servico } from '../../servicos/servicos.types';
                 <p class="meta">Finalizado em {{ a.updated_at | date: 'short' }}</p>
               }
               @case ('recusado') {
-                <p class="state-hint">
-                  Atendimento recusado. O cliente foi avisado na tela de status.
-                </p>
+                <p class="state-hint">Atendimento recusado.</p>
                 <p class="meta">Atualizado em {{ a.updated_at | date: 'short' }}</p>
               }
             }
@@ -356,8 +347,7 @@ export class AtendimentoDetailPage {
         this.error.set('Atendimento não encontrado');
         return;
       }
-      // Pré-seleciona o serviço do atendimento (escolhido pelo cliente),
-      // se houver. Admin pode trocar pelo dropdown.
+      // Pré-seleciona o primeiro serviço do atendimento; admin pode trocar pelo dropdown.
       if (a.servico_id) {
         this.selectedServicoId.set(a.servico_id);
       } else if (a.servico_ids?.[0]) {
