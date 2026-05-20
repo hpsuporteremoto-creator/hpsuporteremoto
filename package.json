@@ -37,6 +37,7 @@
     "@types/node": "^20.17.19",
     "@types/qrcode": "^1.5.6",
     "prettier": "^3.8.1",
-    "typescript": "~6.0.2"
+    "typescript": "~6.0.2",
+    "wrangler": "^3.90.0"
   }
 }
