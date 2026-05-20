@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -8,7 +9,9 @@ import { Location } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -22,7 +25,9 @@ import { Cliente } from '../clientes.types';
     RouterLink,
     MatButtonModule,
     MatCardModule,
+    MatFormFieldModule,
     MatIconModule,
+    MatInputModule,
     MatProgressBarModule,
     MatSlideToggleModule,
     MatToolbarModule,
@@ -49,11 +54,42 @@ import { Cliente } from '../clientes.types';
       }
 
       @if (clientes(); as list) {
+        <section class="search-area" aria-label="Busca de clientes">
+          <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Buscar cliente</mat-label>
+            <mat-icon matPrefix>search</mat-icon>
+            <input
+              matInput
+              type="search"
+              [value]="searchTerm()"
+              (input)="onSearch($event)"
+              autocomplete="off"
+            />
+            @if (searchTerm()) {
+              <button
+                mat-icon-button
+                matSuffix
+                type="button"
+                (click)="clearSearch()"
+                aria-label="Limpar busca"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+          </mat-form-field>
+
+          <p class="result-count" aria-live="polite">
+            {{ filteredClientes().length }} de {{ list.length }} clientes
+          </p>
+        </section>
+
         @if (list.length === 0) {
           <p class="empty">Nenhum cliente cadastrado ainda.</p>
+        } @else if (filteredClientes().length === 0) {
+          <p class="empty">Nenhum cliente encontrado.</p>
         } @else {
           <div class="list">
-            @for (cliente of list; track cliente.id) {
+            @for (cliente of filteredClientes(); track cliente.id) {
               <mat-card
                 class="cliente-card"
                 appearance="filled"
@@ -98,8 +134,22 @@ export class ClientesListPage {
   private readonly location = inject(Location);
 
   protected readonly clientes = signal<Cliente[] | null>(null);
+  protected readonly searchTerm = signal('');
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly filteredClientes = computed(() => {
+    const term = normalizeSearch(this.searchTerm());
+    const list = this.clientes() ?? [];
+    if (!term) return list;
+    return list.filter((cliente) =>
+      [
+        cliente.nome,
+        cliente.whatsapp,
+        cliente.email ?? '',
+        cliente.instagram ?? '',
+      ].some((value) => normalizeSearch(value).includes(term)),
+    );
+  });
 
   constructor() {
     void this.carregar();
@@ -107,6 +157,15 @@ export class ClientesListPage {
 
   voltar(): void {
     this.location.back();
+  }
+
+  onSearch(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    this.searchTerm.set(input?.value ?? '');
+  }
+
+  clearSearch(): void {
+    this.searchTerm.set('');
   }
 
   async carregar(): Promise<void> {
@@ -141,4 +200,13 @@ export class ClientesListPage {
       this.snackBar.open(msg, 'OK', { duration: 4000 });
     }
   }
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 }
