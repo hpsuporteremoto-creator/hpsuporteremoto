@@ -15,6 +15,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ClientesService } from '../clientes.service';
 import { Cliente } from '../clientes.types';
@@ -30,6 +31,7 @@ import { Cliente } from '../clientes.types';
     MatInputModule,
     MatProgressBarModule,
     MatSlideToggleModule,
+    MatTabsModule,
     MatToolbarModule,
   ],
   template: `
@@ -47,6 +49,16 @@ import { Cliente } from '../clientes.types';
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" />
     }
+
+    <mat-tab-group
+      [selectedIndex]="tabIndex()"
+      (selectedIndexChange)="onTabChange($event)"
+      mat-stretch-tabs="false"
+      animationDuration="0ms"
+    >
+      <mat-tab [label]="'Ativos (' + activeClientes().length + ')'" />
+      <mat-tab [label]="'Inativos (' + inactiveClientes().length + ')'" />
+    </mat-tab-group>
 
     <main class="content">
       @if (error(); as msg) {
@@ -79,14 +91,14 @@ import { Cliente } from '../clientes.types';
           </mat-form-field>
 
           <p class="result-count" aria-live="polite">
-            {{ filteredClientes().length }} de {{ list.length }} clientes
+            {{ filteredClientes().length }} de {{ currentTabClientes().length }} clientes
           </p>
         </section>
 
         @if (list.length === 0) {
           <p class="empty">Nenhum cliente cadastrado ainda.</p>
         } @else if (filteredClientes().length === 0) {
-          <p class="empty">Nenhum cliente encontrado.</p>
+          <p class="empty">{{ emptyMessage() }}</p>
         } @else {
           <div class="list">
             @for (cliente of filteredClientes(); track cliente.id) {
@@ -146,9 +158,19 @@ export class ClientesListPage {
   protected readonly searchTerm = signal('');
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly tabIndex = signal(0);
+  protected readonly activeClientes = computed(() =>
+    (this.clientes() ?? []).filter((cliente) => cliente.ativo),
+  );
+  protected readonly inactiveClientes = computed(() =>
+    (this.clientes() ?? []).filter((cliente) => !cliente.ativo),
+  );
+  protected readonly currentTabClientes = computed(() =>
+    this.tabIndex() === 0 ? this.activeClientes() : this.inactiveClientes(),
+  );
   protected readonly filteredClientes = computed(() => {
     const term = normalizeSearch(this.searchTerm());
-    const list = this.clientes() ?? [];
+    const list = this.currentTabClientes();
     if (!term) return list;
     return list.filter((cliente) =>
       [
@@ -158,6 +180,12 @@ export class ClientesListPage {
         cliente.instagram ?? '',
       ].some((value) => normalizeSearch(value).includes(term)),
     );
+  });
+  protected readonly emptyMessage = computed(() => {
+    if (this.searchTerm()) return 'Nenhum cliente encontrado.';
+    return this.tabIndex() === 0
+      ? 'Nenhum cliente ativo encontrado.'
+      : 'Nenhum cliente inativo encontrado.';
   });
 
   constructor() {
@@ -175,6 +203,10 @@ export class ClientesListPage {
 
   clearSearch(): void {
     this.searchTerm.set('');
+  }
+
+  onTabChange(index: number): void {
+    this.tabIndex.set(index);
   }
 
   abrirAtendimentos(cliente: Cliente): void {
