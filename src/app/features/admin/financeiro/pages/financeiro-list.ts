@@ -52,8 +52,9 @@ function firstOfMonthISO(): string {
       </button>
       <span>Financeiro</span>
       <span class="spacer"></span>
-      <a mat-icon-button routerLink="nova" aria-label="Nova transação">
+      <a mat-flat-button color="primary" routerLink="nova" aria-label="Nova transação">
         <mat-icon>add</mat-icon>
+        <span>Nova transação</span>
       </a>
     </mat-toolbar>
 

@@ -35,8 +35,9 @@ import { Servico } from '../servicos.types';
       </button>
       <span>Serviços</span>
       <span class="spacer"></span>
-      <a mat-icon-button routerLink="novo" aria-label="Novo serviço">
+      <a mat-flat-button color="primary" routerLink="novo" aria-label="Novo serviço">
         <mat-icon>add</mat-icon>
+        <span>Novo serviço</span>
       </a>
     </mat-toolbar>
 

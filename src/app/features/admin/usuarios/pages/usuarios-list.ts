@@ -34,8 +34,9 @@ import { UserProfile } from '../usuarios.types';
       </button>
       <span>Usuários</span>
       <span class="spacer"></span>
-      <a mat-icon-button routerLink="novo" aria-label="Novo usuário">
+      <a mat-flat-button color="primary" routerLink="novo" aria-label="Novo usuário">
         <mat-icon>person_add</mat-icon>
+        <span>Novo usuário</span>
       </a>
     </mat-toolbar>
 

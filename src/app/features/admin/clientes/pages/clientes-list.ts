@@ -41,8 +41,9 @@ import { Cliente } from '../clientes.types';
       </button>
       <span>Clientes</span>
       <span class="spacer"></span>
-      <a mat-icon-button routerLink="novo" aria-label="Novo cliente">
+      <a mat-flat-button color="primary" routerLink="novo" aria-label="Novo cliente">
         <mat-icon>add</mat-icon>
+        <span>Novo cliente</span>
       </a>
     </mat-toolbar>
 

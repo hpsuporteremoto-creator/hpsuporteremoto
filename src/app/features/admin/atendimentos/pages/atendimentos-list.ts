@@ -44,13 +44,15 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
       <span>Atendimentos</span>
       <span class="spacer"></span>
       <a
-        mat-icon-button
+        mat-flat-button
+        color="primary"
         [routerLink]="novoAtendimentoRoute()"
         [queryParams]="novoAtendimentoQueryParams()"
         [attr.aria-label]="novoAtendimentoLabel()"
         [title]="novoAtendimentoLabel()"
       >
         <mat-icon>add</mat-icon>
+        <span>{{ novoAtendimentoButtonText() }}</span>
       </a>
     </mat-toolbar>
 
@@ -163,6 +165,9 @@ export class AtendimentosListPage {
     this.clienteFilterId()
       ? `Novo atendimento para ${this.clienteFilterName()}`
       : 'Buscar cliente ativo',
+  );
+  protected readonly novoAtendimentoButtonText = computed(() =>
+    this.clienteFilterId() ? 'Novo atendimento' : 'Buscar cliente',
   );
   protected readonly novoAtendimentoRoute = computed(() =>
     this.clienteFilterId() ? ['novo'] : ['/admin/clientes'],
