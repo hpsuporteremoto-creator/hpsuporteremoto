@@ -35,6 +35,17 @@
   text-overflow: ellipsis
   white-space: nowrap
 
+.client-filter-actions
+  display: flex
+  align-items: center
+  gap: 0.5rem
+  flex-shrink: 0
+
+  a
+    display: inline-flex
+    align-items: center
+    gap: 0.375rem
+
 .filter-label
   color: var(--mat-sys-on-surface-variant)
   font-size: 0.75rem
@@ -108,3 +119,10 @@
   .client-filter
     align-items: stretch
     flex-direction: column
+
+  .client-filter-actions
+    align-items: stretch
+    flex-direction: column
+
+    a
+      justify-content: center

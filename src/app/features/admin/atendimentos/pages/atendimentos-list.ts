@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { ClientesService } from '../../clientes/clientes.service';
 import { AtendimentosService } from '../atendimentos.service';
 import {
   ATENDIMENTO_STATE_LABEL,
@@ -59,7 +60,22 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
           <span class="filter-label">Cliente selecionado</span>
           <strong>{{ clienteFilterName() }}</strong>
         </div>
-        <a mat-stroked-button routerLink="/admin/clientes">Trocar cliente</a>
+        <div class="client-filter-actions">
+          @if (whatsappLink(); as link) {
+            <a
+              mat-flat-button
+              color="primary"
+              [href]="link"
+              target="_blank"
+              rel="noopener"
+              aria-label="Falar com cliente pelo WhatsApp"
+            >
+              <mat-icon>chat</mat-icon>
+              <span>WhatsApp</span>
+            </a>
+          }
+          <a mat-stroked-button routerLink="/admin/clientes">Trocar cliente</a>
+        </div>
       </section>
     } @else {
       <mat-tab-group
@@ -128,6 +144,7 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
 })
 export class AtendimentosListPage {
   private readonly svc = inject(AtendimentosService);
+  private readonly clientesSvc = inject(ClientesService);
   private readonly location = inject(Location);
   private readonly route = inject(ActivatedRoute);
 
@@ -137,6 +154,11 @@ export class AtendimentosListPage {
   protected readonly tabIndex = signal(0);
   protected readonly clienteFilterId = signal<string | null>(null);
   protected readonly clienteFilterName = signal('cliente selecionado');
+  protected readonly clienteWhatsapp = signal<string | null>(null);
+  protected readonly whatsappLink = computed(() => {
+    const digits = onlyDigits(this.clienteWhatsapp() ?? '');
+    return digits ? `https://wa.me/${digits}` : null;
+  });
   protected readonly novoAtendimentoLabel = computed(() =>
     this.clienteFilterId()
       ? `Novo atendimento para ${this.clienteFilterName()}`
@@ -179,6 +201,7 @@ export class AtendimentosListPage {
     const params = this.route.snapshot.queryParamMap;
     this.clienteFilterId.set(params.get('clienteId'));
     this.clienteFilterName.set(params.get('clienteNome') ?? 'cliente selecionado');
+    void this.carregarClienteSelecionado();
     void this.carregar();
   }
 
@@ -214,4 +237,22 @@ export class AtendimentosListPage {
       this.loading.set(false);
     }
   }
+
+  private async carregarClienteSelecionado(): Promise<void> {
+    const clienteId = this.clienteFilterId();
+    if (!clienteId) return;
+
+    try {
+      const cliente = await this.clientesSvc.get(clienteId);
+      if (!cliente) return;
+      this.clienteFilterName.set(cliente.nome);
+      this.clienteWhatsapp.set(cliente.whatsapp);
+    } catch {
+      this.clienteWhatsapp.set(null);
+    }
+  }
+}
+
+function onlyDigits(value: string): string {
+  return value.replace(/\D/g, '');
 }
