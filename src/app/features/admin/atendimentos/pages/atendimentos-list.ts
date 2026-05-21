@@ -42,7 +42,13 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
       </button>
       <span>Atendimentos</span>
       <span class="spacer"></span>
-      <a mat-icon-button routerLink="novo" aria-label="Novo atendimento" title="Novo atendimento">
+      <a
+        mat-icon-button
+        routerLink="novo"
+        [queryParams]="novoAtendimentoQueryParams()"
+        [attr.aria-label]="novoAtendimentoLabel()"
+        [title]="novoAtendimentoLabel()"
+      >
         <mat-icon>add</mat-icon>
       </a>
     </mat-toolbar>
@@ -131,6 +137,19 @@ export class AtendimentosListPage {
   protected readonly tabIndex = signal(0);
   protected readonly clienteFilterId = signal<string | null>(null);
   protected readonly clienteFilterName = signal('cliente selecionado');
+  protected readonly novoAtendimentoLabel = computed(() =>
+    this.clienteFilterId()
+      ? `Novo atendimento para ${this.clienteFilterName()}`
+      : 'Novo atendimento',
+  );
+  protected readonly novoAtendimentoQueryParams = computed(() => {
+    const clienteId = this.clienteFilterId();
+    if (!clienteId) return null;
+    return {
+      clienteId,
+      clienteNome: this.clienteFilterName(),
+    };
+  });
 
   protected readonly emptyMessage = computed(() => {
     if (this.clienteFilterId()) {

@@ -20,6 +20,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { AtendimentosService } from '../atendimentos.service';
 import { ServicosService } from '../../servicos/servicos.service';
 import { Servico } from '../../servicos/servicos.types';
+import { ClientesService } from '../../clientes/clientes.service';
 
 @Component({
   selector: 'hp-atendimento-create',
@@ -177,6 +178,7 @@ import { Servico } from '../../servicos/servicos.types';
 export class AtendimentoCreatePage {
   private readonly atendimentos = inject(AtendimentosService);
   private readonly servicosSvc = inject(ServicosService);
+  private readonly clientesSvc = inject(ClientesService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
@@ -208,7 +210,7 @@ export class AtendimentoCreatePage {
   });
 
   constructor() {
-    void this.carregarServicos();
+    void this.carregarInicial();
   }
 
   voltar(): void {
@@ -219,16 +221,37 @@ export class AtendimentoCreatePage {
     this.selectedServicoIds.set(ids);
   }
 
-  async carregarServicos(): Promise<void> {
+  async carregarInicial(): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
     try {
-      this.servicos.set(await this.servicosSvc.listAtivos());
+      await Promise.all([this.carregarServicos(), this.carregarClienteSelecionado()]);
     } catch (err) {
-      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar serviços');
+      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar atendimento');
     } finally {
       this.loading.set(false);
     }
+  }
+
+  async carregarServicos(): Promise<void> {
+    this.servicos.set(await this.servicosSvc.listAtivos());
+  }
+
+  async carregarClienteSelecionado(): Promise<void> {
+    const clienteId = this.route.snapshot.queryParamMap.get('clienteId');
+    if (!clienteId) return;
+
+    const cliente = await this.clientesSvc.get(clienteId);
+    if (!cliente) {
+      throw new Error('Cliente selecionado não encontrado');
+    }
+
+    this.form.patchValue({
+      nome: cliente.nome,
+      whatsapp: cliente.whatsapp,
+      email: cliente.email ?? '',
+      instagram: cliente.instagram ?? '',
+    });
   }
 
   async onSubmit(): Promise<void> {
