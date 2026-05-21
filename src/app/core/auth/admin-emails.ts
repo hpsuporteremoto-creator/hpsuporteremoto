@@ -4,6 +4,7 @@
 export const ADMIN_EMAILS: ReadonlyArray<string> = [
   'heriveltonpiresalves@gmail.com',
   'hpsuporteremoto@gmail.com',
+  'thiagoprazeres@gmail.com',
 ];
 
 export function isAdminEmail(email: string | null | undefined): boolean {

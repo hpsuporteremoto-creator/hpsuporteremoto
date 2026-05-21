@@ -10,6 +10,7 @@ type Context = { request: Request; env: Env };
 const ADMIN_EMAILS = [
   'heriveltonpiresalves@gmail.com',
   'hpsuporteremoto@gmail.com',
+  'thiagoprazeres@gmail.com',
 ];
 
 function json(body: unknown, status: number): Response {

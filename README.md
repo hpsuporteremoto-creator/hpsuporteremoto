@@ -42,6 +42,7 @@ Emails atuais:
 
 - `heriveltonpiresalves@gmail.com`
 - `hpsuporteremoto@gmail.com`
+- `thiagoprazeres@gmail.com`
 
 ## Desenvolvimento local
 

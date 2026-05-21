@@ -11,6 +11,7 @@ type Context = { request: Request; env: Env };
 const ADMIN_EMAILS = [
   'heriveltonpiresalves@gmail.com',
   'hpsuporteremoto@gmail.com',
+  'thiagoprazeres@gmail.com',
 ];
 
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;

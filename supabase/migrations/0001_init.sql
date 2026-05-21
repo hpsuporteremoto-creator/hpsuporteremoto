@@ -33,7 +33,8 @@ as $$
     where id = auth.uid()
       and lower(email) in (
         'heriveltonpiresalves@gmail.com',
-        'hpsuporteremoto@gmail.com'
+        'hpsuporteremoto@gmail.com',
+        'thiagoprazeres@gmail.com'
       )
   );
 $$;
