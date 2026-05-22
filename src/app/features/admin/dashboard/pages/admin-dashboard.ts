@@ -76,9 +76,9 @@ interface DashboardKpi {
             <mat-icon>refresh</mat-icon>
             <span>Atualizar</span>
           </button>
-          <a mat-flat-button color="primary" routerLink="atendimentos/novo">
-            <mat-icon>add_task</mat-icon>
-            <span>Novo atendimento</span>
+          <a mat-flat-button color="primary" routerLink="clientes">
+            <mat-icon>person_search</mat-icon>
+            <span>Novo pedido</span>
           </a>
         </div>
       </section>

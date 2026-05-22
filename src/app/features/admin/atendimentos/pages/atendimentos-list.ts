@@ -1,14 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe, Location } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ClientesService } from '../../clientes/clientes.service';
 import { AtendimentosService } from '../atendimentos.service';
+import { NovoAtendimentoDialog } from './novo-atendimento-dialog';
 import {
   ATENDIMENTO_STATE_LABEL,
   AtendimentoComRelacoes,
@@ -43,17 +45,30 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
       </button>
       <span>Atendimentos</span>
       <span class="spacer"></span>
-      <a
-        mat-flat-button
-        color="primary"
-        [routerLink]="novoAtendimentoRoute()"
-        [queryParams]="novoAtendimentoQueryParams()"
-        [attr.aria-label]="novoAtendimentoLabel()"
-        [title]="novoAtendimentoLabel()"
-      >
-        <mat-icon>add</mat-icon>
-        <span>{{ novoAtendimentoButtonText() }}</span>
-      </a>
+      @if (clienteFilterId()) {
+        <button
+          mat-flat-button
+          color="primary"
+          type="button"
+          (click)="abrirNovoAtendimento()"
+          [attr.aria-label]="novoAtendimentoLabel()"
+          [title]="novoAtendimentoLabel()"
+        >
+          <mat-icon>add</mat-icon>
+          <span>Novo pedido</span>
+        </button>
+      } @else {
+        <a
+          mat-flat-button
+          color="primary"
+          routerLink="/admin/clientes"
+          [attr.aria-label]="novoAtendimentoLabel()"
+          [title]="novoAtendimentoLabel()"
+        >
+          <mat-icon>add</mat-icon>
+          <span>Buscar cliente</span>
+        </a>
+      }
     </mat-toolbar>
 
     @if (clienteFilterId()) {
@@ -149,6 +164,8 @@ export class AtendimentosListPage {
   private readonly clientesSvc = inject(ClientesService);
   private readonly location = inject(Location);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly atendimentos = signal<AtendimentoComRelacoes[] | null>(null);
   protected readonly loading = signal(false);
@@ -163,23 +180,9 @@ export class AtendimentosListPage {
   });
   protected readonly novoAtendimentoLabel = computed(() =>
     this.clienteFilterId()
-      ? `Novo atendimento para ${this.clienteFilterName()}`
+      ? `Novo pedido para ${this.clienteFilterName()}`
       : 'Buscar cliente ativo',
   );
-  protected readonly novoAtendimentoButtonText = computed(() =>
-    this.clienteFilterId() ? 'Novo atendimento' : 'Buscar cliente',
-  );
-  protected readonly novoAtendimentoRoute = computed(() =>
-    this.clienteFilterId() ? ['novo'] : ['/admin/clientes'],
-  );
-  protected readonly novoAtendimentoQueryParams = computed(() => {
-    const clienteId = this.clienteFilterId();
-    if (!clienteId) return null;
-    return {
-      clienteId,
-      clienteNome: this.clienteFilterName(),
-    };
-  });
 
   protected readonly emptyMessage = computed(() => {
     if (this.clienteFilterId()) {
@@ -212,6 +215,26 @@ export class AtendimentosListPage {
 
   voltar(): void {
     this.location.back();
+  }
+
+  abrirNovoAtendimento(): void {
+    const clienteId = this.clienteFilterId();
+    if (!clienteId) return;
+
+    const ref = this.dialog.open<
+      NovoAtendimentoDialog,
+      { clienteId: string; clienteNome: string },
+      string
+    >(NovoAtendimentoDialog, {
+      width: '480px',
+      data: { clienteId, clienteNome: this.clienteFilterName() },
+    });
+
+    ref.afterClosed().subscribe((id) => {
+      if (id) {
+        void this.router.navigate(['/admin/atendimentos', id]);
+      }
+    });
   }
 
   onTabChange(index: number): void {

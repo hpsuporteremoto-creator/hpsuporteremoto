@@ -186,13 +186,9 @@ export class ClienteFormPage {
         this.router.navigate(['/admin/clientes']);
       } else {
         const novo = await this.svc.create(data);
-        this.snackBar.open(
-          'Cliente criado — abrindo novo atendimento',
-          'OK',
-          { duration: 3000 },
-        );
-        this.router.navigate(['/admin/atendimentos/novo'], {
-          queryParams: { clienteId: novo.id },
+        this.snackBar.open('Cliente criado', 'OK', { duration: 3000 });
+        this.router.navigate(['/admin/atendimentos'], {
+          queryParams: { clienteId: novo.id, clienteNome: novo.nome },
         });
       }
     } catch (err) {

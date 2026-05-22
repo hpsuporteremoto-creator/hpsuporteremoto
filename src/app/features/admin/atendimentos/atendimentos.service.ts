@@ -7,7 +7,7 @@ import {
   AtendimentoListFilter,
   AtendimentoListOptions,
   AtendimentoState,
-  CriarAtendimentoData,
+  CriarAtendimentoParaClienteData,
 } from './atendimentos.types';
 
 const SELECT = `
@@ -67,25 +67,26 @@ export class AtendimentosService {
     if (error) throw new Error(error.message);
   }
 
-  async criarManual(data: CriarAtendimentoData): Promise<string> {
-    const { data: id, error } = await this.supabase.rpc('criar_atendimento', {
-      p_nome: data.nome,
-      p_whatsapp: data.whatsapp,
-      p_instagram: data.instagram,
-      p_email: data.email,
-      p_rustdesk_id: data.rustdesk_id,
-      p_rustdesk_password: data.rustdesk_password,
-      p_servico_id: data.servico_id,
-      p_servico_ids: data.servico_ids,
-      p_descricao_solicitacao: data.descricao_solicitacao,
-    });
+  async criarParaCliente(
+    clienteId: string,
+    data: CriarAtendimentoParaClienteData,
+  ): Promise<string> {
+    const { data: row, error } = await this.supabase
+      .from('atendimentos')
+      .insert({
+        cliente_id: clienteId,
+        servico_id: data.servico_ids[0] ?? null,
+        servico_ids: data.servico_ids,
+        descricao_solicitacao: data.descricao_solicitacao,
+        state: 'em_andamento',
+      })
+      .select('id')
+      .single<{ id: string }>();
 
-    if (error || typeof id !== 'string') {
+    if (error || !row) {
       throw new Error(error?.message ?? 'Falha ao criar atendimento');
     }
-
-    await this.updateState(id, 'em_andamento');
-    return id;
+    return row.id;
   }
 
   async cobrarEFinalizar(

@@ -28,16 +28,9 @@ export interface Atendimento {
   updated_at: string;
 }
 
-export interface CriarAtendimentoData {
-  nome: string;
-  whatsapp: string;
-  instagram: string | null;
-  email: string | null;
-  servico_id: string | null;
+export interface CriarAtendimentoParaClienteData {
   servico_ids: string[];
   descricao_solicitacao: string | null;
-  rustdesk_id: string | null;
-  rustdesk_password: string | null;
 }
 
 export interface AtendimentoClienteRef {
