@@ -64,8 +64,12 @@ export class LoginPage {
   constructor() {
     effect(() => {
       if (this.auth.isAuthenticated()) {
-        const target = this.resolveTarget();
-        this.router.navigateByUrl(target);
+        // Espera o fetch do flag is_admin do DB pra não redirecionar antes do
+        // is_admin() dinâmico estar carregado.
+        void this.auth.profileFlagReady().then(() => {
+          const target = this.resolveTarget();
+          this.router.navigateByUrl(target);
+        });
       }
     });
   }

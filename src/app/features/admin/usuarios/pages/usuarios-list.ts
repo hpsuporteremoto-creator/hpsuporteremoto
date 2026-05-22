@@ -76,6 +76,22 @@ import { UserProfile } from '../usuarios.types';
                     }
                   </div>
                   <div class="actions">
+                    <button
+                      mat-icon-button
+                      type="button"
+                      (click)="alternarAdmin(u)"
+                      [disabled]="!canTogglarAdmin(u) || updating()"
+                      [attr.aria-label]="
+                        isAdmin(u) ? 'Remover admin' : 'Tornar admin'
+                      "
+                      [title]="
+                        isAdmin(u) ? 'Remover admin' : 'Tornar admin'
+                      "
+                    >
+                      <mat-icon>{{
+                        isAdmin(u) ? 'remove_moderator' : 'add_moderator'
+                      }}</mat-icon>
+                    </button>
                     <a
                       mat-icon-button
                       [routerLink]="[u.id, 'editar']"
@@ -126,7 +142,17 @@ export class UsuariosListPage {
   }
 
   isAdmin(u: UserProfile): boolean {
-    return isAdminEmail(u.email);
+    return isAdminEmail(u.email) || u.is_admin;
+  }
+
+  /**
+   * Pode alterar o flag admin desse usuário? Não pra admins hardcoded
+   * (sempre admin) nem pra si mesmo (evita auto-lockout e UX confusa).
+   */
+  canTogglarAdmin(u: UserProfile): boolean {
+    if (isAdminEmail(u.email)) return false;
+    if (u.id === this.auth.user()?.id) return false;
+    return true;
   }
 
   canDelete(u: UserProfile): boolean {
@@ -151,6 +177,37 @@ export class UsuariosListPage {
       );
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  async alternarAdmin(u: UserProfile): Promise<void> {
+    if (!this.canTogglarAdmin(u)) return;
+    const willBeAdmin = !this.isAdmin(u);
+    const acao = willBeAdmin ? 'tornar' : 'remover';
+    const ok = confirm(
+      `Confirmar: ${acao} ${u.full_name || u.email} como admin?`,
+    );
+    if (!ok) return;
+
+    this.updating.set(true);
+    try {
+      await this.svc.setAdmin(u.id, willBeAdmin);
+      this.usuarios.update(
+        (list) =>
+          list?.map((x) =>
+            x.id === u.id ? { ...x, is_admin: willBeAdmin } : x,
+          ) ?? null,
+      );
+      this.snackBar.open(
+        willBeAdmin ? 'Promovido a admin' : 'Removido de admin',
+        'OK',
+        { duration: 2500 },
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro';
+      this.snackBar.open(msg, 'OK', { duration: 4000 });
+    } finally {
+      this.updating.set(false);
     }
   }
 
