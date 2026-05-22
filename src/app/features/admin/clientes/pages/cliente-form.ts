@@ -14,11 +14,25 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ClientesService } from '../clientes.service';
 import { ClienteFormData } from '../clientes.types';
+import {
+  onlyDigits,
+  parseWhatsappCanonical,
+} from '../../../../shared/whatsapp.util';
+
+const DDI_OPTIONS = [
+  { ddi: '55', label: '🇧🇷 +55  Brasil' },
+  { ddi: '351', label: '🇵🇹 +351 Portugal' },
+  { ddi: '1', label: '🇺🇸 +1   EUA/Canadá' },
+  { ddi: '44', label: '🇬🇧 +44  Reino Unido' },
+  { ddi: '34', label: '🇪🇸 +34  Espanha' },
+  { ddi: '49', label: '🇩🇪 +49  Alemanha' },
+] as const;
 
 @Component({
   selector: 'hp-cliente-form',
@@ -30,6 +44,7 @@ import { ClienteFormData } from '../clientes.types';
     MatIconModule,
     MatInputModule,
     MatProgressBarModule,
+    MatSelectModule,
     MatSlideToggleModule,
     MatToolbarModule,
   ],
@@ -57,20 +72,39 @@ import { ClienteFormData } from '../clientes.types';
               }
             </mat-form-field>
 
-            <mat-form-field appearance="outline">
-              <mat-label>WhatsApp</mat-label>
-              <mat-icon matIconPrefix>chat</mat-icon>
-              <input
-                matInput
-                type="tel"
-                formControlName="whatsapp"
-                placeholder="(11) 99999-9999"
-                required
-              />
-              @if (form.controls.whatsapp.hasError('required')) {
-                <mat-error>WhatsApp é obrigatório</mat-error>
-              }
-            </mat-form-field>
+            <div class="whatsapp-row">
+              <mat-form-field appearance="outline" class="ddi">
+                <mat-label>DDI</mat-label>
+                <mat-select formControlName="ddi" required>
+                  @for (opt of ddiOptions; track opt.ddi) {
+                    <mat-option [value]="opt.ddi">{{ opt.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="local">
+                <mat-label>WhatsApp</mat-label>
+                <mat-icon matIconPrefix>chat</mat-icon>
+                <input
+                  matInput
+                  type="tel"
+                  inputmode="tel"
+                  autocomplete="tel-national"
+                  formControlName="whatsappLocal"
+                  placeholder="81 98520-7465"
+                  required
+                />
+                @if (form.controls.whatsappLocal.hasError('required')) {
+                  <mat-error>WhatsApp é obrigatório</mat-error>
+                } @else if (
+                  form.controls.whatsappLocal.hasError('minlength') ||
+                  form.controls.whatsappLocal.hasError('maxlength') ||
+                  form.controls.whatsappLocal.hasError('pattern')
+                ) {
+                  <mat-error>Use apenas dígitos, espaços, parênteses ou traços.</mat-error>
+                }
+              </mat-form-field>
+            </div>
 
             <mat-form-field appearance="outline">
               <mat-label>Instagram (opcional)</mat-label>
@@ -121,9 +155,16 @@ export class ClienteFormPage {
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
 
+  protected readonly ddiOptions = DDI_OPTIONS;
   protected readonly form = this.fb.group({
     nome: ['', [Validators.required, Validators.minLength(2)]],
-    whatsapp: ['', [Validators.required, Validators.minLength(10)]],
+    ddi: ['55', [Validators.required]],
+    whatsappLocal: ['', [
+      Validators.required,
+      Validators.pattern(/^[\d\s()-]+$/),
+      Validators.minLength(8),
+      Validators.maxLength(20),
+    ]],
     instagram: [''],
     email: ['', [Validators.email]],
     ativo: [true],
@@ -150,9 +191,11 @@ export class ClienteFormPage {
         this.router.navigate(['/admin/clientes']);
         return;
       }
+      const { ddi, local } = parseWhatsappCanonical(cliente.whatsapp);
       this.form.setValue({
         nome: cliente.nome,
-        whatsapp: cliente.whatsapp,
+        ddi,
+        whatsappLocal: local,
         instagram: cliente.instagram ?? '',
         email: cliente.email ?? '',
         ativo: cliente.ativo,
@@ -170,9 +213,19 @@ export class ClienteFormPage {
     this.saving.set(true);
 
     const value = this.form.getRawValue();
+    const whatsapp = `${value.ddi.trim()}${onlyDigits(value.whatsappLocal)}`;
+    if (whatsapp.length < 10 || whatsapp.length > 15) {
+      this.snackBar.open(
+        'WhatsApp inválido: precisa de 10 a 15 dígitos no total (DDI + número).',
+        'OK',
+        { duration: 4000 },
+      );
+      this.saving.set(false);
+      return;
+    }
     const data: ClienteFormData = {
       nome: value.nome.trim(),
-      whatsapp: value.whatsapp.trim(),
+      whatsapp,
       instagram: value.instagram.trim() || null,
       email: value.email.trim() || null,
       ativo: value.ativo,
