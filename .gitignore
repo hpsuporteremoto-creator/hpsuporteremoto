@@ -30,6 +30,9 @@ supabase/.branches/
 # Planilhas de dados (clientes/faturamento) — não versionar dados sensíveis
 *.csv
 
+# Versão gerada no build (scripts/gen-version.mjs)
+/src/version.ts
+
 # IDEs and editors
 .idea/
 .project
