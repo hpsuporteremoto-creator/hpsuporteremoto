@@ -32,7 +32,7 @@ export class ClientesService {
       .insert(input)
       .select()
       .single<Cliente>();
-    if (error) throw new Error(error.message);
+    if (error) throw toClienteError(error);
     return data;
   }
 
@@ -43,7 +43,7 @@ export class ClientesService {
       .eq('id', id)
       .select()
       .single<Cliente>();
-    if (error) throw new Error(error.message);
+    if (error) throw toClienteError(error);
     return data;
   }
 
@@ -54,4 +54,13 @@ export class ClientesService {
       .eq('id', id);
     if (error) throw new Error(error.message);
   }
+}
+
+// 23505 = violação de índice único do Postgres. Em clientes o único índice
+// único é o do WhatsApp, então a colisão é sempre o número já cadastrado.
+function toClienteError(error: { code: string; message: string }): Error {
+  if (error.code === '23505') {
+    return new Error('Já existe um cliente cadastrado com este WhatsApp.');
+  }
+  return new Error(error.message);
 }
