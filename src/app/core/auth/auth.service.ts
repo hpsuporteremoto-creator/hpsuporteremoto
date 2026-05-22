@@ -10,10 +10,17 @@ export class AuthService {
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   private readonly _session = signal<Session | null>(null);
+  // Flag is_admin lido de public.profiles. Combinado com a whitelist hardcoded
+  // de emails, permite que admins promovam outros via UI sem precisar de
+  // migration. Atualizado em refreshProfileFlag().
+  private readonly _profileIsAdmin = signal(false);
+  private _profileFetch: Promise<void> = Promise.resolve();
   readonly session = this._session.asReadonly();
   readonly user = computed<User | null>(() => this._session()?.user ?? null);
   readonly isAuthenticated = computed(() => this.user() !== null);
-  readonly isAdmin = computed(() => isAdminEmail(this.user()?.email));
+  readonly isAdmin = computed(
+    () => isAdminEmail(this.user()?.email) || this._profileIsAdmin(),
+  );
 
   readonly ready: Promise<void>;
 
@@ -24,13 +31,15 @@ export class AuthService {
         return;
       }
 
-      this.supabase.auth.getSession().then(({ data }) => {
+      this.supabase.auth.getSession().then(async ({ data }) => {
         this._session.set(data.session);
+        await this.refreshProfileFlag();
         resolve();
       });
 
       this.supabase.auth.onAuthStateChange((_event, session) => {
         this._session.set(session);
+        void this.refreshProfileFlag();
       });
     });
   }
@@ -57,5 +66,34 @@ export class AuthService {
   async getAccessToken(): Promise<string | null> {
     const { data } = await this.supabase.auth.getSession();
     return data.session?.access_token ?? null;
+  }
+
+  /**
+   * Refetch do flag `is_admin` de `public.profiles` para o usuário atual.
+   * Disparado no boot e a cada mudança de sessão; pode ser chamado
+   * manualmente (ex: após o próprio usuário ser promovido) e aguardado via
+   * profileFlagReady().
+   */
+  async refreshProfileFlag(): Promise<void> {
+    const fetchPromise = (async () => {
+      const userId = this.user()?.id;
+      if (!userId) {
+        this._profileIsAdmin.set(false);
+        return;
+      }
+      const { data } = await this.supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', userId)
+        .maybeSingle<{ is_admin: boolean }>();
+      this._profileIsAdmin.set(!!data?.is_admin);
+    })();
+    this._profileFetch = fetchPromise;
+    return fetchPromise;
+  }
+
+  /** Aguarda o fetch mais recente do flag is_admin — use após login pra evitar race. */
+  profileFlagReady(): Promise<void> {
+    return this._profileFetch;
   }
 }
