@@ -64,11 +64,40 @@ export interface NovoAtendimentoDialogData {
             multiple
             required
             (selectionChange)="onServicosChange($event.value)"
+            (openedChange)="onPanelToggle($event)"
           >
-            @for (s of servicos(); track s.id) {
+            <div class="servico-busca">
+              <mat-icon>search</mat-icon>
+              <input
+                type="text"
+                placeholder="Buscar serviço"
+                autocomplete="off"
+                aria-label="Buscar serviço"
+                [value]="servicoFiltro()"
+                (input)="onFiltroChange($event)"
+                (keydown)="$event.stopPropagation()"
+                (click)="$event.stopPropagation()"
+              />
+              @if (servicoFiltro()) {
+                <button
+                  type="button"
+                  class="limpar-busca"
+                  aria-label="Limpar busca"
+                  (click)="limparFiltro($event)"
+                  (keydown)="$event.stopPropagation()"
+                >
+                  <mat-icon>close</mat-icon>
+                </button>
+              }
+            </div>
+
+            @for (s of filteredServicos(); track s.id) {
               <mat-option [value]="s.id">
                 {{ s.nome }} — {{ s.valor_centavos / 100 | currency }}
               </mat-option>
+            }
+            @if (servicos().length > 0 && filteredServicos().length === 0) {
+              <p class="servico-vazio">Nenhum serviço encontrado.</p>
             }
           </mat-select>
           @if (form.controls.servico_ids.hasError('required')) {
@@ -122,6 +151,43 @@ export interface NovoAtendimentoDialogData {
       width: 100%
     .total
       margin: -0.5rem 0 0.75rem
+    .servico-busca
+      position: sticky
+      top: 0
+      z-index: 1
+      display: flex
+      align-items: center
+      gap: 0.5rem
+      padding: 0.5rem 0.75rem
+      background: var(--mat-sys-surface-container)
+      border-bottom: 1px solid var(--mat-sys-outline-variant)
+    .servico-busca mat-icon
+      flex-shrink: 0
+      color: var(--mat-sys-on-surface-variant)
+    .servico-busca input
+      flex: 1
+      min-width: 0
+      border: none
+      background: transparent
+      color: var(--mat-sys-on-surface)
+      font: inherit
+      outline: none
+    .servico-busca input::placeholder
+      color: var(--mat-sys-on-surface-variant)
+    .limpar-busca
+      display: inline-flex
+      align-items: center
+      justify-content: center
+      padding: 0
+      border: none
+      background: transparent
+      color: var(--mat-sys-on-surface-variant)
+      cursor: pointer
+    .servico-vazio
+      margin: 0
+      padding: 0.75rem
+      text-align: center
+      color: var(--mat-sys-on-surface-variant)
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -135,6 +201,7 @@ export class NovoAtendimentoDialog {
 
   protected readonly servicos = signal<Servico[]>([]);
   protected readonly selectedServicoIds = signal<string[]>([]);
+  protected readonly servicoFiltro = signal('');
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -144,6 +211,21 @@ export class NovoAtendimentoDialog {
     return this.servicos()
       .filter((servico) => ids.has(servico.id))
       .reduce((total, servico) => total + servico.valor_centavos, 0);
+  });
+
+  // Serviços filtrados pela busca. Os já selecionados ficam sempre visíveis
+  // para o resumo do mat-select continuar correto com o filtro ativo.
+  protected readonly filteredServicos = computed(() => {
+    const termo = normalizarBusca(this.servicoFiltro());
+    const todos = this.servicos();
+    if (!termo) return todos;
+    const selecionados = new Set(this.selectedServicoIds());
+    return todos.filter(
+      (servico) =>
+        selecionados.has(servico.id) ||
+        normalizarBusca(servico.nome).includes(termo) ||
+        normalizarBusca(servico.categoria ?? '').includes(termo),
+    );
   });
 
   protected readonly form = this.fb.group({
@@ -157,6 +239,20 @@ export class NovoAtendimentoDialog {
 
   onServicosChange(ids: string[]): void {
     this.selectedServicoIds.set(ids);
+  }
+
+  onFiltroChange(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    this.servicoFiltro.set(input?.value ?? '');
+  }
+
+  limparFiltro(event: Event): void {
+    event.stopPropagation();
+    this.servicoFiltro.set('');
+  }
+
+  onPanelToggle(opened: boolean): void {
+    if (!opened) this.servicoFiltro.set('');
   }
 
   cancelar(): void {
@@ -193,4 +289,13 @@ export class NovoAtendimentoDialog {
       this.saving.set(false);
     }
   }
+}
+
+function normalizarBusca(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
 }
