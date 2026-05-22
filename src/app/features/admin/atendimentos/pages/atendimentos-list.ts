@@ -17,6 +17,7 @@ import {
   AtendimentoListFilter,
   AtendimentoState,
 } from '../atendimentos.types';
+import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 
 const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
   'novos',
@@ -130,7 +131,7 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
                     <div class="info">
                       <strong class="cliente">{{ a.cliente.nome }}</strong>
                       <small class="meta">
-                        {{ a.cliente.whatsapp }}
+                        {{ formatWhatsapp(a.cliente.whatsapp) }}
                         @if (a.rustdesk_id) {
                           · RustDesk {{ a.rustdesk_id }}
                         }
@@ -174,9 +175,11 @@ export class AtendimentosListPage {
   protected readonly clienteFilterId = signal<string | null>(null);
   protected readonly clienteFilterName = signal('cliente selecionado');
   protected readonly clienteWhatsapp = signal<string | null>(null);
+  protected readonly formatWhatsapp = formatWhatsappDisplay;
+  // `clienteWhatsapp` já é canônico (digits-only com DDI) após a migration 0013.
   protected readonly whatsappLink = computed(() => {
-    const digits = onlyDigits(this.clienteWhatsapp() ?? '');
-    return digits ? `https://wa.me/${digits}` : null;
+    const whats = this.clienteWhatsapp();
+    return whats ? `https://wa.me/${whats}` : null;
   });
   protected readonly novoAtendimentoLabel = computed(() =>
     this.clienteFilterId()
@@ -279,8 +282,4 @@ export class AtendimentosListPage {
       this.clienteWhatsapp.set(null);
     }
   }
-}
-
-function onlyDigits(value: string): string {
-  return value.replace(/\D/g, '');
 }

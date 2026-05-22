@@ -20,6 +20,10 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ClientesService } from '../clientes.service';
 import { Cliente } from '../clientes.types';
+import {
+  formatWhatsappDisplay,
+  onlyDigits,
+} from '../../../../shared/whatsapp.util';
 
 @Component({
   selector: 'hp-clientes-list',
@@ -119,7 +123,7 @@ import { Cliente } from '../clientes.types';
                 <mat-card-content class="row">
                   <div class="info">
                     <strong class="nome">{{ cliente.nome }}</strong>
-                    <small class="whatsapp">{{ cliente.whatsapp }}</small>
+                    <small class="whatsapp">{{ formatWhatsapp(cliente.whatsapp) }}</small>
                     @if (cliente.email) {
                       <small class="email">{{ cliente.email }}</small>
                     }
@@ -167,6 +171,7 @@ export class ClientesListPage {
   private readonly location = inject(Location);
   private readonly router = inject(Router);
 
+  protected readonly formatWhatsapp = formatWhatsappDisplay;
   protected readonly clientes = signal<Cliente[] | null>(null);
   protected readonly searchTerm = signal('');
   protected readonly loading = signal(false);
@@ -185,20 +190,18 @@ export class ClientesListPage {
   );
   protected readonly filteredClientes = computed(() => {
     const term = normalizeSearch(this.searchTerm());
-    // Busca por número ignora formatação (espaços, traços, parênteses):
-    // compara só os dígitos, então "(81) 8520-7465" acha "55 81 8520-7465".
+    // Busca por número (digit-aware): compara só os dígitos do termo contra o
+    // `whatsapp` armazenado, que já é canônico digits-only (migration 0013).
     const digits = onlyDigits(this.searchTerm());
     const list = this.currentTabClientes();
     if (!term) return list;
     return list.filter((cliente) => {
       const textMatch = [
         cliente.nome,
-        cliente.whatsapp,
         cliente.email ?? '',
         cliente.instagram ?? '',
       ].some((value) => normalizeSearch(value).includes(term));
-      const phoneMatch =
-        digits.length > 0 && onlyDigits(cliente.whatsapp).includes(digits);
+      const phoneMatch = digits.length > 0 && cliente.whatsapp.includes(digits);
       return textMatch || phoneMatch;
     });
   });
@@ -292,8 +295,4 @@ function normalizeSearch(value: string): string {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function onlyDigits(value: string): string {
-  return value.replace(/\D/g, '');
 }

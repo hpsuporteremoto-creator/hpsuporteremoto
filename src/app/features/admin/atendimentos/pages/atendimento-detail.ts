@@ -18,6 +18,7 @@ import {
 } from '../atendimentos.types';
 import { ServicosService } from '../../servicos/servicos.service';
 import { Servico } from '../../servicos/servicos.types';
+import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 
 @Component({
   selector: 'hp-atendimento-detail',
@@ -65,10 +66,10 @@ import { Servico } from '../../servicos/servicos.types';
             <p>
               <mat-icon>chat</mat-icon>
               <a
-                [href]="'https://wa.me/' + onlyDigits(a.cliente.whatsapp)"
+                [href]="'https://wa.me/' + a.cliente.whatsapp"
                 target="_blank"
                 rel="noopener"
-                >{{ a.cliente.whatsapp }}</a
+                >{{ formatWhatsapp(a.cliente.whatsapp) }}</a
               >
             </p>
             @if (a.cliente.email) {
@@ -320,9 +321,7 @@ export class AtendimentoDetailPage {
     return ATENDIMENTO_STATE_LABEL[state];
   }
 
-  onlyDigits(s: string): string {
-    return s.replace(/\D/g, '');
-  }
+  protected readonly formatWhatsapp = formatWhatsappDisplay;
 
   onSelectServico(id: string | null): void {
     this.selectedServicoId.set(id);
