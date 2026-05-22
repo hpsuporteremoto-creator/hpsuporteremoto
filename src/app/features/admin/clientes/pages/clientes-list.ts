@@ -185,16 +185,22 @@ export class ClientesListPage {
   );
   protected readonly filteredClientes = computed(() => {
     const term = normalizeSearch(this.searchTerm());
+    // Busca por número ignora formatação (espaços, traços, parênteses):
+    // compara só os dígitos, então "(81) 8520-7465" acha "55 81 8520-7465".
+    const digits = onlyDigits(this.searchTerm());
     const list = this.currentTabClientes();
     if (!term) return list;
-    return list.filter((cliente) =>
-      [
+    return list.filter((cliente) => {
+      const textMatch = [
         cliente.nome,
         cliente.whatsapp,
         cliente.email ?? '',
         cliente.instagram ?? '',
-      ].some((value) => normalizeSearch(value).includes(term)),
-    );
+      ].some((value) => normalizeSearch(value).includes(term));
+      const phoneMatch =
+        digits.length > 0 && onlyDigits(cliente.whatsapp).includes(digits);
+      return textMatch || phoneMatch;
+    });
   });
   // Página atual (20 por vez) sobre o resultado já filtrado por aba + busca.
   protected readonly pagedClientes = computed(() => {
@@ -286,4 +292,8 @@ function normalizeSearch(value: string): string {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function onlyDigits(value: string): string {
+  return value.replace(/\D/g, '');
 }
