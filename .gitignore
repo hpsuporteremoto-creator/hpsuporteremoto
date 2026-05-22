@@ -27,6 +27,9 @@ supabase/.branches/
 # Wrangler local state
 .wrangler/
 
+# Planilhas de dados (clientes/faturamento) — não versionar dados sensíveis
+*.csv
+
 # IDEs and editors
 .idea/
 .project

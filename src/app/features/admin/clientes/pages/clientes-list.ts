@@ -12,6 +12,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -29,6 +30,7 @@ import { Cliente } from '../clientes.types';
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatPaginatorModule,
     MatProgressBarModule,
     MatSlideToggleModule,
     MatTabsModule,
@@ -102,7 +104,7 @@ import { Cliente } from '../clientes.types';
           <p class="empty">{{ emptyMessage() }}</p>
         } @else {
           <div class="list">
-            @for (cliente of filteredClientes(); track cliente.id) {
+            @for (cliente of pagedClientes(); track cliente.id) {
               <mat-card
                 class="cliente-card"
                 appearance="filled"
@@ -142,6 +144,16 @@ import { Cliente } from '../clientes.types';
               </mat-card>
             }
           </div>
+
+          @if (filteredClientes().length > pageSize) {
+            <mat-paginator
+              [length]="filteredClientes().length"
+              [pageSize]="pageSize"
+              [pageIndex]="pageIndex()"
+              hidePageSize
+              (page)="onPage($event)"
+            />
+          }
         }
       }
     </main>
@@ -160,6 +172,8 @@ export class ClientesListPage {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly tabIndex = signal(0);
+  protected readonly pageIndex = signal(0);
+  protected readonly pageSize = 20;
   protected readonly activeClientes = computed(() =>
     (this.clientes() ?? []).filter((cliente) => cliente.ativo),
   );
@@ -182,6 +196,11 @@ export class ClientesListPage {
       ].some((value) => normalizeSearch(value).includes(term)),
     );
   });
+  // Página atual (20 por vez) sobre o resultado já filtrado por aba + busca.
+  protected readonly pagedClientes = computed(() => {
+    const start = this.pageIndex() * this.pageSize;
+    return this.filteredClientes().slice(start, start + this.pageSize);
+  });
   protected readonly emptyMessage = computed(() => {
     if (this.searchTerm()) return 'Nenhum cliente encontrado.';
     return this.tabIndex() === 0
@@ -200,14 +219,21 @@ export class ClientesListPage {
   onSearch(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     this.searchTerm.set(input?.value ?? '');
+    this.pageIndex.set(0);
   }
 
   clearSearch(): void {
     this.searchTerm.set('');
+    this.pageIndex.set(0);
   }
 
   onTabChange(index: number): void {
     this.tabIndex.set(index);
+    this.pageIndex.set(0);
+  }
+
+  onPage(event: PageEvent): void {
+    this.pageIndex.set(event.pageIndex);
   }
 
   abrirAtendimentos(cliente: Cliente): void {

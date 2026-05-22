@@ -183,11 +183,18 @@ export class ClienteFormPage {
       if (id) {
         await this.svc.update(id, data);
         this.snackBar.open('Cliente atualizado', 'OK', { duration: 3000 });
+        this.router.navigate(['/admin/clientes']);
       } else {
-        await this.svc.create(data);
-        this.snackBar.open('Cliente criado', 'OK', { duration: 3000 });
+        const novo = await this.svc.create(data);
+        this.snackBar.open(
+          'Cliente criado — abrindo novo atendimento',
+          'OK',
+          { duration: 3000 },
+        );
+        this.router.navigate(['/admin/atendimentos/novo'], {
+          queryParams: { clienteId: novo.id },
+        });
       }
-      this.router.navigate(['/admin/clientes']);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro';
       this.snackBar.open(msg, 'OK', { duration: 4000 });
