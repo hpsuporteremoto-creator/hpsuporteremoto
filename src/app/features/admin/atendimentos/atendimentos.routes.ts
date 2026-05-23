@@ -8,6 +8,13 @@ export const atendimentosRoutes: Routes = [
       import('./pages/atendimentos-list').then((m) => m.AtendimentosListPage),
   },
   {
+    path: 'novo',
+    loadComponent: () =>
+      import('./pages/novo-atendimento-page').then(
+        (m) => m.NovoAtendimentoPage,
+      ),
+  },
+  {
     path: ':id',
     loadComponent: () =>
       import('./pages/atendimento-detail').then(

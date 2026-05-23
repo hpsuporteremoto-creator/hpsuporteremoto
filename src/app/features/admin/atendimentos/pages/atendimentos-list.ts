@@ -3,14 +3,12 @@ import { DatePipe, Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ClientesService } from '../../clientes/clientes.service';
 import { AtendimentosService } from '../atendimentos.service';
-import { NovoAtendimentoDialog } from './novo-atendimento-dialog';
 import {
   ATENDIMENTO_STATE_LABEL,
   AtendimentoComRelacoes,
@@ -166,7 +164,6 @@ export class AtendimentosListPage {
   private readonly location = inject(Location);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly dialog = inject(MatDialog);
 
   protected readonly atendimentos = signal<AtendimentoComRelacoes[] | null>(null);
   protected readonly loading = signal(false);
@@ -224,19 +221,11 @@ export class AtendimentosListPage {
     const clienteId = this.clienteFilterId();
     if (!clienteId) return;
 
-    const ref = this.dialog.open<
-      NovoAtendimentoDialog,
-      { clienteId: string; clienteNome: string },
-      string
-    >(NovoAtendimentoDialog, {
-      width: '480px',
-      data: { clienteId, clienteNome: this.clienteFilterName() },
-    });
-
-    ref.afterClosed().subscribe((id) => {
-      if (id) {
-        void this.router.navigate(['/admin/atendimentos', id]);
-      }
+    void this.router.navigate(['/admin/atendimentos/novo'], {
+      queryParams: {
+        clienteId,
+        clienteNome: this.clienteFilterName(),
+      },
     });
   }
 
