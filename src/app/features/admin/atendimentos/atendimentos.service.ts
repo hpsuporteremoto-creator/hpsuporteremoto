@@ -11,7 +11,7 @@ import {
 } from './atendimentos.types';
 
 const SELECT = `
-  id, cliente_id, servico_id, servico_ids, rustdesk_id, rustdesk_password,
+  id, cliente_id, servico_id, servico_ids,
   state, valor_centavos, pix_brcode, descricao_solicitacao,
   created_at, updated_at,
   cliente:clientes ( id, nome, whatsapp, instagram, email ),

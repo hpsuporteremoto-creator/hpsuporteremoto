@@ -1,7 +1,7 @@
 {
   "name": "HP suporte remoto",
   "short_name": "HP suporte",
-  "description": "Suporte técnico remoto via RustDesk com pagamento PIX",
+  "description": "Sistema administrativo de suporte técnico remoto com pagamento PIX",
   "lang": "pt-BR",
   "theme_color": "#2196f3",
   "background_color": "#121212",

@@ -261,8 +261,6 @@ function buildImportPlan(rows) {
       cliente_id: clienteId,
       servico_id: servicoId,
       servico_ids: [servicoId],
-      rustdesk_id: null,
-      rustdesk_password: null,
       state: 'concluido',
       valor_centavos: null,
       pix_brcode: null,

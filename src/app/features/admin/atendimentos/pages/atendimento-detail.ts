@@ -110,50 +110,6 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
         }
 
         <mat-card appearance="filled" class="info-card">
-          <mat-card-header>
-            <mat-card-title>Credenciais RustDesk</mat-card-title>
-          </mat-card-header>
-          <mat-card-content class="rustdesk-content">
-            <div class="kv">
-              <small>ID</small>
-              <div class="copyable">
-                @if (a.rustdesk_id) {
-                  <code>{{ a.rustdesk_id }}</code>
-                  <button
-                    mat-icon-button
-                    type="button"
-                    (click)="copiar(a.rustdesk_id, 'ID copiado')"
-                    aria-label="Copiar ID"
-                  >
-                    <mat-icon>content_copy</mat-icon>
-                  </button>
-                } @else {
-                  <code class="muted">Não informado</code>
-                }
-              </div>
-            </div>
-            <div class="kv">
-              <small>Senha temporária</small>
-              <div class="copyable">
-                @if (a.rustdesk_password) {
-                  <code>{{ a.rustdesk_password }}</code>
-                  <button
-                    mat-icon-button
-                    type="button"
-                    (click)="copiar(a.rustdesk_password, 'Senha copiada')"
-                    aria-label="Copiar senha"
-                  >
-                    <mat-icon>content_copy</mat-icon>
-                  </button>
-                } @else {
-                  <code class="muted">Não informada</code>
-                }
-              </div>
-            </div>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card appearance="filled" class="info-card">
           <mat-card-content class="state-content">
             @switch (a.state) {
               @case ('aguardando_confirmacao') {

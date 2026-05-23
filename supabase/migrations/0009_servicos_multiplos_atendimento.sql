@@ -15,8 +15,6 @@ create or replace function public.criar_atendimento(
   p_whatsapp text,
   p_instagram text,
   p_email text,
-  p_rustdesk_id text,
-  p_rustdesk_password text,
   p_servico_id uuid default null,
   p_servico_ids uuid[] default null,
   p_descricao_solicitacao text default null
@@ -53,16 +51,12 @@ begin
 
   insert into public.atendimentos (
     cliente_id,
-    rustdesk_id,
-    rustdesk_password,
     servico_id,
     servico_ids,
     descricao_solicitacao
   )
   values (
     v_cliente_id,
-    nullif(trim(p_rustdesk_id), ''),
-    nullif(trim(p_rustdesk_password), ''),
     coalesce(p_servico_id, v_servico_ids[1]),
     v_servico_ids,
     nullif(trim(p_descricao_solicitacao), '')
@@ -74,5 +68,5 @@ end;
 $$;
 
 grant execute on function public.criar_atendimento(
-  text, text, text, text, text, text, uuid, uuid[], text
+  text, text, text, text, uuid, uuid[], text
 ) to anon, authenticated;

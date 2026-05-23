@@ -130,9 +130,6 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
                       <strong class="cliente">{{ a.cliente.nome }}</strong>
                       <small class="meta">
                         {{ formatWhatsapp(a.cliente.whatsapp) }}
-                        @if (a.rustdesk_id) {
-                          · RustDesk {{ a.rustdesk_id }}
-                        }
                       </small>
                       @if (a.servicos_solicitados.length > 0) {
                         <small class="meta">

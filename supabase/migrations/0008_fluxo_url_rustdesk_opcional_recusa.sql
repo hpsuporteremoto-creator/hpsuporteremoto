@@ -1,22 +1,16 @@
 -- Novo fluxo:
---   servicos -> whatsapp -> solicitacao -> credenciais RustDesk opcionais
---   -> atendimento admin -> pagamento -> concluido.
--- Permite recusa pelo admin e aceita atendimentos sem credenciais RustDesk.
+--   servicos -> whatsapp -> solicitacao -> atendimento admin -> pagamento
+--   -> concluido.
+-- Permite recusa pelo admin.
 
 alter type public.atendimento_state
   add value if not exists 'recusado' after 'aguardando_confirmacao';
-
-alter table public.atendimentos
-  alter column rustdesk_id drop not null,
-  alter column rustdesk_password drop not null;
 
 create or replace function public.criar_atendimento(
   p_nome text,
   p_whatsapp text,
   p_instagram text,
   p_email text,
-  p_rustdesk_id text,
-  p_rustdesk_password text,
   p_servico_id uuid default null,
   p_descricao_solicitacao text default null
 )
@@ -45,15 +39,11 @@ begin
 
   insert into public.atendimentos (
     cliente_id,
-    rustdesk_id,
-    rustdesk_password,
     servico_id,
     descricao_solicitacao
   )
   values (
     v_cliente_id,
-    nullif(trim(p_rustdesk_id), ''),
-    nullif(trim(p_rustdesk_password), ''),
     p_servico_id,
     nullif(trim(p_descricao_solicitacao), '')
   )
@@ -64,5 +54,5 @@ end;
 $$;
 
 grant execute on function public.criar_atendimento(
-  text, text, text, text, text, text, uuid, text
+  text, text, text, text, uuid, text
 ) to anon, authenticated;

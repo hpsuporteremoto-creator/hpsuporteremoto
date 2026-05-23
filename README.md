@@ -24,7 +24,7 @@ O admin acessa `/admin`, usa o drawer responsivo para navegar e pode fazer o ped
 
 1. Abre o **Dashboard** para ver KPIs, fila por status e receita.
 2. Abre **Novo atendimento**.
-3. Preenche cliente, serviços, descrição e RustDesk opcional.
+3. Preenche cliente, serviços e descrição.
 4. O pedido é criado já em `em_andamento`.
 5. No detalhe do atendimento, finaliza e gera PIX.
 6. Copia o BR Code se necessário.

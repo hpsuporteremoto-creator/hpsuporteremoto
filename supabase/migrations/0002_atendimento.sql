@@ -40,8 +40,6 @@ create table public.atendimentos (
   id uuid primary key default gen_random_uuid(),
   cliente_id uuid not null references public.clientes(id) on delete restrict,
   servico_id uuid references public.servicos(id) on delete set null,
-  rustdesk_id text not null,
-  rustdesk_password text not null,
   state public.atendimento_state not null default 'conexao',
   valor_centavos integer,
   pix_brcode text,
@@ -104,9 +102,7 @@ create or replace function public.criar_atendimento(
   p_nome text,
   p_whatsapp text,
   p_instagram text,
-  p_email text,
-  p_rustdesk_id text,
-  p_rustdesk_password text
+  p_email text
 )
 returns uuid
 language plpgsql
@@ -126,13 +122,13 @@ begin
         updated_at = now()
   returning id into v_cliente_id;
 
-  insert into public.atendimentos (cliente_id, rustdesk_id, rustdesk_password)
-  values (v_cliente_id, p_rustdesk_id, p_rustdesk_password)
+  insert into public.atendimentos (cliente_id)
+  values (v_cliente_id)
   returning id into v_atendimento_id;
 
   return v_atendimento_id;
 end;
 $$;
 
-grant execute on function public.criar_atendimento(text, text, text, text, text, text)
+grant execute on function public.criar_atendimento(text, text, text, text)
   to anon, authenticated;

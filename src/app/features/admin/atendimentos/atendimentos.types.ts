@@ -18,8 +18,6 @@ export interface Atendimento {
   cliente_id: string;
   servico_id: string | null;
   servico_ids: string[] | null;
-  rustdesk_id: string | null;
-  rustdesk_password: string | null;
   state: AtendimentoState;
   valor_centavos: number | null;
   pix_brcode: string | null;

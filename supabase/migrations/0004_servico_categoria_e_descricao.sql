@@ -17,15 +17,13 @@ alter table public.atendimentos
 
 -- Refaz a RPC com 2 parâmetros novos (default null para não quebrar callers
 -- antigos). drop é necessário porque a assinatura mudou.
-drop function if exists public.criar_atendimento(text, text, text, text, text, text);
+drop function if exists public.criar_atendimento(text, text, text, text);
 
 create or replace function public.criar_atendimento(
   p_nome text,
   p_whatsapp text,
   p_instagram text,
   p_email text,
-  p_rustdesk_id text,
-  p_rustdesk_password text,
   p_servico_id uuid default null,
   p_descricao_solicitacao text default null
 )
@@ -49,15 +47,11 @@ begin
 
   insert into public.atendimentos (
     cliente_id,
-    rustdesk_id,
-    rustdesk_password,
     servico_id,
     descricao_solicitacao
   )
   values (
     v_cliente_id,
-    p_rustdesk_id,
-    p_rustdesk_password,
     p_servico_id,
     nullif(trim(p_descricao_solicitacao), '')
   )
@@ -68,5 +62,5 @@ end;
 $$;
 
 grant execute on function public.criar_atendimento(
-  text, text, text, text, text, text, uuid, text
+  text, text, text, text, uuid, text
 ) to anon, authenticated;
