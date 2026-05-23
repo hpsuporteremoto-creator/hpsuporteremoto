@@ -122,6 +122,9 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                     @if (cliente.email) {
                       <small class="email">{{ cliente.email }}</small>
                     }
+                    @if (cliente.observacao) {
+                      <small class="observacao">{{ cliente.observacao }}</small>
+                    }
                   </div>
                   <div class="actions">
                     <mat-slide-toggle

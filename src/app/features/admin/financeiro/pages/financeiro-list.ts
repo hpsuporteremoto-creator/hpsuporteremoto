@@ -52,6 +52,14 @@ function firstOfMonthISO(): string {
       </button>
       <span>Financeiro</span>
       <span class="spacer"></span>
+      <a
+        mat-stroked-button
+        routerLink="recebedor-pix"
+        aria-label="Configurar recebedor PIX"
+      >
+        <mat-icon>qr_code_2</mat-icon>
+        <span>Recebedor PIX</span>
+      </a>
       <a mat-flat-button color="primary" routerLink="nova" aria-label="Nova transação">
         <mat-icon>add</mat-icon>
         <span>Nova transação</span>

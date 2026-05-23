@@ -24,3 +24,18 @@ export interface ResumoFinanceiro {
   saidas: number;
   saldo: number;
 }
+
+export interface PixRecebedorConfig {
+  id: number;
+  pix_key: string;
+  receiver_name: string;
+  receiver_city: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PixRecebedorConfigFormData {
+  pix_key: string;
+  receiver_name: string;
+  receiver_city: string;
+}

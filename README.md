@@ -85,26 +85,15 @@ Secrets de runtime das Pages Functions:
 ```txt
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
-PIX_KEY
-PIX_RECEIVER_NAME
-PIX_RECEIVER_CITY
 ```
 
-Os dados do recebedor do PIX ficam nesses três secrets da Cloudflare Pages:
+Os dados do recebedor do PIX são configurados no próprio sistema em
+`/admin/financeiro/recebedor-pix`. A tela grava a chave PIX, nome do recebedor
+e cidade na tabela `pix_recebedor_config`, usada pela função
+`functions/api/generate-pix.ts` na hora de gerar o BR Code.
 
-| Secret | Uso |
-| --- | --- |
-| `PIX_KEY` | Chave PIX do recebedor |
-| `PIX_RECEIVER_NAME` | Nome do recebedor impresso no BR Code |
-| `PIX_RECEIVER_CITY` | Cidade do recebedor impresso no BR Code |
-
-Eles podem ser ajustados em **Cloudflare Dashboard > Workers & Pages > hpsuporteremoto > Settings > Environment variables** ou pelo Wrangler:
-
-```bash
-npx wrangler pages secret put PIX_KEY --project-name=hpsuporteremoto
-npx wrangler pages secret put PIX_RECEIVER_NAME --project-name=hpsuporteremoto
-npx wrangler pages secret put PIX_RECEIVER_CITY --project-name=hpsuporteremoto
-```
+`PIX_KEY`, `PIX_RECEIVER_NAME` e `PIX_RECEIVER_CITY` ainda podem existir como
+fallback legado de runtime, mas não são a forma principal de configuração.
 
 Secrets do GitHub Actions:
 

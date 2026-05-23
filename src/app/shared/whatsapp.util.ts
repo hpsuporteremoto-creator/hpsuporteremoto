@@ -57,6 +57,41 @@ export function parseWhatsappCanonical(canonical: string): {
   return { ddi: digits.slice(0, 2), local: digits.slice(2) };
 }
 
+export function extractWhatsappParts(
+  input: string,
+  currentDdi = '55',
+): { ddi: string; local: string } {
+  const digits = onlyDigits(input);
+  if (!digits) return { ddi: onlyDigits(currentDdi) || '55', local: '' };
+
+  const ddi = onlyDigits(currentDdi) || '55';
+  const pastedCompleteNumber = input.includes('+') || digits.length > 11;
+
+  if (pastedCompleteNumber) {
+    const parsed = parseWhatsappCanonical(digits);
+    if (parsed.local.length >= 8) return parsed;
+  }
+
+  return { ddi, local: digits };
+}
+
+export function formatWhatsappLocal(local: string, ddi = '55'): string {
+  const digits = onlyDigits(local).slice(0, 14);
+  if (!digits) return '';
+
+  if (onlyDigits(ddi) === '55' && digits.length >= 10) {
+    const ddd = digits.slice(0, 2);
+    const number = digits.slice(2, 11);
+    const main =
+      number.length > 8
+        ? `${number.slice(0, 5)}-${number.slice(5)}`
+        : `${number.slice(0, 4)}-${number.slice(4)}`;
+    return `(${ddd}) ${main}`.trim();
+  }
+
+  return digits.replace(/(\d{3})(?=\d)/g, '$1 ').trim();
+}
+
 /**
  * Formato de exibição.
  * - BR (DDI 55, 12–13 dígitos): "+55 (81) 98520-7465"

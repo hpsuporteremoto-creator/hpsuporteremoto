@@ -4,6 +4,7 @@ export interface Cliente {
   whatsapp: string;
   instagram: string | null;
   email: string | null;
+  observacao: string | null;
   ativo: boolean;
   created_at: string;
   updated_at: string;
@@ -14,5 +15,6 @@ export interface ClienteFormData {
   whatsapp: string;
   instagram: string | null;
   email: string | null;
+  observacao: string | null;
   ativo: boolean;
 }

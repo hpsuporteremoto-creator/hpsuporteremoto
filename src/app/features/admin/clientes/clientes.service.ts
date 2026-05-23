@@ -112,6 +112,7 @@ function createSearchFilter(value: string): string {
     `nome.ilike.%${termo}%`,
     `email.ilike.%${termo}%`,
     `instagram.ilike.%${termo}%`,
+    `observacao.ilike.%${termo}%`,
   ];
   if (digits) filters.push(`whatsapp.ilike.%${digits}%`);
   return filters.join(',');

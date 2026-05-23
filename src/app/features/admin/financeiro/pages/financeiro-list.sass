@@ -1,6 +1,9 @@
 .spacer
   flex: 1
 
+mat-toolbar
+  gap: 0.5rem
+
 .content
   padding: 1rem
   max-width: 48rem
@@ -121,5 +124,8 @@
   color: #ef5350
 
 @media (max-width: 28rem)
+  mat-toolbar a span
+    display: none
+
   .resumo
     grid-template-columns: 1fr

@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/supabase/supabase.service';
 import {
+  PixRecebedorConfig,
+  PixRecebedorConfigFormData,
   ResumoFinanceiro,
   Transacao,
   TransacaoFormData,
@@ -10,6 +12,7 @@ import {
 export class FinanceiroService {
   private readonly supabase = inject(SupabaseService).client;
   private readonly table = 'transacoes';
+  private readonly pixConfigTable = 'pix_recebedor_config';
 
   async list(from: string, to: string): Promise<Transacao[]> {
     const { data, error } = await this.supabase
@@ -49,6 +52,28 @@ export class FinanceiroService {
       .delete()
       .eq('id', id);
     if (error) throw new Error(error.message);
+  }
+
+  async getPixRecebedorConfig(): Promise<PixRecebedorConfig | null> {
+    const { data, error } = await this.supabase
+      .from(this.pixConfigTable)
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle<PixRecebedorConfig>();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async savePixRecebedorConfig(
+    input: PixRecebedorConfigFormData,
+  ): Promise<PixRecebedorConfig> {
+    const { data, error } = await this.supabase
+      .from(this.pixConfigTable)
+      .upsert({ id: 1, ...input }, { onConflict: 'id' })
+      .select()
+      .single<PixRecebedorConfig>();
+    if (error) throw new Error(error.message);
+    return data;
   }
 
   static calcularResumo(transacoes: ReadonlyArray<Transacao>): ResumoFinanceiro {

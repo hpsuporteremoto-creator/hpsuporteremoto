@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   buildBrCodeRef,
   generateStaticBrCode,
@@ -9,12 +9,18 @@ import {
 type Env = {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
-  PIX_KEY: string;
-  PIX_RECEIVER_NAME: string;
-  PIX_RECEIVER_CITY: string;
+  PIX_KEY?: string;
+  PIX_RECEIVER_NAME?: string;
+  PIX_RECEIVER_CITY?: string;
 };
 
 type Context = { request: Request; env: Env };
+
+type PixReceiverConfig = {
+  pixKey: string;
+  receiverName: string;
+  receiverCity: string;
+};
 
 const ADMIN_EMAILS = [
   'heriveltonpiresalves@gmail.com',
@@ -32,13 +38,7 @@ function json(body: unknown, status: number): Response {
 export const onRequestPost = async (context: Context): Promise<Response> => {
   const { request, env } = context;
 
-  if (
-    !env.SUPABASE_URL ||
-    !env.SUPABASE_SERVICE_ROLE_KEY ||
-    !env.PIX_KEY ||
-    !env.PIX_RECEIVER_NAME ||
-    !env.PIX_RECEIVER_CITY
-  ) {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
     return json({ error: 'Servidor mal configurado (env vars ausentes)' }, 500);
   }
 
@@ -153,13 +153,15 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   }
 
   const totalCentavos = subtotalCentavos - descontoCentavos;
+  const receiverConfig = await getPixReceiverConfig(admin, env);
+  if ('error' in receiverConfig) return json({ error: receiverConfig.error }, 500);
 
   let brcode: string;
   try {
     brcode = generateStaticBrCode({
-      pixKey: env.PIX_KEY,
-      receiverName: projectReceiverName(env.PIX_RECEIVER_NAME),
-      receiverCity: projectCity(env.PIX_RECEIVER_CITY),
+      pixKey: receiverConfig.pixKey,
+      receiverName: projectReceiverName(receiverConfig.receiverName),
+      receiverCity: projectCity(receiverConfig.receiverCity),
       referenceLabel: buildBrCodeRef(atendimento_id),
       amount: totalCentavos / 100,
     });
@@ -197,6 +199,50 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     200,
   );
 };
+
+async function getPixReceiverConfig(
+  admin: SupabaseClient,
+  env: Env,
+): Promise<PixReceiverConfig | { error: string }> {
+  const { data, error } = await admin
+    .from('pix_recebedor_config')
+    .select('pix_key, receiver_name, receiver_city')
+    .eq('id', 1)
+    .maybeSingle<{
+      pix_key: string | null;
+      receiver_name: string | null;
+      receiver_city: string | null;
+    }>();
+
+  if (error) return { error: error.message };
+
+  const dbConfig = {
+    pixKey: data?.pix_key?.trim() ?? '',
+    receiverName: data?.receiver_name?.trim() ?? '',
+    receiverCity: data?.receiver_city?.trim() ?? '',
+  };
+  if (isCompleteReceiverConfig(dbConfig)) return dbConfig;
+
+  const envConfig = {
+    pixKey: env.PIX_KEY?.trim() ?? '',
+    receiverName: env.PIX_RECEIVER_NAME?.trim() ?? '',
+    receiverCity: env.PIX_RECEIVER_CITY?.trim() ?? '',
+  };
+  if (isCompleteReceiverConfig(envConfig)) return envConfig;
+
+  return {
+    error:
+      'Configure o recebedor PIX em Financeiro > Recebedor PIX antes de gerar cobrança.',
+  };
+}
+
+function isCompleteReceiverConfig(config: PixReceiverConfig): boolean {
+  return (
+    config.pixKey.length > 0 &&
+    config.receiverName.length > 0 &&
+    config.receiverCity.length > 0
+  );
+}
 
 function normalizeServicoIds(
   servicoIds: unknown,

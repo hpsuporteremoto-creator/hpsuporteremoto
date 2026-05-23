@@ -14,25 +14,19 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { MaskitoDirective } from '@maskito/angular';
+import type { MaskitoOptions } from '@maskito/core';
 import { ClientesService } from '../clientes.service';
 import { ClienteFormData } from '../clientes.types';
 import {
+  extractWhatsappParts,
+  formatWhatsappLocal,
   onlyDigits,
   parseWhatsappCanonical,
 } from '../../../../shared/whatsapp.util';
-
-const DDI_OPTIONS = [
-  { ddi: '55', label: '🇧🇷 +55  Brasil' },
-  { ddi: '351', label: '🇵🇹 +351 Portugal' },
-  { ddi: '1', label: '🇺🇸 +1   EUA/Canadá' },
-  { ddi: '44', label: '🇬🇧 +44  Reino Unido' },
-  { ddi: '34', label: '🇪🇸 +34  Espanha' },
-  { ddi: '49', label: '🇩🇪 +49  Alemanha' },
-] as const;
 
 @Component({
   selector: 'hp-cliente-form',
@@ -44,9 +38,9 @@ const DDI_OPTIONS = [
     MatIconModule,
     MatInputModule,
     MatProgressBarModule,
-    MatSelectModule,
     MatSlideToggleModule,
     MatToolbarModule,
+    MaskitoDirective,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -75,11 +69,22 @@ const DDI_OPTIONS = [
             <div class="whatsapp-row">
               <mat-form-field appearance="outline" class="ddi">
                 <mat-label>DDI</mat-label>
-                <mat-select formControlName="ddi" required>
-                  @for (opt of ddiOptions; track opt.ddi) {
-                    <mat-option [value]="opt.ddi">{{ opt.label }}</mat-option>
-                  }
-                </mat-select>
+                <span matTextPrefix>+</span>
+                <input
+                  matInput
+                  type="tel"
+                  inputmode="numeric"
+                  autocomplete="tel-country-code"
+                  formControlName="ddi"
+                  [maskito]="ddiMask"
+                  (input)="onDdiInput($event)"
+                  required
+                />
+                @if (form.controls.ddi.hasError('required')) {
+                  <mat-error>DDI é obrigatório</mat-error>
+                } @else if (form.controls.ddi.hasError('pattern')) {
+                  <mat-error>Informe de 1 a 3 dígitos</mat-error>
+                }
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="local">
@@ -89,11 +94,14 @@ const DDI_OPTIONS = [
                   matInput
                   type="tel"
                   inputmode="tel"
-                  autocomplete="tel-national"
+                  autocomplete="tel"
                   formControlName="whatsappLocal"
-                  placeholder="81 98520-7465"
+                  placeholder="+55 (81) 98520-7465"
+                  [maskito]="whatsappMask"
+                  (input)="onWhatsappInput($event)"
                   required
                 />
+                <mat-hint>Pode colar o telefone completo com DDI.</mat-hint>
                 @if (form.controls.whatsappLocal.hasError('required')) {
                   <mat-error>WhatsApp é obrigatório</mat-error>
                 } @else if (
@@ -119,6 +127,16 @@ const DDI_OPTIONS = [
               @if (form.controls.email.hasError('email')) {
                 <mat-error>Email inválido</mat-error>
               }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Observação</mat-label>
+              <textarea
+                matInput
+                formControlName="observacao"
+                rows="4"
+                placeholder="Preferências, contexto do cliente ou detalhes importantes"
+              ></textarea>
             </mat-form-field>
 
             <mat-slide-toggle formControlName="ativo">Cliente ativo</mat-slide-toggle>
@@ -155,18 +173,22 @@ export class ClienteFormPage {
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
 
-  protected readonly ddiOptions = DDI_OPTIONS;
+  protected readonly ddiMask: MaskitoOptions = { mask: /^\d{0,3}$/ };
+  protected readonly whatsappMask: MaskitoOptions = {
+    mask: /^[\d\s()+-]{0,28}$/,
+  };
   protected readonly form = this.fb.group({
     nome: ['', [Validators.required, Validators.minLength(2)]],
-    ddi: ['55', [Validators.required]],
+    ddi: ['55', [Validators.required, Validators.pattern(/^\d{1,3}$/)]],
     whatsappLocal: ['', [
       Validators.required,
-      Validators.pattern(/^[\d\s()-]+$/),
+      Validators.pattern(/^[\d\s()+-]+$/),
       Validators.minLength(8),
-      Validators.maxLength(20),
+      Validators.maxLength(28),
     ]],
     instagram: [''],
     email: ['', [Validators.email]],
+    observacao: [''],
     ativo: [true],
   });
 
@@ -195,9 +217,10 @@ export class ClienteFormPage {
       this.form.setValue({
         nome: cliente.nome,
         ddi,
-        whatsappLocal: local,
+        whatsappLocal: formatWhatsappLocal(local, ddi),
         instagram: cliente.instagram ?? '',
         email: cliente.email ?? '',
+        observacao: cliente.observacao ?? '',
         ativo: cliente.ativo,
       });
     } catch (err) {
@@ -213,7 +236,7 @@ export class ClienteFormPage {
     this.saving.set(true);
 
     const value = this.form.getRawValue();
-    const whatsapp = `${value.ddi.trim()}${onlyDigits(value.whatsappLocal)}`;
+    const whatsapp = `${onlyDigits(value.ddi)}${onlyDigits(value.whatsappLocal)}`;
     if (whatsapp.length < 10 || whatsapp.length > 15) {
       this.snackBar.open(
         'WhatsApp inválido: precisa de 10 a 15 dígitos no total (DDI + número).',
@@ -228,6 +251,7 @@ export class ClienteFormPage {
       whatsapp,
       instagram: value.instagram.trim() || null,
       email: value.email.trim() || null,
+      observacao: value.observacao.trim() || null,
       ativo: value.ativo,
     };
 
@@ -249,6 +273,40 @@ export class ClienteFormPage {
       this.snackBar.open(msg, 'OK', { duration: 4000 });
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  onDdiInput(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const ddi = onlyDigits(input?.value ?? '').slice(0, 3);
+    this.setValue('ddi', ddi);
+    this.reformatWhatsappLocal(ddi);
+  }
+
+  onWhatsappInput(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const raw = input?.value ?? '';
+    const currentDdi = this.form.controls.ddi.value;
+    const parts = extractWhatsappParts(raw, currentDdi);
+    const formatted = formatWhatsappLocal(parts.local, parts.ddi);
+
+    this.setValue('ddi', parts.ddi);
+    this.setValue('whatsappLocal', formatted);
+    if (input && input.value !== formatted) {
+      input.value = formatted;
+    }
+  }
+
+  private reformatWhatsappLocal(ddi: string): void {
+    const current = this.form.controls.whatsappLocal.value;
+    const formatted = formatWhatsappLocal(current, ddi);
+    this.setValue('whatsappLocal', formatted);
+  }
+
+  private setValue(control: 'ddi' | 'whatsappLocal', value: string): void {
+    const formControl = this.form.controls[control];
+    if (formControl.value !== value) {
+      formControl.setValue(value, { emitEvent: false });
     }
   }
 }
