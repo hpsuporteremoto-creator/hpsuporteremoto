@@ -71,16 +71,18 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: 'Corpo JSON inválido' }, 400);
   }
 
-  const { atendimento_id, servico_id } = (body ?? {}) as {
+  const { atendimento_id, servico_id, servico_ids } = (body ?? {}) as {
     atendimento_id?: unknown;
     servico_id?: unknown;
+    servico_ids?: unknown;
   };
 
   if (typeof atendimento_id !== 'string' || atendimento_id.length === 0) {
     return json({ error: 'atendimento_id obrigatório' }, 400);
   }
-  if (typeof servico_id !== 'string' || servico_id.length === 0) {
-    return json({ error: 'servico_id obrigatório' }, 400);
+  const servicoIds = normalizeServicoIds(servico_ids, servico_id);
+  if (servicoIds.length === 0) {
+    return json({ error: 'servico_ids obrigatório' }, 400);
   }
 
   const { data: atendimento, error: fetchError } = await admin
@@ -101,21 +103,42 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     );
   }
 
-  const { data: servico, error: servicoError } = await admin
+  const { data: servicosData, error: servicoError } = await admin
     .from('servicos')
     .select('id, nome, valor_centavos, ativo')
-    .eq('id', servico_id)
-    .maybeSingle();
+    .in('id', servicoIds);
 
   if (servicoError) return json({ error: servicoError.message }, 500);
-  if (!servico) return json({ error: 'Serviço não encontrado' }, 404);
-  if (!servico.ativo) return json({ error: 'Serviço inativo' }, 400);
-  if (
-    typeof servico.valor_centavos !== 'number' ||
-    servico.valor_centavos <= 0
-  ) {
-    return json({ error: 'Serviço com valor inválido' }, 400);
+
+  const servicos = (servicosData ?? []) as {
+    id: string;
+    nome: string;
+    valor_centavos: number;
+    ativo: boolean;
+  }[];
+  const byId = new Map(servicos.map((servico) => [servico.id, servico]));
+  const orderedServicos = servicoIds.flatMap((id) => {
+    const servico = byId.get(id);
+    return servico ? [servico] : [];
+  });
+
+  if (orderedServicos.length !== servicoIds.length) {
+    return json({ error: 'Um ou mais serviços não foram encontrados' }, 404);
   }
+  const inactive = orderedServicos.find((servico) => !servico.ativo);
+  if (inactive) return json({ error: `Serviço inativo: ${inactive.nome}` }, 400);
+
+  const invalid = orderedServicos.find(
+    (servico) =>
+      typeof servico.valor_centavos !== 'number' || servico.valor_centavos <= 0,
+  );
+  if (invalid) {
+    return json({ error: `Serviço com valor inválido: ${invalid.nome}` }, 400);
+  }
+  const totalCentavos = orderedServicos.reduce(
+    (total, servico) => total + servico.valor_centavos,
+    0,
+  );
 
   let brcode: string;
   try {
@@ -124,7 +147,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       receiverName: projectReceiverName(env.PIX_RECEIVER_NAME),
       receiverCity: projectCity(env.PIX_RECEIVER_CITY),
       referenceLabel: buildBrCodeRef(atendimento_id),
-      amount: servico.valor_centavos / 100,
+      amount: totalCentavos / 100,
     });
   } catch (err) {
     return json(
@@ -139,8 +162,9 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     .from('atendimentos')
     .update({
       pix_brcode: brcode,
-      valor_centavos: servico.valor_centavos,
-      servico_id,
+      valor_centavos: totalCentavos,
+      servico_id: servicoIds[0],
+      servico_ids: servicoIds,
       state: 'pagamento',
     })
     .eq('id', atendimento_id);
@@ -150,9 +174,29 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   return json(
     {
       pix_brcode: brcode,
-      valor_centavos: servico.valor_centavos,
+      valor_centavos: totalCentavos,
       state: 'pagamento',
     },
     200,
   );
 };
+
+function normalizeServicoIds(
+  servicoIds: unknown,
+  legacyServicoId: unknown,
+): string[] {
+  const ids = Array.isArray(servicoIds)
+    ? servicoIds
+    : typeof legacyServicoId === 'string'
+      ? [legacyServicoId]
+      : [];
+  return Array.from(
+    new Set(
+      ids
+        .filter(
+          (id): id is string => typeof id === 'string' && id.trim().length > 0,
+        )
+        .map((id) => id.trim()),
+    ),
+  );
+}

@@ -3,11 +3,8 @@ import { CurrencyPipe, DatePipe, Location } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { AtendimentosService } from '../atendimentos.service';
@@ -16,8 +13,6 @@ import {
   AtendimentoComRelacoes,
   AtendimentoState,
 } from '../atendimentos.types';
-import { ServicosService } from '../../servicos/servicos.service';
-import { Servico } from '../../servicos/servicos.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 
 @Component({
@@ -27,11 +22,8 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
     DatePipe,
     MatButtonModule,
     MatCardModule,
-    MatFormFieldModule,
     MatIconModule,
-    MatInputModule,
     MatProgressBarModule,
-    MatSelectModule,
     MatToolbarModule,
   ],
   template: `
@@ -198,38 +190,40 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   o atendimento para pagamento.
                 </p>
 
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Serviço</mat-label>
-                  <mat-select
-                    [value]="selectedServicoId()"
-                    (selectionChange)="onSelectServico($event.value)"
-                  >
-                    @for (s of servicos(); track s.id) {
-                      <mat-option [value]="s.id">
-                        {{ s.nome }} — {{ s.valor_centavos / 100 | currency }}
-                      </mat-option>
-                    }
-                  </mat-select>
-                  @if (servicos().length === 0) {
-                    <mat-hint> Nenhum serviço ativo. Cadastre em /admin/servicos. </mat-hint>
-                  }
-                </mat-form-field>
+                @if (servicosParaCobranca().length > 0) {
+                  <section class="checkout" aria-label="Serviços para cobrança">
+                    <div class="checkout-header">
+                      <span>Serviços do atendimento</span>
+                      <small>{{ servicosParaCobranca().length }} serviço(s)</small>
+                    </div>
+                    <ul class="checkout-list">
+                      @for (servico of servicosParaCobranca(); track servico.id) {
+                        <li>
+                          <span>{{ servico.nome }}</span>
+                          <strong>{{ servico.valor_centavos / 100 | currency }}</strong>
+                        </li>
+                      }
+                    </ul>
+                    <div class="checkout-total">
+                      <span>Total da cobrança</span>
+                      <strong>{{ totalParaCobranca() / 100 | currency }}</strong>
+                    </div>
+                  </section>
+                } @else {
+                  <p class="state-hint">
+                    Este atendimento não tem serviços selecionados para cobrança.
+                  </p>
+                }
 
                 <button
                   mat-flat-button
                   color="primary"
                   type="button"
                   (click)="cobrarEFinalizar()"
-                  [disabled]="!selectedServicoId() || updating()"
+                  [disabled]="servicosParaCobranca().length === 0 || totalParaCobranca() <= 0 || updating()"
                 >
                   <mat-icon>qr_code_2</mat-icon>
-                  <span>
-                    @if (selectedServicoValor(); as v) {
-                      Finalizar e cobrar {{ v / 100 | currency }}
-                    } @else {
-                      Selecione um serviço
-                    }
-                  </span>
+                  <span>Finalizar e cobrar {{ totalParaCobranca() / 100 | currency }}</span>
                 </button>
               }
               @case ('pagamento') {
@@ -286,30 +280,34 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 })
 export class AtendimentoDetailPage {
   private readonly svc = inject(AtendimentosService);
-  private readonly servicosSvc = inject(ServicosService);
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
   private readonly snackBar = inject(MatSnackBar);
 
   protected readonly atendimento = signal<AtendimentoComRelacoes | null>(null);
-  protected readonly servicos = signal<Servico[]>([]);
   protected readonly loading = signal(false);
   protected readonly updating = signal(false);
   protected readonly error = signal<string | null>(null);
 
-  protected readonly selectedServicoId = signal<string | null>(null);
-  protected readonly selectedServicoValor = computed<number | null>(() => {
-    const id = this.selectedServicoId();
-    if (!id) return null;
-    const s = this.servicos().find((x) => x.id === id);
-    return s?.valor_centavos ?? null;
+  protected readonly servicosParaCobranca = computed(() => {
+    const atendimento = this.atendimento();
+    if (!atendimento) return [];
+    if (atendimento.servicos_solicitados.length > 0) {
+      return atendimento.servicos_solicitados;
+    }
+    return atendimento.servico ? [atendimento.servico] : [];
+  });
+  protected readonly totalParaCobranca = computed(() => {
+    return this.servicosParaCobranca().reduce(
+      (total, servico) => total + servico.valor_centavos,
+      0,
+    );
   });
 
   constructor() {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       void this.carregar(id);
-      void this.carregarServicos();
     }
   }
 
@@ -322,10 +320,6 @@ export class AtendimentoDetailPage {
   }
 
   protected readonly formatWhatsapp = formatWhatsappDisplay;
-
-  onSelectServico(id: string | null): void {
-    this.selectedServicoId.set(id);
-  }
 
   async copiar(text: string, msg: string): Promise<void> {
     try {
@@ -346,25 +340,10 @@ export class AtendimentoDetailPage {
         this.error.set('Atendimento não encontrado');
         return;
       }
-      // Pré-seleciona o primeiro serviço do atendimento; admin pode trocar pelo dropdown.
-      if (a.servico_id) {
-        this.selectedServicoId.set(a.servico_id);
-      } else if (a.servico_ids?.[0]) {
-        this.selectedServicoId.set(a.servico_ids[0]);
-      }
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Erro ao carregar');
     } finally {
       this.loading.set(false);
-    }
-  }
-
-  async carregarServicos(): Promise<void> {
-    try {
-      const list = await this.servicosSvc.listAtivos();
-      this.servicos.set(list);
-    } catch {
-      // silencioso — o picker só fica vazio
     }
   }
 
@@ -382,12 +361,12 @@ export class AtendimentoDetailPage {
 
   async cobrarEFinalizar(): Promise<void> {
     const a = this.atendimento();
-    const servicoId = this.selectedServicoId();
-    if (!a || !servicoId) return;
+    const servicoIds = this.servicosParaCobranca().map((servico) => servico.id);
+    if (!a || servicoIds.length === 0 || this.totalParaCobranca() <= 0) return;
 
     this.updating.set(true);
     try {
-      await this.svc.cobrarEFinalizar(a.id, servicoId);
+      await this.svc.cobrarEFinalizar(a.id, servicoIds);
       this.snackBar.open('PIX gerado para cobrança.', 'OK', { duration: 3000 });
       await this.carregar(a.id);
     } catch (err) {

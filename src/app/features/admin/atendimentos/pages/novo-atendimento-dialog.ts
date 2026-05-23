@@ -66,6 +66,11 @@ export interface NovoAtendimentoDialogData {
             (selectionChange)="onServicosChange($event.value)"
             (openedChange)="onPanelToggle($event)"
           >
+            <mat-select-trigger>
+              {{ selectedServicos().length }} serviço(s) ·
+              {{ selectedTotal() / 100 | currency }}
+            </mat-select-trigger>
+
             <div class="servico-busca">
               <mat-icon>search</mat-icon>
               <input
@@ -108,10 +113,42 @@ export interface NovoAtendimentoDialogData {
           }
         </mat-form-field>
 
-        @if (selectedTotal(); as total) {
-          <p class="total">
-            Total selecionado <strong>{{ total / 100 | currency }}</strong>
-          </p>
+        @if (selectedServicos().length > 0) {
+          <section class="checkout" aria-label="Serviços selecionados">
+            <div class="checkout-header">
+              <span>Resumo do pedido</span>
+              <small>{{ selectedServicos().length }} serviço(s)</small>
+            </div>
+
+            <ul class="checkout-list">
+              @for (servico of selectedServicos(); track servico.id) {
+                <li>
+                  <div class="checkout-info">
+                    <strong>{{ servico.nome }}</strong>
+                    @if (servico.categoria) {
+                      <small>{{ servico.categoria }}</small>
+                    }
+                  </div>
+                  <span class="checkout-price">
+                    {{ servico.valor_centavos / 100 | currency }}
+                  </span>
+                  <button
+                    mat-icon-button
+                    type="button"
+                    (click)="removerServico(servico.id)"
+                    [attr.aria-label]="'Remover ' + servico.nome"
+                  >
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </li>
+              }
+            </ul>
+
+            <div class="checkout-total">
+              <span>Total</span>
+              <strong>{{ selectedTotal() / 100 | currency }}</strong>
+            </div>
+          </section>
         }
 
         <mat-form-field appearance="outline" class="full-width">
@@ -149,8 +186,60 @@ export interface NovoAtendimentoDialogData {
       color: var(--mat-sys-error)
     .full-width
       width: 100%
-    .total
-      margin: -0.5rem 0 0.75rem
+    .checkout
+      margin: -0.25rem 0 1rem
+      border: 1px solid var(--mat-sys-outline-variant)
+      border-radius: 0.5rem
+      overflow: hidden
+      background: var(--mat-sys-surface-container-low)
+    .checkout-header,
+    .checkout-total
+      display: flex
+      align-items: center
+      justify-content: space-between
+      gap: 0.75rem
+      padding: 0.75rem 1rem
+    .checkout-header
+      border-bottom: 1px solid var(--mat-sys-outline-variant)
+      font-weight: 600
+    .checkout-header small
+      color: var(--mat-sys-on-surface-variant)
+      font-weight: 500
+    .checkout-list
+      list-style: none
+      margin: 0
+      padding: 0
+    .checkout-list li
+      display: grid
+      grid-template-columns: minmax(0, 1fr) auto auto
+      align-items: center
+      gap: 0.75rem
+      min-height: 3.5rem
+      padding: 0.625rem 0.5rem 0.625rem 1rem
+      border-bottom: 1px solid var(--mat-sys-outline-variant)
+    .checkout-info
+      min-width: 0
+      display: flex
+      flex-direction: column
+      gap: 0.125rem
+    .checkout-info strong
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+      color: var(--mat-sys-on-surface)
+      font-size: 0.9375rem
+    .checkout-info small
+      color: var(--mat-sys-on-surface-variant)
+    .checkout-price
+      color: var(--mat-sys-on-surface)
+      font-weight: 600
+      white-space: nowrap
+    .checkout-total
+      background: var(--mat-sys-surface-container)
+      font-size: 1rem
+    .checkout-total strong
+      color: var(--mat-sys-tertiary)
+      font-size: 1.125rem
     .servico-busca
       position: sticky
       top: 0
@@ -206,10 +295,16 @@ export class NovoAtendimentoDialog {
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
 
+  protected readonly selectedServicos = computed(() => {
+    const byId = new Map(this.servicos().map((servico) => [servico.id, servico]));
+    return this.selectedServicoIds().flatMap((id) => {
+      const servico = byId.get(id);
+      return servico ? [servico] : [];
+    });
+  });
+
   protected readonly selectedTotal = computed(() => {
-    const ids = new Set(this.selectedServicoIds());
-    return this.servicos()
-      .filter((servico) => ids.has(servico.id))
+    return this.selectedServicos()
       .reduce((total, servico) => total + servico.valor_centavos, 0);
   });
 
@@ -249,6 +344,13 @@ export class NovoAtendimentoDialog {
   limparFiltro(event: Event): void {
     event.stopPropagation();
     this.servicoFiltro.set('');
+  }
+
+  removerServico(id: string): void {
+    const ids = this.selectedServicoIds().filter((servicoId) => servicoId !== id);
+    this.selectedServicoIds.set(ids);
+    this.form.controls.servico_ids.setValue(ids);
+    this.form.controls.servico_ids.markAsTouched();
   }
 
   onPanelToggle(opened: boolean): void {

@@ -91,7 +91,7 @@ export class AtendimentosService {
 
   async cobrarEFinalizar(
     atendimento_id: string,
-    servico_id: string,
+    servico_ids: readonly string[],
   ): Promise<{ pix_brcode: string; valor_centavos: number }> {
     const token = await this.auth.getAccessToken();
     if (!token) throw new Error('Sessão inválida');
@@ -102,7 +102,7 @@ export class AtendimentosService {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ atendimento_id, servico_id }),
+      body: JSON.stringify({ atendimento_id, servico_ids }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as {
