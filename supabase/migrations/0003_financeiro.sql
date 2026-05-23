@@ -61,7 +61,7 @@ begin
       'Atendimento #' || substr(new.id::text, 1, 8),
       new.id
     )
-    on conflict (atendimento_id) do nothing;
+    on conflict (atendimento_id) where atendimento_id is not null do nothing;
   end if;
   return new;
 end;
