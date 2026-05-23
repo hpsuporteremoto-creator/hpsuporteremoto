@@ -20,10 +20,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ClientesService } from '../clientes.service';
 import { Cliente } from '../clientes.types';
-import {
-  formatWhatsappDisplay,
-  onlyDigits,
-} from '../../../../shared/whatsapp.util';
+import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 
 @Component({
   selector: 'hp-clientes-list',
@@ -63,8 +60,8 @@ import {
       mat-stretch-tabs="false"
       animationDuration="0ms"
     >
-      <mat-tab [label]="'Ativos (' + activeClientes().length + ')'" />
-      <mat-tab [label]="'Inativos (' + inactiveClientes().length + ')'" />
+      <mat-tab [label]="'Ativos (' + activeTotal() + ')'" />
+      <mat-tab [label]="'Inativos (' + inactiveTotal() + ')'" />
     </mat-tab-group>
 
     <main class="content">
@@ -98,17 +95,15 @@ import {
           </mat-form-field>
 
           <p class="result-count" aria-live="polite">
-            {{ filteredClientes().length }} de {{ currentTabClientes().length }} clientes
+            {{ resultTotal() }} clientes encontrados
           </p>
         </section>
 
-        @if (list.length === 0) {
-          <p class="empty">Nenhum cliente cadastrado ainda.</p>
-        } @else if (filteredClientes().length === 0) {
+        @if (resultTotal() === 0) {
           <p class="empty">{{ emptyMessage() }}</p>
         } @else {
           <div class="list">
-            @for (cliente of pagedClientes(); track cliente.id) {
+            @for (cliente of list; track cliente.id) {
               <mat-card
                 class="cliente-card"
                 appearance="filled"
@@ -149,9 +144,9 @@ import {
             }
           </div>
 
-          @if (filteredClientes().length > pageSize) {
+          @if (resultTotal() > pageSize) {
             <mat-paginator
-              [length]="filteredClientes().length"
+              [length]="resultTotal()"
               [pageSize]="pageSize"
               [pageIndex]="pageIndex()"
               hidePageSize
@@ -179,43 +174,16 @@ export class ClientesListPage {
   protected readonly tabIndex = signal(0);
   protected readonly pageIndex = signal(0);
   protected readonly pageSize = 20;
-  protected readonly activeClientes = computed(() =>
-    (this.clientes() ?? []).filter((cliente) => cliente.ativo),
-  );
-  protected readonly inactiveClientes = computed(() =>
-    (this.clientes() ?? []).filter((cliente) => !cliente.ativo),
-  );
-  protected readonly currentTabClientes = computed(() =>
-    this.tabIndex() === 0 ? this.activeClientes() : this.inactiveClientes(),
-  );
-  protected readonly filteredClientes = computed(() => {
-    const term = normalizeSearch(this.searchTerm());
-    // Busca por número (digit-aware): compara só os dígitos do termo contra o
-    // `whatsapp` armazenado, que já é canônico digits-only (migration 0013).
-    const digits = onlyDigits(this.searchTerm());
-    const list = this.currentTabClientes();
-    if (!term) return list;
-    return list.filter((cliente) => {
-      const textMatch = [
-        cliente.nome,
-        cliente.email ?? '',
-        cliente.instagram ?? '',
-      ].some((value) => normalizeSearch(value).includes(term));
-      const phoneMatch = digits.length > 0 && cliente.whatsapp.includes(digits);
-      return textMatch || phoneMatch;
-    });
-  });
-  // Página atual (20 por vez) sobre o resultado já filtrado por aba + busca.
-  protected readonly pagedClientes = computed(() => {
-    const start = this.pageIndex() * this.pageSize;
-    return this.filteredClientes().slice(start, start + this.pageSize);
-  });
+  protected readonly activeTotal = signal(0);
+  protected readonly inactiveTotal = signal(0);
+  protected readonly resultTotal = signal(0);
   protected readonly emptyMessage = computed(() => {
     if (this.searchTerm()) return 'Nenhum cliente encontrado.';
     return this.tabIndex() === 0
       ? 'Nenhum cliente ativo encontrado.'
       : 'Nenhum cliente inativo encontrado.';
   });
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     void this.carregar();
@@ -229,20 +197,24 @@ export class ClientesListPage {
     const input = event.target as HTMLInputElement | null;
     this.searchTerm.set(input?.value ?? '');
     this.pageIndex.set(0);
+    this.scheduleCarregar();
   }
 
   clearSearch(): void {
     this.searchTerm.set('');
     this.pageIndex.set(0);
+    void this.carregar();
   }
 
   onTabChange(index: number): void {
     this.tabIndex.set(index);
     this.pageIndex.set(0);
+    void this.carregar();
   }
 
   onPage(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);
+    void this.carregar();
   }
 
   abrirAtendimentos(cliente: Cliente): void {
@@ -255,11 +227,23 @@ export class ClientesListPage {
   }
 
   async carregar(): Promise<void> {
+    this.searchTimer = null;
     this.loading.set(true);
     this.error.set(null);
     try {
-      const data = await this.svc.list();
-      this.clientes.set(data);
+      const [counts, result] = await Promise.all([
+        this.svc.counts(),
+        this.svc.list({
+          ativo: this.tabIndex() === 0,
+          termo: this.searchTerm(),
+          pageIndex: this.pageIndex(),
+          pageSize: this.pageSize,
+        }),
+      ]);
+      this.activeTotal.set(counts.ativos);
+      this.inactiveTotal.set(counts.inativos);
+      this.resultTotal.set(result.total);
+      this.clientes.set(result.clientes);
     } catch (err) {
       this.error.set(
         err instanceof Error ? err.message : 'Erro ao carregar clientes',
@@ -272,10 +256,7 @@ export class ClientesListPage {
   async onToggle(cliente: Cliente, ativo: boolean): Promise<void> {
     try {
       await this.svc.toggleAtivo(cliente.id, ativo);
-      this.clientes.update(
-        (list) =>
-          list?.map((c) => (c.id === cliente.id ? { ...c, ativo } : c)) ?? null,
-      );
+      await this.carregar();
       this.snackBar.open(
         `Cliente ${ativo ? 'ativado' : 'desativado'}`,
         'OK',
@@ -286,13 +267,9 @@ export class ClientesListPage {
       this.snackBar.open(msg, 'OK', { duration: 4000 });
     }
   }
-}
 
-function normalizeSearch(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  private scheduleCarregar(): void {
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => void this.carregar(), 250);
+  }
 }

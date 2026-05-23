@@ -1,19 +1,59 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/supabase/supabase.service';
+import { onlyDigits } from '../../../shared/whatsapp.util';
 import { Cliente, ClienteFormData } from './clientes.types';
+
+export interface ClientesListQuery {
+  ativo: boolean;
+  termo: string;
+  pageIndex: number;
+  pageSize: number;
+}
+
+export interface ClientesListResult {
+  clientes: Cliente[];
+  total: number;
+}
+
+export interface ClientesCounts {
+  ativos: number;
+  inativos: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ClientesService {
   private readonly supabase = inject(SupabaseService).client;
   private readonly table = 'clientes';
 
-  async list(): Promise<Cliente[]> {
-    const { data, error } = await this.supabase
+  async list(query: ClientesListQuery): Promise<ClientesListResult> {
+    const from = query.pageIndex * query.pageSize;
+    const to = from + query.pageSize - 1;
+    let request = this.supabase
       .from(this.table)
-      .select('*')
-      .order('nome', { ascending: true });
+      .select('*', { count: 'exact' })
+      .eq('ativo', query.ativo)
+      .order('nome', { ascending: true })
+      .range(from, to);
+
+    const termo = query.termo.trim();
+    if (termo) {
+      request = request.or(createSearchFilter(termo));
+    }
+
+    const { data, error, count } = await request;
     if (error) throw new Error(error.message);
-    return (data ?? []) as Cliente[];
+    return {
+      clientes: (data ?? []) as Cliente[],
+      total: count ?? 0,
+    };
+  }
+
+  async counts(): Promise<ClientesCounts> {
+    const [ativos, inativos] = await Promise.all([
+      this.countByAtivo(true),
+      this.countByAtivo(false),
+    ]);
+    return { ativos, inativos };
   }
 
   async get(id: string): Promise<Cliente | null> {
@@ -54,6 +94,35 @@ export class ClientesService {
       .eq('id', id);
     if (error) throw new Error(error.message);
   }
+
+  private async countByAtivo(ativo: boolean): Promise<number> {
+    const { count, error } = await this.supabase
+      .from(this.table)
+      .select('id', { count: 'exact', head: true })
+      .eq('ativo', ativo);
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  }
+}
+
+function createSearchFilter(value: string): string {
+  const termo = escapePostgrestLike(value);
+  const digits = onlyDigits(value);
+  const filters = [
+    `nome.ilike.%${termo}%`,
+    `email.ilike.%${termo}%`,
+    `instagram.ilike.%${termo}%`,
+  ];
+  if (digits) filters.push(`whatsapp.ilike.%${digits}%`);
+  return filters.join(',');
+}
+
+function escapePostgrestLike(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_')
+    .replace(/,/g, '\\,');
 }
 
 // 23505 = violação de índice único do Postgres. Em clientes o único índice
