@@ -24,7 +24,7 @@ O admin acessa `/admin`, usa o drawer responsivo para navegar e pode fazer o ped
 
 1. Abre o **Dashboard** para ver KPIs, fila por status e receita.
 2. Abre **Novo atendimento**.
-3. Preenche cliente, serviços e descrição.
+3. Preenche cliente, serviços, desconto opcional e descrição.
 4. O pedido é criado já em `em_andamento`.
 5. No detalhe do atendimento, finaliza e gera PIX.
 6. Copia o BR Code se necessário.
@@ -80,6 +80,22 @@ SUPABASE_SERVICE_ROLE_KEY
 PIX_KEY
 PIX_RECEIVER_NAME
 PIX_RECEIVER_CITY
+```
+
+Os dados do recebedor do PIX ficam nesses três secrets da Cloudflare Pages:
+
+| Secret | Uso |
+| --- | --- |
+| `PIX_KEY` | Chave PIX do recebedor |
+| `PIX_RECEIVER_NAME` | Nome do recebedor impresso no BR Code |
+| `PIX_RECEIVER_CITY` | Cidade do recebedor impresso no BR Code |
+
+Eles podem ser ajustados em **Cloudflare Dashboard > Workers & Pages > hpsuporteremoto > Settings > Environment variables** ou pelo Wrangler:
+
+```bash
+npx wrangler pages secret put PIX_KEY --project-name=hpsuporteremoto
+npx wrangler pages secret put PIX_RECEIVER_NAME --project-name=hpsuporteremoto
+npx wrangler pages secret put PIX_RECEIVER_CITY --project-name=hpsuporteremoto
 ```
 
 Secrets do GitHub Actions:

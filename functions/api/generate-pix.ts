@@ -87,7 +87,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
 
   const { data: atendimento, error: fetchError } = await admin
     .from('atendimentos')
-    .select('id, state')
+    .select('id, state, desconto_centavos')
     .eq('id', atendimento_id)
     .maybeSingle();
 
@@ -135,10 +135,24 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (invalid) {
     return json({ error: `Serviço com valor inválido: ${invalid.nome}` }, 400);
   }
-  const totalCentavos = orderedServicos.reduce(
+  const subtotalCentavos = orderedServicos.reduce(
     (total, servico) => total + servico.valor_centavos,
     0,
   );
+  const descontoCentavos =
+    typeof atendimento.desconto_centavos === 'number'
+      ? atendimento.desconto_centavos
+      : 0;
+
+  if (descontoCentavos < 0) {
+    return json({ error: 'Desconto inválido' }, 400);
+  }
+
+  if (descontoCentavos >= subtotalCentavos) {
+    return json({ error: 'Desconto precisa ser menor que o subtotal' }, 400);
+  }
+
+  const totalCentavos = subtotalCentavos - descontoCentavos;
 
   let brcode: string;
   try {
@@ -163,6 +177,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     .update({
       pix_brcode: brcode,
       valor_centavos: totalCentavos,
+      desconto_centavos: descontoCentavos,
       servico_id: servicoIds[0],
       servico_ids: servicoIds,
       state: 'pagamento',
@@ -174,6 +189,8 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   return json(
     {
       pix_brcode: brcode,
+      subtotal_centavos: subtotalCentavos,
+      desconto_centavos: descontoCentavos,
       valor_centavos: totalCentavos,
       state: 'pagamento',
     },

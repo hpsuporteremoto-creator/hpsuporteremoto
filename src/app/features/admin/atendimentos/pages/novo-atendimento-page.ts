@@ -150,6 +150,23 @@ import { AtendimentosService } from '../atendimentos.service';
                 placeholder="Descreva o serviço combinado com o cliente"
               ></textarea>
             </mat-form-field>
+
+            <mat-form-field appearance="outline" class="discount-input">
+              <mat-label>Desconto</mat-label>
+              <input
+                matInput
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                formControlName="desconto_reais"
+                (input)="onDescontoChange($event)"
+              />
+              <span matTextPrefix>R$&nbsp;</span>
+              @if (form.controls.desconto_reais.hasError('min')) {
+                <mat-error>Informe um desconto válido</mat-error>
+              }
+            </mat-form-field>
           </mat-card-content>
         </mat-card>
 
@@ -186,9 +203,28 @@ import { AtendimentosService } from '../atendimentos.service';
                   }
                 </ul>
 
+                <div class="checkout-summary">
+                  <div>
+                    <span>Subtotal</span>
+                    <strong>{{ selectedTotal() / 100 | currency }}</strong>
+                  </div>
+                  @if (descontoCentavos() > 0) {
+                    <div class="discount-line">
+                      <span>Desconto</span>
+                      <strong>-{{ descontoCentavos() / 100 | currency }}</strong>
+                    </div>
+                  }
+                </div>
+
+                @if (descontoInvalido()) {
+                  <p class="discount-error" role="alert">
+                    O desconto precisa ser menor que o subtotal.
+                  </p>
+                }
+
                 <div class="checkout-total">
                   <span>Total</span>
-                  <strong>{{ selectedTotal() / 100 | currency }}</strong>
+                  <strong>{{ totalComDesconto() / 100 | currency }}</strong>
                 </div>
               }
             </mat-card-content>
@@ -198,7 +234,7 @@ import { AtendimentosService } from '../atendimentos.service';
                 mat-flat-button
                 color="primary"
                 type="submit"
-                [disabled]="form.invalid || saving() || loading() || !cliente()"
+                [disabled]="form.invalid || descontoInvalido() || saving() || loading() || !cliente()"
               >
                 <mat-icon>add_task</mat-icon>
                 <span>Criar e iniciar</span>
@@ -326,6 +362,28 @@ import { AtendimentosService } from '../atendimentos.service';
       padding: 0.875rem 1rem
       border-radius: 0.5rem
       background: var(--mat-sys-surface-container-high)
+    .checkout-summary
+      display: flex
+      flex-direction: column
+      gap: 0.5rem
+      margin-top: 1rem
+      color: var(--mat-sys-on-surface-variant)
+    .checkout-summary div
+      display: flex
+      align-items: center
+      justify-content: space-between
+      gap: 1rem
+    .checkout-summary strong
+      color: var(--mat-sys-on-surface)
+      white-space: nowrap
+    .discount-line strong
+      color: var(--mat-sys-error)
+    .discount-error
+      margin: 0.75rem 0 0
+      color: var(--mat-sys-error)
+      font-size: 0.875rem
+    .discount-input
+      max-width: 16rem
     .checkout-total strong
       color: var(--mat-sys-tertiary)
       font-size: 1.25rem
@@ -429,6 +487,15 @@ export class NovoAtendimentoPage {
       0,
     ),
   );
+  protected readonly descontoCentavos = signal(0);
+  protected readonly descontoInvalido = computed(
+    () =>
+      this.selectedServicos().length > 0 &&
+      this.descontoCentavos() >= this.selectedTotal(),
+  );
+  protected readonly totalComDesconto = computed(() =>
+    Math.max(this.selectedTotal() - this.descontoCentavos(), 0),
+  );
   protected readonly filteredServicos = computed(() => {
     const termo = normalizarBusca(this.servicoFiltro());
     const todos = this.servicos();
@@ -444,6 +511,7 @@ export class NovoAtendimentoPage {
 
   protected readonly form = this.fb.group({
     servico_ids: this.fb.control<string[]>([], [Validators.required]),
+    desconto_reais: [0, [Validators.min(0)]],
     descricao_solicitacao: [''],
   });
 
@@ -480,6 +548,13 @@ export class NovoAtendimentoPage {
     this.servicoFiltro.set(input?.value ?? '');
   }
 
+  onDescontoChange(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const value = Number(input?.value ?? 0);
+    const desconto = Number.isFinite(value) ? Math.max(0, value) : 0;
+    this.descontoCentavos.set(Math.round(desconto * 100));
+  }
+
   limparFiltro(event: Event): void {
     event.stopPropagation();
     this.servicoFiltro.set('');
@@ -498,7 +573,7 @@ export class NovoAtendimentoPage {
 
   async onSubmit(): Promise<void> {
     const clienteId = this.clienteId();
-    if (this.form.invalid || !clienteId || !this.cliente()) return;
+    if (this.form.invalid || this.descontoInvalido() || !clienteId || !this.cliente()) return;
     this.saving.set(true);
     this.error.set(null);
 
@@ -506,6 +581,7 @@ export class NovoAtendimentoPage {
     try {
       const id = await this.atendimentos.criarParaCliente(clienteId, {
         servico_ids: value.servico_ids,
+        desconto_centavos: this.descontoCentavos(),
         descricao_solicitacao: value.descricao_solicitacao.trim() || null,
       });
       this.snackBar.open('Pedido criado e iniciado.', 'OK', { duration: 2500 });

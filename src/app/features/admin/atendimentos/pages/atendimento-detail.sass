@@ -144,12 +144,16 @@
     background: var(--mat-sys-surface-container-low)
 
   .checkout-header,
+  .checkout-summary,
   .checkout-total
     display: flex
+    padding: 0.75rem 1rem
+
+  .checkout-header,
+  .checkout-total
     align-items: center
     justify-content: space-between
     gap: 0.75rem
-    padding: 0.75rem 1rem
 
   .checkout-header
     border-bottom: 1px solid var(--mat-sys-outline-variant)
@@ -180,6 +184,30 @@
 
       strong
         white-space: nowrap
+
+  .checkout-summary
+    flex-direction: column
+    gap: 0.5rem
+    border-bottom: 1px solid var(--mat-sys-outline-variant)
+
+    div
+      display: flex
+      align-items: center
+      justify-content: space-between
+      gap: 0.75rem
+
+    strong
+      white-space: nowrap
+
+    .discount-line
+      color: var(--mat-sys-tertiary)
+
+  .discount-error
+    margin: 0
+    padding: 0.75rem 1rem
+    background: rgba(186, 26, 26, 0.1)
+    color: var(--mat-sys-error)
+    font-weight: 600
 
   .checkout-total
     background: var(--mat-sys-surface-container)

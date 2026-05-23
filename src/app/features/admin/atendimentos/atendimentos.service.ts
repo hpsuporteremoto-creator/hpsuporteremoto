@@ -11,7 +11,7 @@ import {
 } from './atendimentos.types';
 
 const SELECT = `
-  id, cliente_id, servico_id, servico_ids,
+  id, cliente_id, servico_id, servico_ids, desconto_centavos,
   state, valor_centavos, pix_brcode, descricao_solicitacao,
   created_at, updated_at,
   cliente:clientes ( id, nome, whatsapp, instagram, email ),
@@ -77,6 +77,7 @@ export class AtendimentosService {
         cliente_id: clienteId,
         servico_id: data.servico_ids[0] ?? null,
         servico_ids: data.servico_ids,
+        desconto_centavos: data.desconto_centavos,
         descricao_solicitacao: data.descricao_solicitacao,
         state: 'em_andamento',
       })

@@ -160,6 +160,23 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                         </li>
                       }
                     </ul>
+                    <div class="checkout-summary">
+                      <div>
+                        <span>Subtotal</span>
+                        <strong>{{ subtotalParaCobranca() / 100 | currency }}</strong>
+                      </div>
+                      @if (descontoParaCobranca() > 0) {
+                        <div class="discount-line">
+                          <span>Desconto</span>
+                          <strong>-{{ descontoParaCobranca() / 100 | currency }}</strong>
+                        </div>
+                      }
+                    </div>
+                    @if (descontoInvalido()) {
+                      <p class="discount-error" role="alert">
+                        O desconto precisa ser menor que o subtotal.
+                      </p>
+                    }
                     <div class="checkout-total">
                       <span>Total da cobrança</span>
                       <strong>{{ totalParaCobranca() / 100 | currency }}</strong>
@@ -176,7 +193,7 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   color="primary"
                   type="button"
                   (click)="cobrarEFinalizar()"
-                  [disabled]="servicosParaCobranca().length === 0 || totalParaCobranca() <= 0 || updating()"
+                  [disabled]="servicosParaCobranca().length === 0 || descontoInvalido() || totalParaCobranca() <= 0 || updating()"
                 >
                   <mat-icon>qr_code_2</mat-icon>
                   <span>Finalizar e cobrar {{ totalParaCobranca() / 100 | currency }}</span>
@@ -253,12 +270,23 @@ export class AtendimentoDetailPage {
     }
     return atendimento.servico ? [atendimento.servico] : [];
   });
-  protected readonly totalParaCobranca = computed(() => {
+  protected readonly subtotalParaCobranca = computed(() => {
     return this.servicosParaCobranca().reduce(
       (total, servico) => total + servico.valor_centavos,
       0,
     );
   });
+  protected readonly descontoParaCobranca = computed(() =>
+    Math.max(this.atendimento()?.desconto_centavos ?? 0, 0),
+  );
+  protected readonly descontoInvalido = computed(
+    () =>
+      this.servicosParaCobranca().length > 0 &&
+      this.descontoParaCobranca() >= this.subtotalParaCobranca(),
+  );
+  protected readonly totalParaCobranca = computed(() =>
+    Math.max(this.subtotalParaCobranca() - this.descontoParaCobranca(), 0),
+  );
 
   constructor() {
     const id = this.route.snapshot.paramMap.get('id');
@@ -318,7 +346,14 @@ export class AtendimentoDetailPage {
   async cobrarEFinalizar(): Promise<void> {
     const a = this.atendimento();
     const servicoIds = this.servicosParaCobranca().map((servico) => servico.id);
-    if (!a || servicoIds.length === 0 || this.totalParaCobranca() <= 0) return;
+    if (
+      !a ||
+      servicoIds.length === 0 ||
+      this.descontoInvalido() ||
+      this.totalParaCobranca() <= 0
+    ) {
+      return;
+    }
 
     this.updating.set(true);
     try {

@@ -261,6 +261,7 @@ function buildImportPlan(rows) {
       cliente_id: clienteId,
       servico_id: servicoId,
       servico_ids: [servicoId],
+      desconto_centavos: 0,
       state: 'concluido',
       valor_centavos: null,
       pix_brcode: null,

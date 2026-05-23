@@ -18,6 +18,7 @@ export interface Atendimento {
   cliente_id: string;
   servico_id: string | null;
   servico_ids: string[] | null;
+  desconto_centavos: number;
   state: AtendimentoState;
   valor_centavos: number | null;
   pix_brcode: string | null;
@@ -28,6 +29,7 @@ export interface Atendimento {
 
 export interface CriarAtendimentoParaClienteData {
   servico_ids: string[];
+  desconto_centavos: number;
   descricao_solicitacao: string | null;
 }
 
