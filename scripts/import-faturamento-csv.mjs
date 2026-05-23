@@ -251,7 +251,9 @@ function buildImportPlan(rows) {
     servicos.push({
       id: servicoId,
       nome: row.pedido,
-      categoria: HISTORICAL_CATEGORY,
+      categoria_id: null,
+      descricao: row.pedido,
+      imagem_url: null,
       valor_centavos: 0,
       ativo: false,
       created_at: row.timestamp,
@@ -382,7 +384,12 @@ async function applyImport(supabase, plan) {
   await deleteAll(supabase, 'transacoes');
   await deleteAll(supabase, 'atendimentos');
   await deleteAll(supabase, 'clientes');
-  await deletePreviousImportedServices(supabase);
+  const historicalCategoryId = await ensureHistoricalCategory(supabase);
+  await deletePreviousImportedServices(supabase, historicalCategoryId);
+  plan.servicos = plan.servicos.map((servico) => ({
+    ...servico,
+    categoria_id: historicalCategoryId,
+  }));
 
   console.log('Inserindo clientes...');
   await insertInBatches(supabase, 'clientes', plan.clientes);
@@ -399,11 +406,37 @@ async function deleteAll(supabase, table) {
   if (error) throw new Error(`Falha ao limpar ${table}: ${error.message}`);
 }
 
-async function deletePreviousImportedServices(supabase) {
+async function ensureHistoricalCategory(supabase) {
+  const { data: existing, error: fetchError } = await supabase
+    .from('servico_categorias')
+    .select('id')
+    .ilike('nome', HISTORICAL_CATEGORY)
+    .maybeSingle();
+  if (fetchError) {
+    throw new Error(`Falha ao buscar categoria histórica: ${fetchError.message}`);
+  }
+  if (existing?.id) return existing.id;
+
+  const { data, error } = await supabase
+    .from('servico_categorias')
+    .insert({
+      nome: HISTORICAL_CATEGORY,
+      descricao: 'Serviços importados da planilha histórica de faturamento.',
+      ativo: false,
+    })
+    .select('id')
+    .single();
+  if (error || !data?.id) {
+    throw new Error(`Falha ao criar categoria histórica: ${error?.message ?? 'sem id'}`);
+  }
+  return data.id;
+}
+
+async function deletePreviousImportedServices(supabase, historicalCategoryId) {
   const { error } = await supabase
     .from('servicos')
     .delete()
-    .eq('categoria', HISTORICAL_CATEGORY)
+    .eq('categoria_id', historicalCategoryId)
     .eq('valor_centavos', 0)
     .eq('ativo', false);
   if (error) {
@@ -425,6 +458,7 @@ async function insertInBatches(supabase, table, rows) {
 }
 
 async function printDatabaseValidation(supabase, plan) {
+  const historicalCategoryId = await findHistoricalCategoryId(supabase);
   const [clientes, atendimentos, transacoes, servicosImportados] = await Promise.all([
     countRows(supabase, 'clientes'),
     countRows(supabase, 'atendimentos'),
@@ -432,7 +466,11 @@ async function printDatabaseValidation(supabase, plan) {
     countRows(
       supabase,
       'servicos',
-      (query) => query.eq('categoria', HISTORICAL_CATEGORY).eq('ativo', false).eq('valor_centavos', 0),
+      (query) =>
+        query
+          .eq('ativo', false)
+          .eq('valor_centavos', 0)
+          .eq('categoria_id', historicalCategoryId ?? ZERO_UUID),
     ),
   ]);
 
@@ -446,6 +484,16 @@ async function printDatabaseValidation(supabase, plan) {
     'atendimentos esperados': plan.atendimentos.length,
     'serviços esperados': plan.servicos.length,
   });
+}
+
+async function findHistoricalCategoryId(supabase) {
+  const { data, error } = await supabase
+    .from('servico_categorias')
+    .select('id')
+    .ilike('nome', HISTORICAL_CATEGORY)
+    .maybeSingle();
+  if (error) throw new Error(`Falha ao buscar categoria histórica: ${error.message}`);
+  return data?.id ?? null;
 }
 
 async function countRows(supabase, table, refine = (query) => query) {

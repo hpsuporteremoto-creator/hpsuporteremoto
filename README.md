@@ -30,6 +30,14 @@ O admin acessa `/admin`, usa o drawer responsivo para navegar e pode fazer o ped
 6. Copia o BR Code se necessário.
 7. Marca como pago e conclui.
 
+### Serviços
+
+O catálogo administrativo separa serviços ativos e inativos em abas. Cada
+serviço possui nome, categoria selecionada, descrição, URL opcional de imagem,
+valor e status. Categorias de serviço são gerenciadas em um CRUD próprio em
+`/admin/servicos/categorias`; não são preenchidas como texto livre no cadastro
+do serviço.
+
 ## Admins
 
 Admins ficam sincronizados em:

@@ -126,7 +126,11 @@ import { AtendimentosService } from '../atendimentos.service';
 
                 @for (s of filteredServicos(); track s.id) {
                   <mat-option [value]="s.id">
-                    {{ s.nome }} — {{ s.valor_centavos / 100 | currency }}
+                    {{ s.nome }}
+                    @if (s.categoria; as categoria) {
+                      · {{ categoria.nome }}
+                    }
+                    — {{ s.valor_centavos / 100 | currency }}
                   </mat-option>
                 }
                 @if (servicos().length > 0 && filteredServicos().length === 0) {
@@ -184,8 +188,8 @@ import { AtendimentosService } from '../atendimentos.service';
                     <li>
                       <div class="checkout-info">
                         <strong>{{ servico.nome }}</strong>
-                        @if (servico.categoria) {
-                          <small>{{ servico.categoria }}</small>
+                        @if (servico.categoria; as categoria) {
+                          <small>{{ categoria.nome }}</small>
                         }
                       </div>
                       <span class="checkout-price">
@@ -505,7 +509,7 @@ export class NovoAtendimentoPage {
       (servico) =>
         selecionados.has(servico.id) ||
         normalizarBusca(servico.nome).includes(termo) ||
-        normalizarBusca(servico.categoria ?? '').includes(termo),
+        normalizarBusca(servico.categoria?.nome ?? '').includes(termo),
     );
   });
 

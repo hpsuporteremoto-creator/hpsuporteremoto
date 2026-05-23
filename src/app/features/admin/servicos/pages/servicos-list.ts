@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -12,6 +13,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ServicosService } from '../servicos.service';
 import { Servico } from '../servicos.types';
@@ -26,6 +28,7 @@ import { Servico } from '../servicos.types';
     MatIconModule,
     MatProgressBarModule,
     MatSlideToggleModule,
+    MatTabsModule,
     MatToolbarModule,
   ],
   template: `
@@ -35,6 +38,14 @@ import { Servico } from '../servicos.types';
       </button>
       <span>Serviços</span>
       <span class="spacer"></span>
+      <a
+        mat-stroked-button
+        routerLink="categorias"
+        aria-label="Gerenciar categorias"
+      >
+        <mat-icon>category</mat-icon>
+        <span>Categorias</span>
+      </a>
       <a mat-flat-button color="primary" routerLink="novo" aria-label="Novo serviço">
         <mat-icon>add</mat-icon>
         <span>Novo serviço</span>
@@ -45,6 +56,16 @@ import { Servico } from '../servicos.types';
       <mat-progress-bar mode="indeterminate" />
     }
 
+    <mat-tab-group
+      [selectedIndex]="tabIndex()"
+      (selectedIndexChange)="onTabChange($event)"
+      mat-stretch-tabs="false"
+      animationDuration="0ms"
+    >
+      <mat-tab [label]="'Ativos (' + activeTotal() + ')'" />
+      <mat-tab [label]="'Inativos (' + inactiveTotal() + ')'" />
+    </mat-tab-group>
+
     <main class="content">
       @if (error(); as msg) {
         <p class="error">{{ msg }}</p>
@@ -52,7 +73,7 @@ import { Servico } from '../servicos.types';
 
       @if (servicos(); as list) {
         @if (list.length === 0) {
-          <p class="empty">Nenhum serviço cadastrado ainda.</p>
+          <p class="empty">{{ emptyMessage() }}</p>
         } @else {
           <div class="list">
             @for (servico of list; track servico.id) {
@@ -62,10 +83,20 @@ import { Servico } from '../servicos.types';
                 [class.inativo]="!servico.ativo"
               >
                 <mat-card-content class="row">
+                  <div class="thumb" aria-hidden="true">
+                    @if (servico.imagem_url) {
+                      <img [src]="servico.imagem_url" alt="" loading="lazy" />
+                    } @else {
+                      <mat-icon>design_services</mat-icon>
+                    }
+                  </div>
                   <div class="info">
                     <strong class="nome">{{ servico.nome }}</strong>
-                    @if (servico.categoria) {
-                      <small class="categoria">{{ servico.categoria }}</small>
+                    @if (servico.categoria; as categoria) {
+                      <small class="categoria">{{ categoria.nome }}</small>
+                    }
+                    @if (servico.descricao) {
+                      <span class="descricao">{{ servico.descricao }}</span>
                     }
                     <span class="valor">{{ servico.valor_centavos / 100 | currency }}</span>
                   </div>
@@ -102,6 +133,14 @@ export class ServicosListPage {
   protected readonly servicos = signal<Servico[] | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly tabIndex = signal(0);
+  protected readonly activeTotal = signal(0);
+  protected readonly inactiveTotal = signal(0);
+  protected readonly emptyMessage = computed(() =>
+    this.tabIndex() === 0
+      ? 'Nenhum serviço ativo cadastrado.'
+      : 'Nenhum serviço inativo cadastrado.',
+  );
 
   constructor() {
     void this.carregar();
@@ -111,11 +150,21 @@ export class ServicosListPage {
     this.location.back();
   }
 
+  onTabChange(index: number): void {
+    this.tabIndex.set(index);
+    void this.carregar();
+  }
+
   async carregar(): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
     try {
-      const data = await this.svc.list();
+      const [counts, data] = await Promise.all([
+        this.svc.counts(),
+        this.svc.listByAtivo(this.tabIndex() === 0),
+      ]);
+      this.activeTotal.set(counts.ativos);
+      this.inactiveTotal.set(counts.inativos);
       this.servicos.set(data);
     } catch (err) {
       this.error.set(
@@ -129,10 +178,7 @@ export class ServicosListPage {
   async onToggle(servico: Servico, ativo: boolean): Promise<void> {
     try {
       await this.svc.toggleAtivo(servico.id, ativo);
-      this.servicos.update(
-        (list) =>
-          list?.map((s) => (s.id === servico.id ? { ...s, ativo } : s)) ?? null,
-      );
+      await this.carregar();
       this.snackBar.open(
         `Serviço ${ativo ? 'ativado' : 'desativado'}`,
         'OK',

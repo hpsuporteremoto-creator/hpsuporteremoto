@@ -14,11 +14,15 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { ServicosService } from '../servicos.service';
-import { ServicoFormData } from '../servicos.types';
+import {
+  ServicoCategoriasService,
+  ServicosService,
+} from '../servicos.service';
+import { ServicoCategoria, ServicoFormData } from '../servicos.types';
 
 @Component({
   selector: 'hp-servico-form',
@@ -30,6 +34,7 @@ import { ServicoFormData } from '../servicos.types';
     MatIconModule,
     MatInputModule,
     MatProgressBarModule,
+    MatSelectModule,
     MatSlideToggleModule,
     MatToolbarModule,
   ],
@@ -58,14 +63,52 @@ import { ServicoFormData } from '../servicos.types';
             </mat-form-field>
 
             <mat-form-field appearance="outline">
-              <mat-label>Categoria (opcional)</mat-label>
+              <mat-label>Categoria</mat-label>
               <mat-icon matIconPrefix>category</mat-icon>
+              <mat-select formControlName="categoria_id" required>
+                @for (categoria of categorias(); track categoria.id) {
+                  <mat-option [value]="categoria.id">
+                    {{ categoria.nome }}
+                    @if (!categoria.ativo) {
+                      (inativa)
+                    }
+                  </mat-option>
+                }
+              </mat-select>
+              @if (form.controls.categoria_id.hasError('required')) {
+                <mat-error>Categoria é obrigatória</mat-error>
+              }
+              @if (!loading() && categorias().length === 0) {
+                <mat-hint>Cadastre uma categoria antes de criar serviços.</mat-hint>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Descrição</mat-label>
+              <textarea
+                matInput
+                formControlName="descricao"
+                rows="4"
+                required
+              ></textarea>
+              @if (form.controls.descricao.hasError('required')) {
+                <mat-error>Descrição é obrigatória</mat-error>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>URL da imagem</mat-label>
+              <mat-icon matIconPrefix>image</mat-icon>
               <input
                 matInput
-                formControlName="categoria"
-                placeholder="Ex: Hardware, Software, Redes"
+                type="url"
+                formControlName="imagem_url"
+                placeholder="https://..."
+                (input)="onImagemUrlChange($event)"
               />
-              <mat-hint>Agrupa o serviço no picker do cliente</mat-hint>
+              @if (form.controls.imagem_url.hasError('pattern')) {
+                <mat-error>Use uma URL começando com http:// ou https://</mat-error>
+              }
             </mat-form-field>
 
             <mat-form-field appearance="outline">
@@ -85,6 +128,12 @@ import { ServicoFormData } from '../servicos.types';
                 <mat-error>Valor não pode ser negativo</mat-error>
               }
             </mat-form-field>
+
+            @if (imagemPreview(); as url) {
+              <figure class="image-preview">
+                <img [src]="url" alt="Prévia da imagem do serviço" loading="lazy" />
+              </figure>
+            }
 
             <mat-slide-toggle formControlName="ativo">Serviço ativo</mat-slide-toggle>
 
@@ -109,6 +158,7 @@ import { ServicoFormData } from '../servicos.types';
 })
 export class ServicoFormPage {
   private readonly svc = inject(ServicosService);
+  private readonly categoriasSvc = inject(ServicoCategoriasService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
@@ -119,16 +169,25 @@ export class ServicoFormPage {
   protected readonly isNew = computed(() => this.id() === null);
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
+  protected readonly categorias = signal<ServicoCategoria[]>([]);
+  protected readonly imagemUrl = signal('');
+  protected readonly imagemPreview = computed(() => {
+    const value = this.imagemUrl().trim();
+    return /^https?:\/\//i.test(value) ? value : null;
+  });
 
   protected readonly form = this.fb.group({
     nome: ['', [Validators.required, Validators.minLength(2)]],
-    categoria: [''],
+    categoria_id: ['', [Validators.required]],
+    descricao: ['', [Validators.required, Validators.minLength(2)]],
+    imagem_url: ['', [Validators.pattern(/^https?:\/\/.+/i)]],
     valor_reais: [0, [Validators.required, Validators.min(0)]],
     ativo: [true],
   });
 
   constructor() {
     const idParam = this.route.snapshot.paramMap.get('id');
+    void this.carregarCategorias();
     if (idParam) {
       this.id.set(idParam);
       void this.carregar(idParam);
@@ -150,10 +209,13 @@ export class ServicoFormPage {
       }
       this.form.setValue({
         nome: servico.nome,
-        categoria: servico.categoria ?? '',
+        categoria_id: servico.categoria_id ?? '',
+        descricao: servico.descricao ?? '',
+        imagem_url: servico.imagem_url ?? '',
         valor_reais: servico.valor_centavos / 100,
         ativo: servico.ativo,
       });
+      this.imagemUrl.set(servico.imagem_url ?? '');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro';
       this.snackBar.open(msg, 'OK', { duration: 4000 });
@@ -169,7 +231,9 @@ export class ServicoFormPage {
     const value = this.form.getRawValue();
     const data: ServicoFormData = {
       nome: value.nome.trim(),
-      categoria: value.categoria.trim() || null,
+      categoria_id: value.categoria_id || null,
+      descricao: value.descricao.trim() || null,
+      imagem_url: value.imagem_url.trim() || null,
       valor_centavos: Math.round(value.valor_reais * 100),
       ativo: value.ativo,
     };
@@ -189,6 +253,23 @@ export class ServicoFormPage {
       this.snackBar.open(msg, 'OK', { duration: 4000 });
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  onImagemUrlChange(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    this.imagemUrl.set(input?.value ?? '');
+  }
+
+  private async carregarCategorias(): Promise<void> {
+    this.loading.set(true);
+    try {
+      this.categorias.set(await this.categoriasSvc.list());
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao carregar categorias';
+      this.snackBar.open(msg, 'OK', { duration: 4000 });
+    } finally {
+      this.loading.set(false);
     }
   }
 }
