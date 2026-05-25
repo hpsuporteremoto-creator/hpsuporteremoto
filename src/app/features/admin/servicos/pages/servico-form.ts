@@ -23,6 +23,7 @@ import {
   ServicosService,
 } from '../servicos.service';
 import { ServicoCategoria, ServicoFormData } from '../servicos.types';
+import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
 
 @Component({
   selector: 'hp-servico-form',
@@ -105,6 +106,7 @@ import { ServicoCategoria, ServicoFormData } from '../servicos.types';
                 formControlName="imagem_url"
                 placeholder="https://..."
                 (input)="onImagemUrlChange($event)"
+                (blur)="normalizarImagemUrl()"
               />
               @if (form.controls.imagem_url.hasError('pattern')) {
                 <mat-error>Use uma URL começando com http:// ou https://</mat-error>
@@ -172,7 +174,7 @@ export class ServicoFormPage {
   protected readonly categorias = signal<ServicoCategoria[]>([]);
   protected readonly imagemUrl = signal('');
   protected readonly imagemPreview = computed(() => {
-    const value = this.imagemUrl().trim();
+    const value = normalizeServiceImageUrl(this.imagemUrl()) ?? '';
     return /^https?:\/\//i.test(value) ? value : null;
   });
 
@@ -229,11 +231,14 @@ export class ServicoFormPage {
     this.saving.set(true);
 
     const value = this.form.getRawValue();
+    const imagemUrl = normalizeServiceImageUrl(value.imagem_url);
+    this.form.controls.imagem_url.setValue(imagemUrl ?? '', { emitEvent: false });
+    this.imagemUrl.set(imagemUrl ?? '');
     const data: ServicoFormData = {
       nome: value.nome.trim(),
       categoria_id: value.categoria_id || null,
       descricao: value.descricao.trim() || null,
-      imagem_url: value.imagem_url.trim() || null,
+      imagem_url: imagemUrl,
       valor_centavos: Math.round(value.valor_reais * 100),
       ativo: value.ativo,
     };
@@ -259,6 +264,14 @@ export class ServicoFormPage {
   onImagemUrlChange(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     this.imagemUrl.set(input?.value ?? '');
+  }
+
+  normalizarImagemUrl(): void {
+    const value = this.form.controls.imagem_url.value;
+    const normalized = normalizeServiceImageUrl(value);
+    if ((normalized ?? '') === value.trim()) return;
+    this.form.controls.imagem_url.setValue(normalized ?? '');
+    this.imagemUrl.set(normalized ?? '');
   }
 
   private async carregarCategorias(): Promise<void> {

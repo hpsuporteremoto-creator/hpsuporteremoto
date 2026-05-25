@@ -7,6 +7,7 @@ import {
   ServicoFormData,
   ServicosCounts,
 } from './servicos.types';
+import { normalizeServiceImageUrl } from '../../../shared/image-url.util';
 
 const SERVICO_SELECT = `
   id, nome, categoria_id, descricao, imagem_url,
@@ -29,7 +30,7 @@ export class ServicosService {
       })
       .order('nome', { ascending: true });
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as Servico[];
+    return normalizeServicos((data ?? []) as unknown as Servico[]);
   }
 
   async listByAtivo(ativo: boolean): Promise<Servico[]> {
@@ -43,7 +44,7 @@ export class ServicosService {
       })
       .order('nome', { ascending: true });
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as Servico[];
+    return normalizeServicos((data ?? []) as unknown as Servico[]);
   }
 
   async listAtivos(): Promise<Servico[]> {
@@ -57,7 +58,7 @@ export class ServicosService {
       })
       .order('nome', { ascending: true });
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as Servico[];
+    return normalizeServicos((data ?? []) as unknown as Servico[]);
   }
 
   async get(id: string): Promise<Servico | null> {
@@ -67,7 +68,7 @@ export class ServicosService {
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return data as unknown as Servico | null;
+    return data ? normalizeServico(data as unknown as Servico) : null;
   }
 
   async getMany(ids: readonly string[]): Promise<Servico[]> {
@@ -78,7 +79,7 @@ export class ServicosService {
       .in('id', [...ids])
       .eq('ativo', true);
     if (error) throw new Error(error.message);
-    const servicos = (data ?? []) as unknown as Servico[];
+    const servicos = normalizeServicos((data ?? []) as unknown as Servico[]);
     const byId = new Map(servicos.map((servico) => [servico.id, servico]));
     return ids.flatMap((id) => {
       const servico = byId.get(id);
@@ -89,22 +90,22 @@ export class ServicosService {
   async create(input: ServicoFormData): Promise<Servico> {
     const { data, error } = await this.supabase
       .from(this.table)
-      .insert(input)
+      .insert(normalizeServicoInput(input))
       .select(SERVICO_SELECT)
       .single();
     if (error) throw new Error(error.message);
-    return data as unknown as Servico;
+    return normalizeServico(data as unknown as Servico);
   }
 
   async update(id: string, input: Partial<ServicoFormData>): Promise<Servico> {
     const { data, error } = await this.supabase
       .from(this.table)
-      .update(input)
+      .update(normalizeServicoPatch(input))
       .eq('id', id)
       .select(SERVICO_SELECT)
       .single();
     if (error) throw new Error(error.message);
-    return data as unknown as Servico;
+    return normalizeServico(data as unknown as Servico);
   }
 
   async toggleAtivo(id: string, ativo: boolean): Promise<void> {
@@ -211,4 +212,32 @@ function toCategoriaError(error: { code?: string; message: string }): Error {
     return new Error('Esta categoria está em uso por serviços cadastrados.');
   }
   return new Error(error.message);
+}
+
+function normalizeServicoInput(input: ServicoFormData): ServicoFormData {
+  return {
+    ...input,
+    imagem_url: normalizeServiceImageUrl(input.imagem_url),
+  };
+}
+
+function normalizeServicoPatch(
+  input: Partial<ServicoFormData>,
+): Partial<ServicoFormData> {
+  if (!('imagem_url' in input)) return input;
+  return {
+    ...input,
+    imagem_url: normalizeServiceImageUrl(input.imagem_url),
+  };
+}
+
+function normalizeServicos(servicos: Servico[]): Servico[] {
+  return servicos.map((servico) => normalizeServico(servico));
+}
+
+function normalizeServico(servico: Servico): Servico {
+  return {
+    ...servico,
+    imagem_url: normalizeServiceImageUrl(servico.imagem_url),
+  };
 }
