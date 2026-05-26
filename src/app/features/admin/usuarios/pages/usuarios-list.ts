@@ -54,7 +54,14 @@ import { UserProfile } from '../usuarios.types';
         } @else {
           <div class="list">
             @for (u of list; track u.id) {
-              <mat-card class="usuario-card" appearance="filled">
+              <mat-card
+                class="usuario-card"
+                appearance="filled"
+                tabindex="0"
+                role="link"
+                [attr.aria-label]="'Ver usuário ' + (u.full_name || u.email)"
+                [routerLink]="[u.id]"
+              >
                 <mat-card-content class="row">
                   <div class="avatar">
                     @if (u.avatar_url) {
@@ -84,6 +91,7 @@ import { UserProfile } from '../usuarios.types';
                     <a
                       mat-icon-button
                       [routerLink]="[u.id, 'editar']"
+                      (click)="$event.stopPropagation()"
                       aria-label="Editar"
                     >
                       <mat-icon>edit</mat-icon>
@@ -91,7 +99,7 @@ import { UserProfile } from '../usuarios.types';
                     <button
                       mat-icon-button
                       type="button"
-                      (click)="apagar(u)"
+                      (click)="apagar(u); $event.stopPropagation()"
                       [disabled]="!canDelete(u) || updating()"
                       [attr.aria-label]="
                         canDelete(u) ? 'Apagar' : 'Não pode apagar admin'

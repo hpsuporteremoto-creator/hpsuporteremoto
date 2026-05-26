@@ -13,6 +13,11 @@ export const usuariosRoutes: Routes = [
       import('./pages/usuario-form').then((m) => m.UsuarioFormPage),
   },
   {
+    path: ':id',
+    loadComponent: () =>
+      import('./pages/usuario-detail').then((m) => m.UsuarioDetailPage),
+  },
+  {
     path: ':id/editar',
     loadComponent: () =>
       import('./pages/usuario-form').then((m) => m.UsuarioFormPage),
