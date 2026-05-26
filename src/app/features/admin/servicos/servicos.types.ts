@@ -27,6 +27,7 @@ export interface Servico {
   imagem_url: string | null;
   valor_centavos: number;
   ativo: boolean;
+  vitrine: boolean;
   created_at: string;
 }
 
@@ -37,6 +38,7 @@ export interface ServicoFormData {
   imagem_url: string | null;
   valor_centavos: number;
   ativo: boolean;
+  vitrine: boolean;
 }
 
 export interface ServicosCounts {

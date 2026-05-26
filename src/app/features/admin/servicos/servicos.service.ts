@@ -279,5 +279,6 @@ function normalizeServico(servico: Servico): Servico {
   return {
     ...servico,
     imagem_url: normalizeServiceImageUrl(servico.imagem_url),
+    vitrine: servico.vitrine !== false,
   };
 }

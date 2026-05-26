@@ -165,6 +165,9 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
             }
 
             <mat-slide-toggle formControlName="ativo">Serviço ativo</mat-slide-toggle>
+            <mat-slide-toggle formControlName="vitrine">
+              Exibir na vitrine
+            </mat-slide-toggle>
 
             <div class="actions">
               <button
@@ -213,6 +216,7 @@ export class ServicoFormPage {
     imagem_url: ['', [Validators.pattern(/^https?:\/\/.+/i)]],
     valor_reais: [0, [Validators.required, Validators.min(0)]],
     ativo: [true],
+    vitrine: [true],
   });
 
   constructor() {
@@ -244,6 +248,7 @@ export class ServicoFormPage {
         imagem_url: servico.imagem_url ?? '',
         valor_reais: servico.valor_centavos / 100,
         ativo: servico.ativo,
+        vitrine: servico.vitrine !== false,
       });
       this.imagemUrl.set(servico.imagem_url ?? '');
     } catch (err) {
@@ -269,6 +274,7 @@ export class ServicoFormPage {
       imagem_url: imagemUrl,
       valor_centavos: Math.round(value.valor_reais * 100),
       ativo: value.ativo,
+      vitrine: value.vitrine,
     };
 
     try {

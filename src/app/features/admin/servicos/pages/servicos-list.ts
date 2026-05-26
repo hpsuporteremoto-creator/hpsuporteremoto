@@ -95,6 +95,9 @@ import { Servico } from '../servicos.types';
                     @if (servico.categoria; as categoria) {
                       <small class="categoria">{{ categoria.nome }}</small>
                     }
+                    @if (servico.vitrine) {
+                      <small class="vitrine">Vitrine</small>
+                    }
                     @if (servico.descricao) {
                       <span class="descricao">{{ servico.descricao }}</span>
                     }

@@ -5,7 +5,8 @@ export const clientRoutes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    redirectTo: 'admin',
+    loadComponent: () =>
+      import('./features/vitrine/pages/vitrine-page').then((m) => m.VitrinePage),
   },
   {
     path: 'login',
@@ -18,5 +19,5 @@ export const clientRoutes: Routes = [
     loadChildren: () =>
       import('./features/admin/admin.routes').then((m) => m.adminRoutes),
   },
-  { path: '**', redirectTo: 'admin' },
+  { path: '**', redirectTo: '' },
 ];
