@@ -1,6 +1,5 @@
 import { Injectable, inject } from '@angular/core';
 import { AuthService } from '../../../core/auth/auth.service';
-import { SupabaseService } from '../../../core/supabase/supabase.service';
 import {
   UserCreateInput,
   UserProfile,
@@ -9,9 +8,7 @@ import {
 
 @Injectable({ providedIn: 'root' })
 export class UsuariosService {
-  private readonly supabase = inject(SupabaseService).client;
   private readonly auth = inject(AuthService);
-  private readonly table = 'profiles';
 
   async list(): Promise<UserProfile[]> {
     const token = await this.auth.getAccessToken();
@@ -31,21 +28,41 @@ export class UsuariosService {
   }
 
   async get(id: string): Promise<UserProfile | null> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select('*')
-      .eq('id', id)
-      .maybeSingle<UserProfile>();
-    if (error) throw new Error(error.message);
-    return data;
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+
+    const response = await fetch(`/api/get-user?id=${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      user?: UserProfile;
+    };
+    if (response.status === 404) return null;
+    if (!response.ok || !payload.user) {
+      throw new Error(payload.error ?? `Erro ${response.status}`);
+    }
+    return payload.user;
   }
 
   async update(id: string, input: UserUpdateInput): Promise<void> {
-    const { error } = await this.supabase
-      .from(this.table)
-      .update({ full_name: input.full_name })
-      .eq('id', id);
-    if (error) throw new Error(error.message);
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+
+    const response = await fetch('/api/update-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ user_id: id, full_name: input.full_name }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    if (!response.ok) {
+      throw new Error(payload.error ?? `Erro ${response.status}`);
+    }
   }
 
   async setAdmin(id: string, isAdmin: boolean): Promise<void> {
