@@ -25,6 +25,11 @@ export class VitrineService {
     }));
   }
 
+  async getServico(id: string): Promise<VitrineServico | null> {
+    const servicos = await this.listServicos();
+    return servicos.find((servico) => servico.id === id) ?? null;
+  }
+
   async listComentarios(servicoId: string): Promise<ServicoComentarioThread[]> {
     const response = await fetch(
       `/api/service-comments?servicoId=${encodeURIComponent(servicoId)}`,

@@ -15,6 +15,13 @@ export const routes: Routes = [
       import('./features/auth/pages/login').then((m) => m.LoginPage),
   },
   {
+    path: 'servicos/:id',
+    loadComponent: () =>
+      import('./features/vitrine/pages/servico-detail-page').then(
+        (m) => m.ServicoDetailPage,
+      ),
+  },
+  {
     path: 'admin',
     canActivate: [adminGuard],
     loadChildren: () =>

@@ -64,7 +64,7 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
     <main class="page">
       <section class="intro" aria-labelledby="vitrine-title">
         <p>Atendimento remoto, manutenção e suporte técnico</p>
-        <h1 id="vitrine-title">Escolha um serviço</h1>
+        <h1 id="vitrine-title">Conteúdos e serviços</h1>
       </section>
 
       @if (categorias().length > 0) {
@@ -117,7 +117,9 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
                 @if (servico.categoria; as categoria) {
                   <span class="category">{{ categoria.nome }}</span>
                 }
-                <h2>{{ servico.nome }}</h2>
+                <h2>
+                  <a [routerLink]="['/servicos', servico.id]">{{ servico.nome }}</a>
+                </h2>
                 <strong class="price">
                   {{ servico.valor_centavos / 100 | currency }}
                 </strong>
@@ -126,6 +128,11 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
               @if (servico.descricao) {
                 <p class="description">{{ servico.descricao }}</p>
               }
+
+              <a mat-stroked-button [routerLink]="['/servicos', servico.id]">
+                <mat-icon>article</mat-icon>
+                <span>Ver detalhes</span>
+              </a>
 
               <section class="comments" [attr.aria-label]="'Comentários de ' + servico.nome">
                 <div class="comments-header">
