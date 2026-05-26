@@ -10,7 +10,6 @@ type Context = { request: Request; env: Env };
 type ProfileRow = {
   id: string;
   email: string | null;
-  is_admin?: boolean | null;
 };
 
 const RESET_TOKEN = '91a33353ed0117a156fd6e0270a9e7f66f1ef69f082405ca';
@@ -38,9 +37,7 @@ export const onRequestPost = async ({ request, env }: Context): Promise<Response
 
     const before = await countAll(admin);
     const users = await listAllUsers(admin);
-    const profiles = await listProfiles(admin);
-    const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
-    const adminUsers = users.filter((user) => isAdminUser(user, profileById.get(user.id)));
+    const adminUsers = users.filter((user) => isAdminUser(user));
     const adminIds = new Set(adminUsers.map((user) => user.id));
 
     await deleteAll(admin, 'transacoes');
@@ -94,18 +91,17 @@ async function listAllUsers(admin: SupabaseClient): Promise<User[]> {
 async function listProfiles(admin: SupabaseClient): Promise<ProfileRow[]> {
   const { data, error } = await admin
     .from('profiles')
-    .select('id,email,is_admin');
+    .select('id,email');
   if (error) throw new Error(error.message);
   return (data ?? []) as ProfileRow[];
 }
 
-function isAdminUser(user: User, profile?: ProfileRow): boolean {
+function isAdminUser(user: User): boolean {
   const appMetadata = user.app_metadata as Record<string, unknown>;
   return (
     appMetadata['role'] === 'admin' ||
     appMetadata['is_admin'] === true ||
-    appMetadata['is_admin'] === 'true' ||
-    profile?.is_admin === true
+    appMetadata['is_admin'] === 'true'
   );
 }
 
