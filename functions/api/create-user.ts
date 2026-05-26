@@ -74,8 +74,23 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   });
 
   if (createError) {
-    return json({ error: createError.message }, 400);
+    return json({ error: translateCreateUserError(createError.message) }, 400);
   }
 
   return json({ user: { id: data.user.id, email: data.user.email } }, 201);
 };
+
+function translateCreateUserError(message: string): string {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes('email address') &&
+    normalized.includes('already') &&
+    normalized.includes('registered')
+  ) {
+    return 'Já existe um usuário cadastrado com este email.';
+  }
+  if (normalized.includes('user already registered')) {
+    return 'Já existe um usuário cadastrado com este email.';
+  }
+  return message;
+}

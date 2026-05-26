@@ -72,7 +72,9 @@ export class UsuariosService {
       user?: { id: string; email: string };
     };
     if (!response.ok || !payload.user) {
-      throw new Error(payload.error ?? `Erro ${response.status}`);
+      throw new Error(
+        toUsuarioErrorMessage(payload.error ?? `Erro ${response.status}`),
+      );
     }
     return { user: payload.user };
   }
@@ -97,4 +99,19 @@ export class UsuariosService {
       throw new Error(payload.error ?? `Erro ${response.status}`);
     }
   }
+}
+
+function toUsuarioErrorMessage(message: string): string {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes('email address') &&
+    normalized.includes('already') &&
+    normalized.includes('registered')
+  ) {
+    return 'Já existe um usuário cadastrado com este email.';
+  }
+  if (normalized.includes('user already registered')) {
+    return 'Já existe um usuário cadastrado com este email.';
+  }
+  return message;
 }
