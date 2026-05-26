@@ -47,7 +47,7 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
       <span>{{ isNew() ? 'Novo serviço' : 'Editar serviço' }}</span>
     </mat-toolbar>
 
-    @if (loading() || saving()) {
+    @if (loading() || saving() || uploadingImage()) {
       <mat-progress-bar mode="indeterminate" />
     }
 
@@ -113,6 +113,37 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
               }
             </mat-form-field>
 
+            <section class="upload-area" aria-label="Upload de imagem do serviço">
+              <input
+                #imageInput
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                class="file-input"
+                (change)="onImagemSelecionada($event)"
+              />
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="imageInput.click()"
+                [disabled]="uploadingImage() || saving() || loading()"
+              >
+                <mat-icon>upload</mat-icon>
+                <span>{{ uploadingImage() ? 'Enviando imagem' : 'Enviar imagem' }}</span>
+              </button>
+              @if (imagemPreview()) {
+                <button
+                  mat-button
+                  type="button"
+                  (click)="removerImagem()"
+                  [disabled]="uploadingImage() || saving()"
+                >
+                  <mat-icon>hide_image</mat-icon>
+                  <span>Remover imagem</span>
+                </button>
+              }
+              <small class="upload-help">JPG, PNG, WebP ou GIF até 5 MB.</small>
+            </section>
+
             <mat-form-field appearance="outline">
               <mat-label>Valor (R$)</mat-label>
               <span matTextPrefix>R$&nbsp;</span>
@@ -144,7 +175,7 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
                 mat-flat-button
                 color="primary"
                 type="submit"
-                [disabled]="form.invalid || saving() || loading()"
+                [disabled]="form.invalid || saving() || loading() || uploadingImage()"
               >
                 <mat-icon>save</mat-icon>
                 <span>{{ isNew() ? 'Criar' : 'Salvar' }}</span>
@@ -171,6 +202,7 @@ export class ServicoFormPage {
   protected readonly isNew = computed(() => this.id() === null);
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
+  protected readonly uploadingImage = signal(false);
   protected readonly categorias = signal<ServicoCategoria[]>([]);
   protected readonly imagemUrl = signal('');
   protected readonly imagemPreview = computed(() => {
@@ -264,6 +296,46 @@ export class ServicoFormPage {
   onImagemUrlChange(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     this.imagemUrl.set(input?.value ?? '');
+  }
+
+  async onImagemSelecionada(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) return;
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+    if (!allowedTypes.has(file.type)) {
+      this.snackBar.open('Envie uma imagem JPG, PNG, WebP ou GIF.', 'OK', {
+        duration: 3500,
+      });
+      if (input) input.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      this.snackBar.open('A imagem deve ter até 5 MB.', 'OK', { duration: 3500 });
+      if (input) input.value = '';
+      return;
+    }
+
+    this.uploadingImage.set(true);
+    try {
+      const url = await this.svc.uploadImagem(file);
+      this.form.controls.imagem_url.setValue(url);
+      this.form.controls.imagem_url.markAsDirty();
+      this.imagemUrl.set(url);
+      this.snackBar.open('Imagem enviada.', 'OK', { duration: 2500 });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao enviar imagem';
+      this.snackBar.open(msg, 'OK', { duration: 4500 });
+    } finally {
+      this.uploadingImage.set(false);
+      if (input) input.value = '';
+    }
+  }
+
+  removerImagem(): void {
+    this.form.controls.imagem_url.setValue('');
+    this.form.controls.imagem_url.markAsDirty();
+    this.imagemUrl.set('');
   }
 
   normalizarImagemUrl(): void {

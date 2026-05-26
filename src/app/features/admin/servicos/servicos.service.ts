@@ -95,6 +95,27 @@ export class ServicosService {
     await this.postApi('/api/services', { action: 'toggle', id, ativo });
   }
 
+  async uploadImagem(file: File): Promise<string> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const formData = new FormData();
+    formData.set('file', file);
+
+    const response = await fetch('/api/upload-service-image', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      url?: string;
+      error?: string;
+    };
+    if (!response.ok || !payload.url) {
+      throw new Error(payload.error ?? `Erro ${response.status}`);
+    }
+    return payload.url;
+  }
+
   async counts(): Promise<ServicosCounts> {
     const payload = await this.fetchApi<{ counts?: ServicosCounts; error?: string }>(
       '/api/services',
