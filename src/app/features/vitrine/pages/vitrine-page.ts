@@ -67,19 +67,42 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
         <h1 id="vitrine-title">Escolha um serviço</h1>
       </section>
 
+      @if (categorias().length > 0) {
+        <nav class="category-menu" aria-label="Categorias da vitrine">
+          <button
+            type="button"
+            [class.active]="categoriaSelecionada() === null"
+            [attr.aria-pressed]="categoriaSelecionada() === null"
+            (click)="selecionarCategoria(null)"
+          >
+            Todos
+          </button>
+          @for (categoria of categorias(); track categoria.id) {
+            <button
+              type="button"
+              [class.active]="categoriaSelecionada() === categoria.id"
+              [attr.aria-pressed]="categoriaSelecionada() === categoria.id"
+              (click)="selecionarCategoria(categoria.id)"
+            >
+              {{ categoria.nome }}
+            </button>
+          }
+        </nav>
+      }
+
       @if (error(); as msg) {
         <p class="error" role="alert">{{ msg }}</p>
       }
 
-      @if (!loading() && servicos().length === 0) {
+      @if (!loading() && servicosFiltrados().length === 0) {
         <section class="empty" aria-label="Nenhum serviço na vitrine">
           <mat-icon>inventory_2</mat-icon>
-          <strong>Nenhum serviço disponível no momento</strong>
+          <strong>{{ emptyMessage() }}</strong>
         </section>
       }
 
       <section class="service-grid" aria-label="Serviços disponíveis">
-        @for (servico of servicos(); track servico.id) {
+        @for (servico of servicosFiltrados(); track servico.id) {
           <mat-card class="service-card" appearance="filled">
             <div class="media">
               @if (servico.imagem_url) {
@@ -242,13 +265,34 @@ export class VitrinePage {
   private readonly snackBar = inject(MatSnackBar);
 
   protected readonly servicos = signal<VitrineServico[]>([]);
+  protected readonly categoriaSelecionada = signal<string | null>(null);
   protected readonly commentsByService = signal<Record<string, ServicoComentarioThread[]>>({});
   protected readonly comentariosLoading = signal<Record<string, boolean>>({});
   protected readonly textByKey = signal<Record<string, string>>({});
   protected readonly replyingTo = signal<string | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly hasServices = computed(() => this.servicos().length > 0);
+  protected readonly categorias = computed(() => {
+    const byId = new Map<string, { id: string; nome: string }>();
+    for (const servico of this.servicos()) {
+      if (!servico.categoria) continue;
+      byId.set(servico.categoria.id, {
+        id: servico.categoria.id,
+        nome: servico.categoria.nome,
+      });
+    }
+    return [...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+  });
+  protected readonly servicosFiltrados = computed(() => {
+    const categoriaId = this.categoriaSelecionada();
+    if (!categoriaId) return this.servicos();
+    return this.servicos().filter((servico) => servico.categoria?.id === categoriaId);
+  });
+  protected readonly emptyMessage = computed(() =>
+    this.servicos().length === 0
+      ? 'Nenhum serviço disponível no momento'
+      : 'Nenhum serviço nesta categoria',
+  );
 
   constructor() {
     void this.carregar();
@@ -260,6 +304,12 @@ export class VitrinePage {
     try {
       const servicos = await this.vitrine.listServicos();
       this.servicos.set(servicos);
+      if (
+        this.categoriaSelecionada() &&
+        !servicos.some((servico) => servico.categoria?.id === this.categoriaSelecionada())
+      ) {
+        this.categoriaSelecionada.set(null);
+      }
       await Promise.all(servicos.map((servico) => this.carregarComentarios(servico.id)));
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Erro ao carregar vitrine');
@@ -311,6 +361,10 @@ export class VitrinePage {
 
   commentsFor(servicoId: string): ServicoComentarioThread[] {
     return this.commentsByService()[servicoId] ?? [];
+  }
+
+  selecionarCategoria(categoriaId: string | null): void {
+    this.categoriaSelecionada.set(categoriaId);
   }
 
   textFor(key: string): string {
