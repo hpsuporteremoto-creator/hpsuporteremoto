@@ -103,7 +103,7 @@ import type { UserProfile, UserRole } from '../usuarios.types';
                 <mat-label>Email</mat-label>
                 <mat-icon matIconPrefix>mail</mat-icon>
                 <input matInput formControlName="email" />
-                <mat-hint>Email é gerenciado pelo Google e não pode ser alterado</mat-hint>
+                <mat-hint>Email é gerenciado pelo Google</mat-hint>
               </mat-form-field>
 
               <mat-form-field appearance="outline">
