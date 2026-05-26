@@ -178,8 +178,14 @@ export class AdminShell {
   ];
   private readonly vendedorNavItems: ReadonlyArray<AdminNavItem> = [
     {
-      label: 'Novo pedido',
-      icon: 'person_search',
+      label: 'Atendimentos',
+      icon: 'support_agent',
+      route: ['./atendimentos'],
+      exact: false,
+    },
+    {
+      label: 'Clientes',
+      icon: 'groups',
       route: ['./clientes'],
       exact: false,
     },

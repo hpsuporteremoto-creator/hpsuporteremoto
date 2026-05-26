@@ -44,7 +44,7 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
 
   const url = new URL(request.url);
   const requestedAtivo = url.searchParams.get('ativo') !== 'false';
-  const ativo = staffCheck.role === 'admin' ? requestedAtivo : true;
+  const ativo = requestedAtivo;
   const termo = url.searchParams.get('termo')?.trim() ?? '';
   const pageIndex = toNonNegativeInt(url.searchParams.get('pageIndex'), 0);
   const pageSize = Math.min(toNonNegativeInt(url.searchParams.get('pageSize'), 20), 100);
@@ -65,7 +65,7 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   const [{ data, error, count }, ativos, inativos] = await Promise.all([
     query,
     countByAtivo(admin, true),
-    staffCheck.role === 'admin' ? countByAtivo(admin, false) : Promise.resolve(0),
+    countByAtivo(admin, false),
   ]);
 
   if (error) return json({ error: error.message }, 500);

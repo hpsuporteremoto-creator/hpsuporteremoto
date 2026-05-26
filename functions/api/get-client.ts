@@ -33,12 +33,11 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   const id = url.searchParams.get('id')?.trim() ?? '';
   if (!id) return json({ error: 'id obrigatório' }, 400);
 
-  let query = admin.from('clientes').select('*').eq('id', id);
-  if (staffCheck.role !== 'admin') {
-    query = query.eq('ativo', true);
-  }
-
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await admin
+    .from('clientes')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
   if (error) return json({ error: error.message }, 500);
   if (!data) return json({ error: 'Cliente não encontrado' }, 404);
 

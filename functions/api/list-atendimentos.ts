@@ -53,10 +53,6 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   const clienteId = url.searchParams.get('clienteId')?.trim();
   const todosOsStatus = url.searchParams.get('todosOsStatus') === 'true';
 
-  if (staffCheck.role !== 'admin' && !clienteId) {
-    return json({ atendimentos: [] }, 200);
-  }
-
   let query = admin
     .from('atendimentos')
     .select(ATENDIMENTO_SELECT)

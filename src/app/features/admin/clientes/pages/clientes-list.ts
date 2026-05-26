@@ -43,7 +43,7 @@ import { AuthService } from '../../../../core/auth/auth.service';
       <button mat-icon-button type="button" (click)="voltar()" aria-label="Voltar">
         <mat-icon>arrow_back</mat-icon>
       </button>
-      <span>{{ auth.isAdmin() ? 'Clientes' : 'Novo pedido' }}</span>
+      <span>Clientes</span>
       <span class="spacer"></span>
       @if (auth.isAdmin()) {
         <a mat-flat-button color="primary" routerLink="novo" aria-label="Novo cliente">
@@ -57,17 +57,15 @@ import { AuthService } from '../../../../core/auth/auth.service';
       <mat-progress-bar mode="indeterminate" />
     }
 
-    @if (auth.isAdmin()) {
-      <mat-tab-group
-        [selectedIndex]="tabIndex()"
-        (selectedIndexChange)="onTabChange($event)"
-        mat-stretch-tabs="false"
-        animationDuration="0ms"
-      >
-        <mat-tab [label]="'Ativos (' + activeTotal() + ')'" />
-        <mat-tab [label]="'Inativos (' + inactiveTotal() + ')'" />
-      </mat-tab-group>
-    }
+    <mat-tab-group
+      [selectedIndex]="tabIndex()"
+      (selectedIndexChange)="onTabChange($event)"
+      mat-stretch-tabs="false"
+      animationDuration="0ms"
+    >
+      <mat-tab [label]="'Ativos (' + activeTotal() + ')'" />
+      <mat-tab [label]="'Inativos (' + inactiveTotal() + ')'" />
+    </mat-tab-group>
 
     <main class="content">
       @if (error(); as msg) {
@@ -218,7 +216,6 @@ export class ClientesListPage {
   }
 
   onTabChange(index: number): void {
-    if (!this.auth.isAdmin()) return;
     this.tabIndex.set(index);
     this.pageIndex.set(0);
     void this.carregar();
@@ -230,15 +227,6 @@ export class ClientesListPage {
   }
 
   abrirAtendimentos(cliente: Cliente): void {
-    if (!this.auth.isAdmin()) {
-      void this.router.navigate(['/admin/atendimentos/novo'], {
-        queryParams: {
-          clienteId: cliente.id,
-          clienteNome: cliente.nome,
-        },
-      });
-      return;
-    }
     void this.router.navigate(['/admin/atendimentos'], {
       queryParams: {
         clienteId: cliente.id,
@@ -248,9 +236,7 @@ export class ClientesListPage {
   }
 
   clienteActionLabel(cliente: Cliente): string {
-    return this.auth.isAdmin()
-      ? `Ver atendimentos de ${cliente.nome}`
-      : `Criar pedido para ${cliente.nome}`;
+    return `Ver atendimentos de ${cliente.nome}`;
   }
 
   async carregar(): Promise<void> {
