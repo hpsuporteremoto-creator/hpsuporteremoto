@@ -68,13 +68,12 @@ export class ClientesService {
   }
 
   async create(input: ClienteFormData): Promise<Cliente> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .insert(input)
-      .select()
-      .single<Cliente>();
-    if (error) throw toClienteError(error);
-    return data;
+    const payload = await this.postApi<{
+      cliente?: Cliente;
+      error?: string;
+    }>('/api/create-client', input);
+    if (!payload.cliente) throw new Error('Falha ao criar cliente');
+    return payload.cliente;
   }
 
   async update(id: string, input: Partial<ClienteFormData>): Promise<Cliente> {
@@ -101,6 +100,25 @@ export class ClientesService {
     if (!token) throw new Error('Sessão inválida');
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = (await response.json().catch(() => ({}))) as T;
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload;
+  }
+
+  private async postApi<T extends { error?: string }>(
+    url: string,
+    body: unknown,
+  ): Promise<T> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
     });
     const payload = (await response.json().catch(() => ({}))) as T;
     if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);

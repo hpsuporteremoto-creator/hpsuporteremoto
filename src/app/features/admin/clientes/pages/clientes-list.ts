@@ -45,12 +45,10 @@ import { AuthService } from '../../../../core/auth/auth.service';
       </button>
       <span>Clientes</span>
       <span class="spacer"></span>
-      @if (auth.isAdmin()) {
-        <a mat-flat-button color="primary" routerLink="novo" aria-label="Novo cliente">
-          <mat-icon>add</mat-icon>
-          <span>Novo cliente</span>
-        </a>
-      }
+      <a mat-flat-button color="primary" routerLink="novo" aria-label="Novo cliente">
+        <mat-icon>add</mat-icon>
+        <span>Novo cliente</span>
+      </a>
     </mat-toolbar>
 
     @if (loading()) {

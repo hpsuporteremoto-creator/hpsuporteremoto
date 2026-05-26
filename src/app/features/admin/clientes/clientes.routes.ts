@@ -10,7 +10,6 @@ export const clientesRoutes: Routes = [
   },
   {
     path: 'novo',
-    canActivate: [adminOnlyGuard],
     loadComponent: () =>
       import('./pages/cliente-form').then((m) => m.ClienteFormPage),
   },
