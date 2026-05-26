@@ -40,14 +40,14 @@ do serviço.
 
 ## Admins
 
-Admins são definidos dinamicamente no banco, pela coluna
-`public.profiles.is_admin`. Não há whitelist fixa no frontend nem nas Pages
-Functions.
+Admins são definidos dinamicamente no Supabase Auth, pela chave
+`auth.users.app_metadata.is_admin`. Não há whitelist fixa no frontend nem nas
+Pages Functions.
 
 A tela `/admin/usuarios` é o caminho operacional para promover ou remover
-admins. A função SQL `public.is_admin()` usa apenas `profiles.is_admin = true`,
-e a migration `0020_remover_whitelist_fixa_admin.sql` impede remover o último
-administrador para evitar lockout.
+admins. A função SQL `public.is_admin()` deve usar apenas o claim
+`app_metadata.is_admin`; a migration `0020_admin_app_metadata.sql` remove a
+regra antiga baseada em emails fixos.
 
 ## Desenvolvimento local
 

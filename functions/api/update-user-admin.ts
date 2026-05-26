@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
-import { isAdminUser, requireAdmin } from './admin-auth';
+import {
+  isAdminUser,
+  listAllUsers,
+  mergeAppMetadata,
+  requireAdmin,
+} from './admin-auth';
 
 type Env = {
   SUPABASE_URL: string;
@@ -35,29 +40,48 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   } catch {
     return json({ error: 'Corpo JSON inválido' }, 400);
   }
-  const { user_id } = (body ?? {}) as { user_id?: unknown };
+
+  const { user_id, is_admin } = (body ?? {}) as {
+    user_id?: unknown;
+    is_admin?: unknown;
+  };
   if (typeof user_id !== 'string' || user_id.length === 0) {
     return json({ error: 'user_id obrigatório' }, 400);
   }
-
+  if (typeof is_admin !== 'boolean') {
+    return json({ error: 'is_admin obrigatório' }, 400);
+  }
   if (user_id === adminCheck.user.id) {
-    return json({ error: 'Você não pode apagar a si mesmo' }, 400);
+    return json({ error: 'Você não pode alterar seu próprio acesso admin' }, 400);
   }
 
-  const { data: target, error: fetchErr } =
+  const { data: target, error: targetError } =
     await admin.auth.admin.getUserById(user_id);
-  if (fetchErr || !target?.user) {
+  if (targetError || !target?.user) {
     return json({ error: 'Usuário não encontrado' }, 404);
   }
 
-  if (isAdminUser(target.user)) {
-    return json({ error: 'Não é possível apagar outro administrador' }, 400);
+  if (!is_admin && isAdminUser(target.user)) {
+    const users = await listAllUsers(admin);
+    const adminCount = users.filter((user) => isAdminUser(user)).length;
+    if (adminCount <= 1) {
+      return json({ error: 'Não é possível remover o último administrador' }, 400);
+    }
   }
 
-  const { error: deleteErr } = await admin.auth.admin.deleteUser(user_id);
-  if (deleteErr) {
-    return json({ error: deleteErr.message }, 500);
-  }
+  const { data, error } = await admin.auth.admin.updateUserById(user_id, {
+    app_metadata: mergeAppMetadata(target.user.app_metadata, { is_admin }),
+  });
+  if (error) return json({ error: error.message }, 500);
 
-  return json({ ok: true }, 200);
+  return json(
+    {
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        is_admin: isAdminUser(data.user),
+      },
+    },
+    200,
+  );
 };

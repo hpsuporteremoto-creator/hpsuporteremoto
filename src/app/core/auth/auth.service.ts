@@ -9,7 +9,7 @@ export class AuthService {
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   private readonly _session = signal<Session | null>(null);
-  // Fonte única de autorização administrativa: public.profiles.is_admin.
+  // Fonte única de autorização administrativa: auth.users.app_metadata.is_admin.
   private readonly _profileIsAdmin = signal(false);
   private _profileFetch: Promise<void> = Promise.resolve();
   readonly session = this._session.asReadonly();
@@ -64,7 +64,7 @@ export class AuthService {
   }
 
   /**
-   * Refetch do flag `is_admin` de `public.profiles` para o usuário atual.
+   * Refetch do flag `is_admin` de `auth.users.app_metadata` para o usuário atual.
    * Disparado no boot e a cada mudança de sessão; pode ser chamado
    * manualmente (ex: após o próprio usuário ser promovido) e aguardado via
    * profileFlagReady().
@@ -76,12 +76,15 @@ export class AuthService {
         this._profileIsAdmin.set(false);
         return;
       }
-      const { data } = await this.supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('id', userId)
-        .maybeSingle<{ is_admin: boolean }>();
-      this._profileIsAdmin.set(!!data?.is_admin);
+      const { data } = await this.supabase.auth.getUser();
+      const user = data.user;
+      if (user?.id === userId) {
+        const session = this._session();
+        if (session) this._session.set({ ...session, user });
+        this._profileIsAdmin.set(isAdminMetadata(user.app_metadata));
+        return;
+      }
+      this._profileIsAdmin.set(false);
     })();
     this._profileFetch = fetchPromise;
     return fetchPromise;
@@ -91,4 +94,10 @@ export class AuthService {
   profileFlagReady(): Promise<void> {
     return this._profileFetch;
   }
+}
+
+function isAdminMetadata(metadata: unknown): boolean {
+  if (typeof metadata !== 'object' || metadata === null) return false;
+  const value = (metadata as Record<string, unknown>)['is_admin'];
+  return value === true || value === 'true';
 }

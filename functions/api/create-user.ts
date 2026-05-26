@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from './admin-auth';
 
 type Env = {
   SUPABASE_URL: string;
@@ -23,31 +24,12 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: 'Servidor mal configurado (env vars ausentes)' }, 500);
   }
 
-  const authHeader = request.headers.get('authorization') ?? '';
-  if (!authHeader.toLowerCase().startsWith('bearer ')) {
-    return json({ error: 'Authorization Bearer token ausente' }, 401);
-  }
-  const token = authHeader.slice('bearer '.length).trim();
-
   const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const {
-    data: { user: caller },
-    error: callerError,
-  } = await admin.auth.getUser(token);
-
-  if (callerError || !caller?.email) {
-    return json({ error: 'Token inválido' }, 401);
-  }
-  const callerAdmin = await getProfileIsAdmin(admin, caller.id);
-  if (callerAdmin.error) {
-    return json({ error: callerAdmin.error }, 500);
-  }
-  if (!callerAdmin.isAdmin) {
-    return json({ error: 'Acesso restrito a administradores' }, 403);
-  }
+  const adminCheck = await requireAdmin(admin, request);
+  if (!adminCheck.ok) return json({ error: adminCheck.error }, adminCheck.status);
 
   let body: unknown;
   try {
@@ -90,17 +72,4 @@ function translateCreateUserError(message: string): string {
     return 'Já existe um usuário cadastrado com este email.';
   }
   return message;
-}
-
-async function getProfileIsAdmin(
-  admin: SupabaseClient,
-  userId: string,
-): Promise<{ isAdmin: boolean; error: string | null }> {
-  const { data, error } = await admin
-    .from('profiles')
-    .select('is_admin')
-    .eq('id', userId)
-    .maybeSingle<{ is_admin: boolean }>();
-  if (error) return { isAdmin: false, error: error.message };
-  return { isAdmin: data?.is_admin === true, error: null };
 }

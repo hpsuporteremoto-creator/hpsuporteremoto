@@ -14,12 +14,20 @@ export class UsuariosService {
   private readonly table = 'profiles';
 
   async list(): Promise<UserProfile[]> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
-    return (data ?? []) as UserProfile[];
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+
+    const response = await fetch('/api/list-users', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      users?: UserProfile[];
+    };
+    if (!response.ok || !payload.users) {
+      throw new Error(payload.error ?? `Erro ${response.status}`);
+    }
+    return payload.users;
   }
 
   async get(id: string): Promise<UserProfile | null> {
@@ -40,16 +48,24 @@ export class UsuariosService {
     if (error) throw new Error(error.message);
   }
 
-  /**
-   * Promove ou rebaixa o usuário a admin. O trigger `profiles_guard_is_admin`
-   * no banco garante que só admins consigam executar essa atualização.
-   */
   async setAdmin(id: string, isAdmin: boolean): Promise<void> {
-    const { error } = await this.supabase
-      .from(this.table)
-      .update({ is_admin: isAdmin })
-      .eq('id', id);
-    if (error) throw new Error(error.message);
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+
+    const response = await fetch('/api/update-user-admin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ user_id: id, is_admin: isAdmin }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    if (!response.ok) {
+      throw new Error(payload.error ?? `Erro ${response.status}`);
+    }
   }
 
   async create(
