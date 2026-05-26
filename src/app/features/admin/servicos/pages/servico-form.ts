@@ -6,7 +6,7 @@ import {
   signal,
 } from '@angular/core';
 import { Location } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -29,7 +29,6 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
   selector: 'hp-servico-form',
   imports: [
     ReactiveFormsModule,
-    RouterLink,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
@@ -53,20 +52,6 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
     }
 
     <main class="content">
-      @if (!loading() && categorias().length === 0) {
-        <section class="empty-categories" aria-label="Nenhuma categoria cadastrada">
-          <mat-icon>category</mat-icon>
-          <div>
-            <strong>Nenhuma categoria cadastrada</strong>
-            <span>Cadastre uma categoria antes de criar serviços.</span>
-          </div>
-          <a mat-flat-button color="primary" [routerLink]="['/admin/servicos/categorias/nova']">
-            <mat-icon>add</mat-icon>
-            <span>Nova categoria</span>
-          </a>
-        </section>
-      }
-
       <mat-card appearance="filled">
         <mat-card-content class="card-content">
           <form [formGroup]="form" (ngSubmit)="onSubmit()">
@@ -81,7 +66,8 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
             <mat-form-field appearance="outline">
               <mat-label>Categoria</mat-label>
               <mat-icon matIconPrefix>category</mat-icon>
-              <mat-select formControlName="categoria_id" required>
+              <mat-select formControlName="categoria_id">
+                <mat-option value="">Sem categoria</mat-option>
                 @for (categoria of categorias(); track categoria.id) {
                   <mat-option [value]="categoria.id">
                     {{ categoria.nome }}
@@ -91,16 +77,11 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
                   </mat-option>
                 }
               </mat-select>
-              @if (form.controls.categoria_id.hasError('required')) {
-                <mat-error>Categoria é obrigatória</mat-error>
-              }
-              @if (!loading() && categorias().length === 0) {
-                <mat-hint>Cadastre uma categoria antes de criar serviços.</mat-hint>
-              }
+              <mat-hint>Opcional. Use "Sem categoria" quando não quiser agrupar.</mat-hint>
             </mat-form-field>
 
             <mat-form-field appearance="outline">
-              <mat-label>Descrição</mat-label>
+              <mat-label>Descrição do serviço</mat-label>
               <textarea
                 matInput
                 formControlName="descricao"
@@ -227,7 +208,7 @@ export class ServicoFormPage {
 
   protected readonly form = this.fb.group({
     nome: ['', [Validators.required, Validators.minLength(2)]],
-    categoria_id: ['', [Validators.required]],
+    categoria_id: [''],
     descricao: ['', [Validators.required, Validators.minLength(2)]],
     imagem_url: ['', [Validators.pattern(/^https?:\/\/.+/i)]],
     valor_reais: [0, [Validators.required, Validators.min(0)]],
