@@ -70,7 +70,15 @@ import { UserProfile } from '../usuarios.types';
                   <div class="info">
                     <strong class="nome">{{ u.full_name || '—' }}</strong>
                     <small class="email">{{ u.email }}</small>
-                    <span class="admin-chip">{{ roleLabel(u) }}</span>
+                    <span
+                      class="role-chip"
+                      [class.role-admin]="isAdmin(u)"
+                      [class.role-vendedor]="u.role === 'vendedor'"
+                      [class.role-empty]="!isAdmin(u) && u.role !== 'vendedor'"
+                    >
+                      <mat-icon aria-hidden="true">{{ roleIcon(u) }}</mat-icon>
+                      <span>{{ roleLabel(u) }}</span>
+                    </span>
                   </div>
                   <div class="actions">
                     <a
@@ -135,6 +143,12 @@ export class UsuariosListPage {
     if (this.isAdmin(u)) return 'ADMIN';
     if (u.role === 'vendedor') return 'VENDEDOR';
     return 'SEM ACESSO';
+  }
+
+  roleIcon(u: UserProfile): string {
+    if (this.isAdmin(u)) return 'workspace_premium';
+    if (u.role === 'vendedor') return 'point_of_sale';
+    return 'person_off';
   }
 
   initials(u: UserProfile): string {

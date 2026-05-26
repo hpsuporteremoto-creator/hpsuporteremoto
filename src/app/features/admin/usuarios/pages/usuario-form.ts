@@ -74,7 +74,7 @@ import type { UserProfile, UserRole } from '../usuarios.types';
 
               <mat-form-field appearance="outline">
                 <mat-label>Perfil de acesso</mat-label>
-                <mat-icon matIconPrefix>admin_panel_settings</mat-icon>
+                <mat-icon matIconPrefix>assignment_ind</mat-icon>
                 <mat-select formControlName="role" required>
                   <mat-option value="vendedor">Vendedor</mat-option>
                   <mat-option value="admin">Admin</mat-option>
@@ -114,7 +114,7 @@ import type { UserProfile, UserRole } from '../usuarios.types';
 
               <mat-form-field appearance="outline">
                 <mat-label>Perfil de acesso</mat-label>
-                <mat-icon matIconPrefix>admin_panel_settings</mat-icon>
+                <mat-icon matIconPrefix>assignment_ind</mat-icon>
                 <mat-select formControlName="role" required>
                   <mat-option value="vendedor">Vendedor</mat-option>
                   <mat-option value="admin">Admin</mat-option>
