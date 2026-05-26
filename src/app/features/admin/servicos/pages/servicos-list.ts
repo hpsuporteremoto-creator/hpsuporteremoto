@@ -44,7 +44,7 @@ import { Servico } from '../servicos.types';
         aria-label="Gerenciar categorias"
       >
         <mat-icon>category</mat-icon>
-        <span>Categorias</span>
+        <span>Gerenciar categorias</span>
       </a>
       <a mat-flat-button color="primary" routerLink="novo" aria-label="Novo serviço">
         <mat-icon>add</mat-icon>

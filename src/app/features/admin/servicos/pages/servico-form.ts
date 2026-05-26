@@ -6,7 +6,7 @@ import {
   signal,
 } from '@angular/core';
 import { Location } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -29,6 +29,7 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
   selector: 'hp-servico-form',
   imports: [
     ReactiveFormsModule,
+    RouterLink,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
@@ -52,6 +53,20 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
     }
 
     <main class="content">
+      @if (!loading() && categorias().length === 0) {
+        <section class="empty-categories" aria-label="Nenhuma categoria cadastrada">
+          <mat-icon>category</mat-icon>
+          <div>
+            <strong>Nenhuma categoria cadastrada</strong>
+            <span>Cadastre uma categoria antes de criar serviços.</span>
+          </div>
+          <a mat-flat-button color="primary" [routerLink]="['/admin/servicos/categorias/nova']">
+            <mat-icon>add</mat-icon>
+            <span>Nova categoria</span>
+          </a>
+        </section>
+      }
+
       <mat-card appearance="filled">
         <mat-card-content class="card-content">
           <form [formGroup]="form" (ngSubmit)="onSubmit()">

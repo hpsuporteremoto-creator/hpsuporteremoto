@@ -74,19 +74,21 @@ import { ServicoCategoria } from '../servicos.types';
                       aria-label="Categoria ativa"
                     />
                     <a
-                      mat-icon-button
+                      mat-stroked-button
                       [routerLink]="[categoria.id, 'editar']"
                       aria-label="Editar categoria"
                     >
                       <mat-icon>edit</mat-icon>
+                      <span>Editar</span>
                     </a>
                     <button
-                      mat-icon-button
+                      mat-stroked-button
                       type="button"
                       (click)="apagar(categoria)"
                       aria-label="Apagar categoria"
                     >
                       <mat-icon>delete_outline</mat-icon>
+                      <span>Excluir</span>
                     </button>
                   </div>
                 </mat-card-content>

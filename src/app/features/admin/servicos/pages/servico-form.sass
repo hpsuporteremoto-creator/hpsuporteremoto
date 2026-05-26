@@ -3,6 +3,42 @@
   max-width: 36rem
   margin: 0 auto
 
+.empty-categories
+  display: flex
+  align-items: center
+  gap: 0.875rem
+  padding: 1rem
+  margin-bottom: 1rem
+  border: 1px solid var(--mat-sys-outline-variant)
+  border-radius: 0.5rem
+  background: var(--mat-sys-surface-container-low)
+
+  > mat-icon
+    color: var(--mat-sys-primary)
+    flex-shrink: 0
+
+  div
+    min-width: 0
+    flex: 1
+    display: flex
+    flex-direction: column
+    gap: 0.125rem
+
+  strong
+    color: var(--mat-sys-on-surface)
+
+  span
+    color: var(--mat-sys-on-surface-variant)
+    font-size: 0.875rem
+
+@media (max-width: 640px)
+  .empty-categories
+    align-items: stretch
+    flex-direction: column
+
+    a
+      justify-content: center
+
 .card-content
   padding: 1.5rem !important
 
