@@ -43,12 +43,6 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
 
       <nav class="header-actions" aria-label="Ações do site">
         @if (auth.user(); as user) {
-          @if (auth.isStaff()) {
-            <a mat-stroked-button routerLink="/admin">
-              <mat-icon>admin_panel_settings</mat-icon>
-              <span>Admin</span>
-            </a>
-          }
           <button mat-button type="button" (click)="signOut()">
             <mat-icon>logout</mat-icon>
             <span>Sair</span>
