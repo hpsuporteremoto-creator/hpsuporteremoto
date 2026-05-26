@@ -13,7 +13,6 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { AuthService } from '../../../../core/auth/auth.service';
-import { isAdminEmail } from '../../../../core/auth/admin-emails';
 import { UsuariosService } from '../usuarios.service';
 import { UserProfile } from '../usuarios.types';
 
@@ -142,15 +141,13 @@ export class UsuariosListPage {
   }
 
   isAdmin(u: UserProfile): boolean {
-    return isAdminEmail(u.email) || u.is_admin;
+    return u.is_admin;
   }
 
   /**
-   * Pode alterar o flag admin desse usuário? Não pra admins hardcoded
-   * (sempre admin) nem pra si mesmo (evita auto-lockout e UX confusa).
+   * Não permite alterar o próprio flag para evitar auto-lockout na UI.
    */
   canTogglarAdmin(u: UserProfile): boolean {
-    if (isAdminEmail(u.email)) return false;
     if (u.id === this.auth.user()?.id) return false;
     return true;
   }

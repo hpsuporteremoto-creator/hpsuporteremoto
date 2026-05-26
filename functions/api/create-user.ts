@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 type Env = {
   SUPABASE_URL: string;
@@ -6,13 +6,6 @@ type Env = {
 };
 
 type Context = { request: Request; env: Env };
-
-// Mantenha sincronizado com src/app/core/auth/admin-emails.ts
-const ADMIN_EMAILS = [
-  'heriveltonpiresalves@gmail.com',
-  'hpsuporteremoto@gmail.com',
-  'thiagoprazeres@gmail.com',
-];
 
 const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -48,7 +41,11 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (callerError || !caller?.email) {
     return json({ error: 'Token inválido' }, 401);
   }
-  if (!ADMIN_EMAILS.includes(caller.email.toLowerCase())) {
+  const callerAdmin = await getProfileIsAdmin(admin, caller.id);
+  if (callerAdmin.error) {
+    return json({ error: callerAdmin.error }, 500);
+  }
+  if (!callerAdmin.isAdmin) {
     return json({ error: 'Acesso restrito a administradores' }, 403);
   }
 
@@ -93,4 +90,17 @@ function translateCreateUserError(message: string): string {
     return 'Já existe um usuário cadastrado com este email.';
   }
   return message;
+}
+
+async function getProfileIsAdmin(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<{ isAdmin: boolean; error: string | null }> {
+  const { data, error } = await admin
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', userId)
+    .maybeSingle<{ is_admin: boolean }>();
+  if (error) return { isAdmin: false, error: error.message };
+  return { isAdmin: data?.is_admin === true, error: null };
 }

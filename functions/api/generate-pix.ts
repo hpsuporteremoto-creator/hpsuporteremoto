@@ -22,12 +22,6 @@ type PixReceiverConfig = {
   receiverCity: string;
 };
 
-const ADMIN_EMAILS = [
-  'heriveltonpiresalves@gmail.com',
-  'hpsuporteremoto@gmail.com',
-  'thiagoprazeres@gmail.com',
-];
-
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -60,7 +54,11 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (callerError || !caller?.email) {
     return json({ error: 'Token inválido' }, 401);
   }
-  if (!ADMIN_EMAILS.includes(caller.email.toLowerCase())) {
+  const callerAdmin = await getProfileIsAdmin(admin, caller.id);
+  if (callerAdmin.error) {
+    return json({ error: callerAdmin.error }, 500);
+  }
+  if (!callerAdmin.isAdmin) {
     return json({ error: 'Acesso restrito a administradores' }, 403);
   }
 
@@ -242,6 +240,19 @@ function isCompleteReceiverConfig(config: PixReceiverConfig): boolean {
     config.receiverName.length > 0 &&
     config.receiverCity.length > 0
   );
+}
+
+async function getProfileIsAdmin(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<{ isAdmin: boolean; error: string | null }> {
+  const { data, error } = await admin
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', userId)
+    .maybeSingle<{ is_admin: boolean }>();
+  if (error) return { isAdmin: false, error: error.message };
+  return { isAdmin: data?.is_admin === true, error: null };
 }
 
 function normalizeServicoIds(

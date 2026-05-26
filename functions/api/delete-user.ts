@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 type Env = {
   SUPABASE_URL: string;
@@ -6,12 +6,6 @@ type Env = {
 };
 
 type Context = { request: Request; env: Env };
-
-const ADMIN_EMAILS = [
-  'heriveltonpiresalves@gmail.com',
-  'hpsuporteremoto@gmail.com',
-  'thiagoprazeres@gmail.com',
-];
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -45,7 +39,11 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (callerError || !caller?.email) {
     return json({ error: 'Token inválido' }, 401);
   }
-  if (!ADMIN_EMAILS.includes(caller.email.toLowerCase())) {
+  const callerAdmin = await getProfileIsAdmin(admin, caller.id);
+  if (callerAdmin.error) {
+    return json({ error: callerAdmin.error }, 500);
+  }
+  if (!callerAdmin.isAdmin) {
     return json({ error: 'Acesso restrito a administradores' }, 403);
   }
 
@@ -69,10 +67,12 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (fetchErr || !target?.user) {
     return json({ error: 'Usuário não encontrado' }, 404);
   }
-  if (
-    target.user.email &&
-    ADMIN_EMAILS.includes(target.user.email.toLowerCase())
-  ) {
+
+  const targetAdmin = await getProfileIsAdmin(admin, target.user.id);
+  if (targetAdmin.error) {
+    return json({ error: targetAdmin.error }, 500);
+  }
+  if (targetAdmin.isAdmin) {
     return json({ error: 'Não é possível apagar outro administrador' }, 400);
   }
 
@@ -83,3 +83,16 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
 
   return json({ ok: true }, 200);
 };
+
+async function getProfileIsAdmin(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<{ isAdmin: boolean; error: string | null }> {
+  const { data, error } = await admin
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', userId)
+    .maybeSingle<{ is_admin: boolean }>();
+  if (error) return { isAdmin: false, error: error.message };
+  return { isAdmin: data?.is_admin === true, error: null };
+}

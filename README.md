@@ -40,17 +40,14 @@ do serviço.
 
 ## Admins
 
-Admins ficam sincronizados em:
+Admins são definidos dinamicamente no banco, pela coluna
+`public.profiles.is_admin`. Não há whitelist fixa no frontend nem nas Pages
+Functions.
 
-- `src/app/core/auth/admin-emails.ts`
-- função SQL `public.is_admin()`
-- Cloudflare Pages Functions em `functions/api/*`
-
-Emails atuais:
-
-- `heriveltonpiresalves@gmail.com`
-- `hpsuporteremoto@gmail.com`
-- `thiagoprazeres@gmail.com`
+A tela `/admin/usuarios` é o caminho operacional para promover ou remover
+admins. A função SQL `public.is_admin()` usa apenas `profiles.is_admin = true`,
+e a migration `0020_remover_whitelist_fixa_admin.sql` impede remover o último
+administrador para evitar lockout.
 
 ## Desenvolvimento local
 

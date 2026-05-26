@@ -2,7 +2,6 @@ import { Injectable, PLATFORM_ID, computed, inject, signal } from '@angular/core
 import { isPlatformBrowser } from '@angular/common';
 import { Session, User } from '@supabase/supabase-js';
 import { SupabaseService } from '../supabase/supabase.service';
-import { isAdminEmail } from './admin-emails';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -10,17 +9,13 @@ export class AuthService {
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   private readonly _session = signal<Session | null>(null);
-  // Flag is_admin lido de public.profiles. Combinado com a whitelist hardcoded
-  // de emails, permite que admins promovam outros via UI sem precisar de
-  // migration. Atualizado em refreshProfileFlag().
+  // Fonte única de autorização administrativa: public.profiles.is_admin.
   private readonly _profileIsAdmin = signal(false);
   private _profileFetch: Promise<void> = Promise.resolve();
   readonly session = this._session.asReadonly();
   readonly user = computed<User | null>(() => this._session()?.user ?? null);
   readonly isAuthenticated = computed(() => this.user() !== null);
-  readonly isAdmin = computed(
-    () => isAdminEmail(this.user()?.email) || this._profileIsAdmin(),
-  );
+  readonly isAdmin = computed(() => this._profileIsAdmin());
 
   readonly ready: Promise<void>;
 
