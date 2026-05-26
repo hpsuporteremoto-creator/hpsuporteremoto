@@ -37,7 +37,7 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
         <span class="brand-mark">HP</span>
         <span>
           <strong>HP Suporte Remoto</strong>
-          <small>Serviços de tecnologia</small>
+          <small>Tecnologia e suporte</small>
         </span>
       </a>
 
@@ -64,7 +64,7 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
     <main class="page">
       <section class="intro" aria-labelledby="vitrine-title">
         <p>Atendimento remoto, manutenção e suporte técnico</p>
-        <h1 id="vitrine-title">Conteúdos e serviços</h1>
+        <h1 id="vitrine-title">Conteúdos técnicos</h1>
       </section>
 
       @if (categorias().length > 0) {
@@ -95,13 +95,13 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
       }
 
       @if (!loading() && servicosFiltrados().length === 0) {
-        <section class="empty" aria-label="Nenhum serviço na vitrine">
+        <section class="empty" aria-label="Nenhum conteúdo na vitrine">
           <mat-icon>inventory_2</mat-icon>
           <strong>{{ emptyMessage() }}</strong>
         </section>
       }
 
-      <section class="service-grid" aria-label="Serviços disponíveis">
+      <section class="service-grid" aria-label="Conteúdos disponíveis">
         @for (servico of servicosFiltrados(); track servico.id) {
           <mat-card class="service-card" appearance="filled">
             <div class="media">
@@ -237,7 +237,7 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
                 @if (auth.isAuthenticated()) {
                   <form class="comment-form" (ngSubmit)="enviarComentario(servico)">
                     <mat-form-field appearance="outline">
-                      <mat-label>Comentar este serviço</mat-label>
+                      <mat-label>Comentar</mat-label>
                       <textarea
                         matInput
                         rows="3"
@@ -297,8 +297,8 @@ export class VitrinePage {
   });
   protected readonly emptyMessage = computed(() =>
     this.servicos().length === 0
-      ? 'Nenhum serviço disponível no momento'
-      : 'Nenhum serviço nesta categoria',
+      ? 'Nenhum conteúdo disponível no momento'
+      : 'Nenhum conteúdo nesta categoria',
   );
 
   constructor() {

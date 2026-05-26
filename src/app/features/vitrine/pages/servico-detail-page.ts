@@ -40,7 +40,7 @@ import {
         <span class="brand-mark">HP</span>
         <span>
           <strong>HP Suporte Remoto</strong>
-          <small>Vitrine de serviços</small>
+          <small>Vitrine técnica</small>
         </span>
       </a>
 
@@ -196,7 +196,7 @@ import {
             @if (auth.isAuthenticated()) {
               <form class="comment-form" (ngSubmit)="enviarComentario(item.id)">
                 <mat-form-field appearance="outline">
-                  <mat-label>Comentar este serviço</mat-label>
+                  <mat-label>Comentar</mat-label>
                   <textarea
                     matInput
                     rows="3"
@@ -237,7 +237,7 @@ export class ServicoDetailPage {
   protected readonly loading = signal(false);
   protected readonly commentsLoading = signal(false);
   protected readonly error = signal<string | null>(null);
-  protected readonly title = computed(() => this.servico()?.nome ?? 'Serviço');
+  protected readonly title = computed(() => this.servico()?.nome ?? 'Conteúdo');
 
   constructor() {
     void this.carregar();
@@ -246,20 +246,20 @@ export class ServicoDetailPage {
   async carregar(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
-      this.error.set('Serviço não encontrado');
+      this.error.set('Conteúdo não encontrado');
       return;
     }
     this.loading.set(true);
     try {
       const servico = await this.vitrine.getServico(id);
       if (!servico) {
-        this.error.set('Serviço não encontrado ou fora da vitrine.');
+        this.error.set('Conteúdo não encontrado ou fora da vitrine.');
         return;
       }
       this.servico.set(servico);
       await this.carregarComentarios(servico.id);
     } catch (err) {
-      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar serviço');
+      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar conteúdo');
     } finally {
       this.loading.set(false);
     }
