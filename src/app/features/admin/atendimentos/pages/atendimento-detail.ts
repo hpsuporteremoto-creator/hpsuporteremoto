@@ -8,7 +8,6 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { AtendimentosService } from '../atendimentos.service';
-import { AuthService } from '../../../../core/auth/auth.service';
 import {
   ATENDIMENTO_STATE_LABEL,
   AtendimentoComRelacoes,
@@ -118,30 +117,28 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   Solicitação recebida em tempo real. Aceite para iniciar o serviço ou recuse se não
                   puder atender agora.
                 </p>
-                @if (auth.isAdmin()) {
-                  <div class="action-row">
-                    <button
-                      mat-flat-button
-                      color="primary"
-                      type="button"
-                      (click)="confirmar()"
-                      [disabled]="updating()"
-                    >
-                      <mat-icon>check</mat-icon>
-                      <span>Aceitar e iniciar</span>
-                    </button>
-                    <button
-                      mat-stroked-button
-                      color="warn"
-                      type="button"
-                      (click)="recusar()"
-                      [disabled]="updating()"
-                    >
-                      <mat-icon>block</mat-icon>
-                      <span>Recusar</span>
-                    </button>
-                  </div>
-                }
+                <div class="action-row">
+                  <button
+                    mat-flat-button
+                    color="primary"
+                    type="button"
+                    (click)="confirmar()"
+                    [disabled]="updating()"
+                  >
+                    <mat-icon>check</mat-icon>
+                    <span>Aceitar e iniciar</span>
+                  </button>
+                  <button
+                    mat-stroked-button
+                    color="warn"
+                    type="button"
+                    (click)="recusar()"
+                    [disabled]="updating()"
+                  >
+                    <mat-icon>block</mat-icon>
+                    <span>Recusar</span>
+                  </button>
+                </div>
               }
               @case ('em_andamento') {
                 <p class="state-hint">
@@ -191,18 +188,16 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   </p>
                 }
 
-                @if (auth.isAdmin()) {
-                  <button
-                    mat-flat-button
-                    color="primary"
-                    type="button"
-                    (click)="cobrarEFinalizar()"
-                    [disabled]="servicosParaCobranca().length === 0 || descontoInvalido() || totalParaCobranca() <= 0 || updating()"
-                  >
-                    <mat-icon>qr_code_2</mat-icon>
-                    <span>Finalizar e cobrar {{ totalParaCobranca() / 100 | currency }}</span>
-                  </button>
-                }
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="button"
+                  (click)="cobrarEFinalizar()"
+                  [disabled]="servicosParaCobranca().length === 0 || descontoInvalido() || totalParaCobranca() <= 0 || updating()"
+                >
+                  <mat-icon>qr_code_2</mat-icon>
+                  <span>Finalizar e cobrar {{ totalParaCobranca() / 100 | currency }}</span>
+                </button>
               }
               @case ('pagamento') {
                 <p class="state-hint">
@@ -225,18 +220,16 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                     </button>
                   </div>
                 }
-                @if (auth.isAdmin()) {
-                  <button
-                    mat-flat-button
-                    color="primary"
-                    type="button"
-                    (click)="marcarPago()"
-                    [disabled]="updating()"
-                  >
-                    <mat-icon>check_circle</mat-icon>
-                    <span>Marcar como pago e finalizar</span>
-                  </button>
-                }
+                <button
+                  mat-flat-button
+                  color="primary"
+                  type="button"
+                  (click)="marcarPago()"
+                  [disabled]="updating()"
+                >
+                  <mat-icon>check_circle</mat-icon>
+                  <span>Marcar como pago e finalizar</span>
+                </button>
               }
               @case ('concluido') {
                 <p class="state-hint">Atendimento concluído.</p>
@@ -260,7 +253,6 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 })
 export class AtendimentoDetailPage {
   private readonly svc = inject(AtendimentosService);
-  protected readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
   private readonly snackBar = inject(MatSnackBar);

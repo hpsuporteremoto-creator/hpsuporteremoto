@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { AuthService } from '../../../core/auth/auth.service';
 import { SupabaseService } from '../../../core/supabase/supabase.service';
 import {
   Servico,
@@ -17,34 +18,22 @@ const SERVICO_SELECT = `
 
 @Injectable({ providedIn: 'root' })
 export class ServicosService {
+  private readonly auth = inject(AuthService);
   private readonly supabase = inject(SupabaseService).client;
   private readonly table = 'servicos';
 
   async list(): Promise<Servico[]> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select(SERVICO_SELECT)
-      .order('nome', {
-        ascending: true,
-        referencedTable: 'servico_categorias',
-      })
-      .order('nome', { ascending: true });
-    if (error) throw new Error(error.message);
-    return normalizeServicos((data ?? []) as unknown as Servico[]);
+    const payload = await this.fetchApi<{ servicos?: Servico[]; error?: string }>(
+      '/api/services',
+    );
+    return normalizeServicos(payload.servicos ?? []);
   }
 
   async listByAtivo(ativo: boolean): Promise<Servico[]> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select(SERVICO_SELECT)
-      .eq('ativo', ativo)
-      .order('nome', {
-        ascending: true,
-        referencedTable: 'servico_categorias',
-      })
-      .order('nome', { ascending: true });
-    if (error) throw new Error(error.message);
-    return normalizeServicos((data ?? []) as unknown as Servico[]);
+    const payload = await this.fetchApi<{ servicos?: Servico[]; error?: string }>(
+      `/api/services?ativo=${String(ativo)}`,
+    );
+    return normalizeServicos(payload.servicos ?? []);
   }
 
   async listAtivos(): Promise<Servico[]> {
@@ -62,13 +51,10 @@ export class ServicosService {
   }
 
   async get(id: string): Promise<Servico | null> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select(SERVICO_SELECT)
-      .eq('id', id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    return data ? normalizeServico(data as unknown as Servico) : null;
+    const payload = await this.fetchApi<{ servico?: Servico | null; error?: string }>(
+      `/api/services?id=${encodeURIComponent(id)}`,
+    );
+    return payload.servico ? normalizeServico(payload.servico) : null;
   }
 
   async getMany(ids: readonly string[]): Promise<Servico[]> {
@@ -88,119 +74,152 @@ export class ServicosService {
   }
 
   async create(input: ServicoFormData): Promise<Servico> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .insert(normalizeServicoInput(input))
-      .select(SERVICO_SELECT)
-      .single();
-    if (error) throw new Error(error.message);
-    return normalizeServico(data as unknown as Servico);
+    const payload = await this.postApi<{ servico?: Servico; error?: string }>(
+      '/api/services',
+      { action: 'create', ...normalizeServicoInput(input) },
+    );
+    if (!payload.servico) throw new Error('Falha ao criar serviço');
+    return normalizeServico(payload.servico);
   }
 
   async update(id: string, input: Partial<ServicoFormData>): Promise<Servico> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .update(normalizeServicoPatch(input))
-      .eq('id', id)
-      .select(SERVICO_SELECT)
-      .single();
-    if (error) throw new Error(error.message);
-    return normalizeServico(data as unknown as Servico);
+    const payload = await this.postApi<{ servico?: Servico; error?: string }>(
+      '/api/services',
+      { action: 'update', id, ...normalizeServicoPatch(input) },
+    );
+    if (!payload.servico) throw new Error('Falha ao atualizar serviço');
+    return normalizeServico(payload.servico);
   }
 
   async toggleAtivo(id: string, ativo: boolean): Promise<void> {
-    const { error } = await this.supabase.from(this.table).update({ ativo }).eq('id', id);
-    if (error) throw new Error(error.message);
+    await this.postApi('/api/services', { action: 'toggle', id, ativo });
   }
 
   async counts(): Promise<ServicosCounts> {
-    const [ativos, inativos] = await Promise.all([
-      this.countByAtivo(true),
-      this.countByAtivo(false),
-    ]);
-    return { ativos, inativos };
+    const payload = await this.fetchApi<{ counts?: ServicosCounts; error?: string }>(
+      '/api/services',
+    );
+    return payload.counts ?? { ativos: 0, inativos: 0 };
   }
 
-  private async countByAtivo(ativo: boolean): Promise<number> {
-    const { count, error } = await this.supabase
-      .from(this.table)
-      .select('id', { count: 'exact', head: true })
-      .eq('ativo', ativo);
-    if (error) throw new Error(error.message);
-    return count ?? 0;
+  private async fetchApi<T extends { error?: string }>(url: string): Promise<T> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = (await response.json().catch(() => ({}))) as T;
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload;
+  }
+
+  private async postApi<T extends { error?: string } = { error?: string }>(
+    url: string,
+    body: unknown,
+  ): Promise<T> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = (await response.json().catch(() => ({}))) as T;
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload;
   }
 }
 
 @Injectable({ providedIn: 'root' })
 export class ServicoCategoriasService {
+  private readonly auth = inject(AuthService);
   private readonly supabase = inject(SupabaseService).client;
   private readonly table = 'servico_categorias';
 
   async list(): Promise<ServicoCategoria[]> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select('*')
-      .order('ativo', { ascending: false })
-      .order('nome', { ascending: true });
-    if (error) throw new Error(error.message);
-    return (data ?? []) as ServicoCategoria[];
+    const payload = await this.fetchApi<{
+      categorias?: ServicoCategoria[];
+      error?: string;
+    }>('/api/service-categories');
+    return payload.categorias ?? [];
   }
 
   async listAtivas(): Promise<ServicoCategoria[]> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select('*')
-      .eq('ativo', true)
-      .order('nome', { ascending: true });
-    if (error) throw new Error(error.message);
-    return (data ?? []) as ServicoCategoria[];
+    const payload = await this.fetchApi<{
+      categorias?: ServicoCategoria[];
+      error?: string;
+    }>('/api/service-categories?ativas=true');
+    return payload.categorias ?? [];
   }
 
   async get(id: string): Promise<ServicoCategoria | null> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select('*')
-      .eq('id', id)
-      .maybeSingle<ServicoCategoria>();
-    if (error) throw new Error(error.message);
-    return data;
+    const payload = await this.fetchApi<{
+      categoria?: ServicoCategoria | null;
+      error?: string;
+    }>(`/api/service-categories?id=${encodeURIComponent(id)}`);
+    return payload.categoria ?? null;
   }
 
   async create(input: ServicoCategoriaFormData): Promise<ServicoCategoria> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .insert(input)
-      .select()
-      .single<ServicoCategoria>();
-    if (error) throw toCategoriaError(error);
-    return data;
+    const payload = await this.postApi<{
+      categoria?: ServicoCategoria;
+      error?: string;
+    }>('/api/service-categories', { action: 'create', ...input });
+    if (!payload.categoria) throw new Error('Falha ao criar categoria');
+    return payload.categoria;
   }
 
   async update(
     id: string,
     input: Partial<ServicoCategoriaFormData>,
   ): Promise<ServicoCategoria> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .update(input)
-      .eq('id', id)
-      .select()
-      .single<ServicoCategoria>();
-    if (error) throw toCategoriaError(error);
-    return data;
+    const payload = await this.postApi<{
+      categoria?: ServicoCategoria;
+      error?: string;
+    }>('/api/service-categories', { action: 'update', id, ...input });
+    if (!payload.categoria) throw new Error('Falha ao atualizar categoria');
+    return payload.categoria;
   }
 
   async toggleAtivo(id: string, ativo: boolean): Promise<void> {
-    const { error } = await this.supabase
-      .from(this.table)
-      .update({ ativo })
-      .eq('id', id);
-    if (error) throw new Error(error.message);
+    await this.postApi('/api/service-categories', { action: 'toggle', id, ativo });
   }
 
   async delete(id: string): Promise<void> {
-    const { error } = await this.supabase.from(this.table).delete().eq('id', id);
-    if (error) throw toCategoriaError(error);
+    await this.postApi('/api/service-categories', { action: 'delete', id });
+  }
+
+  private async fetchApi<T extends { error?: string }>(url: string): Promise<T> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = (await response.json().catch(() => ({}))) as T;
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload;
+  }
+
+  private async postApi<T extends { error?: string } = { error?: string }>(
+    url: string,
+    body: unknown,
+  ): Promise<T> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = (await response.json().catch(() => ({}))) as T;
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload;
   }
 }
 

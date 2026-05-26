@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from './admin-auth';
+import { requireStaff } from './admin-auth';
 import type { AtendimentoState } from './atendimentos-shared';
 
 type Env = {
@@ -35,8 +35,8 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const adminCheck = await requireAdmin(admin, request);
-  if (!adminCheck.ok) return json({ error: adminCheck.error }, adminCheck.status);
+  const staffCheck = await requireStaff(admin, request);
+  if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
 
   let body: unknown;
   try {

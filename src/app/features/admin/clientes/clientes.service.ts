@@ -77,22 +77,16 @@ export class ClientesService {
   }
 
   async update(id: string, input: Partial<ClienteFormData>): Promise<Cliente> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .update(input)
-      .eq('id', id)
-      .select()
-      .single<Cliente>();
-    if (error) throw toClienteError(error);
-    return data;
+    const payload = await this.postApi<{
+      cliente?: Cliente;
+      error?: string;
+    }>('/api/update-client', { id, ...input });
+    if (!payload.cliente) throw new Error('Falha ao atualizar cliente');
+    return payload.cliente;
   }
 
   async toggleAtivo(id: string, ativo: boolean): Promise<void> {
-    const { error } = await this.supabase
-      .from(this.table)
-      .update({ ativo })
-      .eq('id', id);
-    if (error) throw new Error(error.message);
+    await this.postApi('/api/update-client', { id, ativo });
   }
 
   private async fetchApi<T extends { error?: string }>(url: string): Promise<T> {

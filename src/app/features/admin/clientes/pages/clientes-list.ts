@@ -127,24 +127,22 @@ import { AuthService } from '../../../../core/auth/auth.service';
                       <small class="observacao">{{ cliente.observacao }}</small>
                     }
                   </div>
-                  @if (auth.isAdmin()) {
-                    <div class="actions">
-                      <mat-slide-toggle
-                        [checked]="cliente.ativo"
-                        (click)="$event.stopPropagation()"
-                        (change)="onToggle(cliente, $event.checked)"
-                        aria-label="Ativo"
-                      />
-                      <a
-                        mat-icon-button
-                        [routerLink]="[cliente.id, 'editar']"
-                        (click)="$event.stopPropagation()"
-                        aria-label="Editar"
-                      >
-                        <mat-icon>edit</mat-icon>
-                      </a>
-                    </div>
-                  }
+                  <div class="actions">
+                    <mat-slide-toggle
+                      [checked]="cliente.ativo"
+                      (click)="$event.stopPropagation()"
+                      (change)="onToggle(cliente, $event.checked)"
+                      aria-label="Ativo"
+                    />
+                    <a
+                      mat-icon-button
+                      [routerLink]="[cliente.id, 'editar']"
+                      (click)="$event.stopPropagation()"
+                      aria-label="Editar"
+                    >
+                      <mat-icon>edit</mat-icon>
+                    </a>
+                  </div>
                 </mat-card-content>
               </mat-card>
             }

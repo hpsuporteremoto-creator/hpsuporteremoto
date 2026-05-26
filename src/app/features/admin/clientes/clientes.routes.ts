@@ -1,6 +1,4 @@
 import { Routes } from '@angular/router';
-import { adminOnlyGuard } from '../../../core/auth/auth.guard';
-
 export const clientesRoutes: Routes = [
   {
     path: '',
@@ -15,7 +13,6 @@ export const clientesRoutes: Routes = [
   },
   {
     path: ':id/editar',
-    canActivate: [adminOnlyGuard],
     loadComponent: () =>
       import('./pages/cliente-form').then((m) => m.ClienteFormPage),
   },

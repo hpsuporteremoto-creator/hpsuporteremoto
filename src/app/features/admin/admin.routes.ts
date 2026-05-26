@@ -29,7 +29,6 @@ export const adminRoutes: Routes = [
       },
       {
         path: 'servicos',
-        canActivate: [adminOnlyGuard],
         loadChildren: () =>
           import('./servicos/servicos.routes').then((m) => m.servicosRoutes),
       },
@@ -47,6 +46,11 @@ export const adminRoutes: Routes = [
           import('./financeiro/financeiro.routes').then(
             (m) => m.financeiroRoutes,
           ),
+      },
+      {
+        path: 'perfil',
+        loadComponent: () =>
+          import('./perfil/perfil-page').then((m) => m.PerfilPage),
       },
     ],
   },

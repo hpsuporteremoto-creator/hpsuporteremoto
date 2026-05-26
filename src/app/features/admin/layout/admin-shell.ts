@@ -170,6 +170,12 @@ export class AdminShell {
       exact: false,
     },
     {
+      label: 'Perfil',
+      icon: 'account_circle',
+      route: ['./perfil'],
+      exact: false,
+    },
+    {
       label: 'Usuários',
       icon: 'manage_accounts',
       route: ['./usuarios'],
@@ -187,6 +193,18 @@ export class AdminShell {
       label: 'Clientes',
       icon: 'groups',
       route: ['./clientes'],
+      exact: false,
+    },
+    {
+      label: 'Serviços',
+      icon: 'design_services',
+      route: ['./servicos'],
+      exact: false,
+    },
+    {
+      label: 'Perfil',
+      icon: 'account_circle',
+      route: ['./perfil'],
       exact: false,
     },
   ];
