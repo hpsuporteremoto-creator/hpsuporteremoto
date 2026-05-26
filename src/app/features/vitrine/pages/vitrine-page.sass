@@ -179,98 +179,6 @@
   color: var(--mat-sys-on-surface-variant)
   line-height: 1.45
 
-.comments
-  display: grid
-  gap: 0.875rem
-  padding-top: 0.75rem
-  border-top: 1px solid rgba(255, 255, 255, 0.08)
-
-.comments-header
-  display: flex
-  align-items: center
-  justify-content: space-between
-  gap: 0.5rem
-
-  h3
-    margin: 0
-    font-size: 1rem
-
-.no-comments
-  margin: 0
-  color: var(--mat-sys-on-surface-variant)
-  font-size: 0.875rem
-
-.comment-list
-  display: grid
-  gap: 0.75rem
-
-.comment
-  display: grid
-  gap: 0.5rem
-  padding: 0.75rem
-  border-radius: 0.5rem
-  background: var(--mat-sys-surface-container-high)
-
-  p
-    margin: 0
-    line-height: 1.4
-
-  > button
-    justify-self: start
-
-.comment-author
-  display: flex
-  align-items: center
-  gap: 0.625rem
-  min-width: 0
-
-  img,
-  mat-icon
-    width: 2rem
-    height: 2rem
-    border-radius: 50%
-    flex-shrink: 0
-
-  img
-    object-fit: cover
-
-  div
-    display: grid
-    gap: 0.125rem
-    min-width: 0
-
-  strong
-    overflow: hidden
-    text-overflow: ellipsis
-    white-space: nowrap
-
-  time
-    color: var(--mat-sys-on-surface-variant)
-    font-size: 0.75rem
-
-.replies
-  display: grid
-  gap: 0.5rem
-  padding-left: 0.75rem
-  border-left: 2px solid var(--mat-sys-primary)
-
-.comment-form,
-.reply-form
-  display: grid
-  gap: 0.625rem
-
-  mat-form-field
-    width: 100%
-
-.comment-form
-  button
-    justify-self: end
-
-.form-actions
-  display: flex
-  justify-content: flex-end
-  gap: 0.5rem
-
 @media (max-width: 720px)
   .site-header
     align-items: stretch
@@ -286,10 +194,3 @@
 
   .service-grid
     grid-template-columns: 1fr
-
-  .comments-header
-    align-items: stretch
-    flex-direction: column
-
-    button
-      justify-content: center
