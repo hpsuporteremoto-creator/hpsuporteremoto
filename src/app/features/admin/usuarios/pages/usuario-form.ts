@@ -14,9 +14,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { UsuariosService } from '../usuarios.service';
+import type { UserProfile, UserRole } from '../usuarios.types';
 
 @Component({
   selector: 'hp-usuario-form',
@@ -28,6 +30,7 @@ import { UsuariosService } from '../usuarios.service';
     MatIconModule,
     MatInputModule,
     MatProgressBarModule,
+    MatSelectModule,
     MatToolbarModule,
   ],
   template: `
@@ -69,6 +72,19 @@ import { UsuariosService } from '../usuarios.service';
                 }
               </mat-form-field>
 
+              <mat-form-field appearance="outline">
+                <mat-label>Perfil de acesso</mat-label>
+                <mat-icon matIconPrefix>admin_panel_settings</mat-icon>
+                <mat-select formControlName="role" required>
+                  <mat-option value="vendedor">Vendedor</mat-option>
+                  <mat-option value="admin">Admin</mat-option>
+                </mat-select>
+                <mat-hint>Vendedor cria pedidos; Admin acessa todo o sistema.</mat-hint>
+                @if (newForm.controls.role.hasError('required')) {
+                  <mat-error>Escolha o perfil</mat-error>
+                }
+              </mat-form-field>
+
               <div class="actions">
                 <button
                   mat-flat-button
@@ -94,6 +110,19 @@ import { UsuariosService } from '../usuarios.service';
                 <mat-label>Nome completo</mat-label>
                 <mat-icon matIconPrefix>badge</mat-icon>
                 <input matInput formControlName="full_name" />
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Perfil de acesso</mat-label>
+                <mat-icon matIconPrefix>admin_panel_settings</mat-icon>
+                <mat-select formControlName="role" required>
+                  <mat-option value="vendedor">Vendedor</mat-option>
+                  <mat-option value="admin">Admin</mat-option>
+                </mat-select>
+                <mat-hint>Vendedor cria pedidos; Admin acessa todo o sistema.</mat-hint>
+                @if (editForm.controls.role.hasError('required')) {
+                  <mat-error>Escolha o perfil</mat-error>
+                }
               </mat-form-field>
 
               <div class="actions">
@@ -131,11 +160,13 @@ export class UsuarioFormPage {
 
   protected readonly newForm = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
+    role: this.fb.control<UserRole>('vendedor', [Validators.required]),
   });
 
   protected readonly editForm = this.fb.group({
     email: [{ value: '', disabled: true }],
     full_name: [''],
+    role: this.fb.control<UserRole>('vendedor', [Validators.required]),
   });
 
   constructor() {
@@ -161,6 +192,7 @@ export class UsuarioFormPage {
       }
       this.editForm.controls.email.setValue(profile.email);
       this.editForm.controls.full_name.setValue(profile.full_name ?? '');
+      this.editForm.controls.role.setValue(resolveProfileRole(profile));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao carregar';
       this.snackBar.open(msg, 'OK', { duration: 4000 });
@@ -175,6 +207,7 @@ export class UsuarioFormPage {
     try {
       const result = await this.svc.create({
         email: this.newForm.getRawValue().email.trim(),
+        role: this.newForm.getRawValue().role,
       });
       this.snackBar.open(`Usuário ${result.user.email} criado`, 'OK', {
         duration: 3000,
@@ -196,6 +229,7 @@ export class UsuarioFormPage {
       const fullName = this.editForm.controls.full_name.value.trim();
       await this.svc.update(id, {
         full_name: fullName.length > 0 ? fullName : null,
+        role: this.editForm.controls.role.value,
       });
       this.snackBar.open('Usuário atualizado', 'OK', { duration: 3000 });
       this.router.navigate(['/admin/usuarios']);
@@ -206,4 +240,9 @@ export class UsuarioFormPage {
       this.saving.set(false);
     }
   }
+}
+
+function resolveProfileRole(profile: UserProfile): UserRole {
+  if (profile.role === 'admin' || profile.is_admin) return 'admin';
+  return 'vendedor';
 }

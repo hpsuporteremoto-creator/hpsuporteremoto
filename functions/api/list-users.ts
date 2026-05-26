@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import {
+  getUserRole,
   isAdminUser,
   listAllUsers,
   metadataText,
@@ -68,6 +69,7 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
               metadataText(user.user_metadata, 'name'),
             avatar_url:
               profile?.avatar_url ?? metadataText(user.user_metadata, 'avatar_url'),
+            role: getUserRole(user),
             is_admin: isAdminUser(user),
             created_at: profile?.created_at ?? user.created_at,
             updated_at: profile?.updated_at ?? user.updated_at ?? user.created_at,

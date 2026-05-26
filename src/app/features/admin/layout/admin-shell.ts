@@ -71,7 +71,7 @@ interface AdminNavItem {
         </div>
 
         <nav class="nav-list">
-          @for (item of navItems; track item.label) {
+          @for (item of navItems(); track item.label) {
             <a
               class="nav-link"
               [routerLink]="item.route"
@@ -148,7 +148,7 @@ export class AdminShell {
     this.isMobile() ? this.drawerOpen() : true,
   );
 
-  protected readonly navItems: ReadonlyArray<AdminNavItem> = [
+  private readonly adminNavItems: ReadonlyArray<AdminNavItem> = [
     { label: 'Início', icon: 'space_dashboard', route: ['./'], exact: true },
     {
       label: 'Atendimentos',
@@ -176,6 +176,17 @@ export class AdminShell {
       exact: false,
     },
   ];
+  private readonly vendedorNavItems: ReadonlyArray<AdminNavItem> = [
+    {
+      label: 'Novo pedido',
+      icon: 'person_search',
+      route: ['./clientes'],
+      exact: false,
+    },
+  ];
+  protected readonly navItems = computed(() =>
+    this.auth.isAdmin() ? this.adminNavItems : this.vendedorNavItems,
+  );
 
   constructor() {
     this.breakpointObserver

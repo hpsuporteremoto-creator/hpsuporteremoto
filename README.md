@@ -38,16 +38,20 @@ valor e status. Categorias de serviço são gerenciadas em um CRUD próprio em
 `/admin/servicos/categorias`; não são preenchidas como texto livre no cadastro
 do serviço.
 
-## Admins
+## Acesso operacional
 
-Admins são definidos dinamicamente no Supabase Auth, pela chave
-`auth.users.app_metadata.is_admin`. Não há whitelist fixa no frontend nem nas
-Pages Functions.
+O acesso é definido dinamicamente no Supabase Auth, por
+`auth.users.app_metadata.role`. Roles aceitos:
 
-A tela `/admin/usuarios` é o caminho operacional para promover ou remover
-admins. A função SQL `public.is_admin()` deve usar apenas o claim
-`app_metadata.is_admin`; a migration `0020_admin_app_metadata.sql` remove a
-regra antiga baseada em emails fixos.
+- `admin`: acessa todo o sistema, incluindo financeiro, usuários e cancelamento
+  de atendimento.
+- `vendedor`: acessa o fluxo de criação de pedido a partir de cliente ativo.
+
+Para compatibilidade, `auth.users.app_metadata.is_admin=true` continua sendo
+tratado como admin. A tela `/admin/usuarios` é o caminho operacional para criar
+usuários e alterar o role. A função SQL `public.is_admin()` deve considerar
+`app_metadata.role='admin'` ou `app_metadata.is_admin=true`; a migration
+`0021_role_based_access.sql` atualiza essa regra.
 
 ## Desenvolvimento local
 

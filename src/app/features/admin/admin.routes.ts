@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { adminOnlyGuard } from '../../core/auth/auth.guard';
 
 export const adminRoutes: Routes = [
   {
@@ -9,6 +10,7 @@ export const adminRoutes: Routes = [
       {
         path: '',
         pathMatch: 'full',
+        canActivate: [adminOnlyGuard],
         loadComponent: () =>
           import('./dashboard/pages/admin-dashboard').then(
             (m) => m.AdminDashboardPage,
@@ -16,6 +18,7 @@ export const adminRoutes: Routes = [
       },
       {
         path: 'usuarios',
+        canActivate: [adminOnlyGuard],
         loadChildren: () =>
           import('./usuarios/usuarios.routes').then((m) => m.usuariosRoutes),
       },
@@ -26,6 +29,7 @@ export const adminRoutes: Routes = [
       },
       {
         path: 'servicos',
+        canActivate: [adminOnlyGuard],
         loadChildren: () =>
           import('./servicos/servicos.routes').then((m) => m.servicosRoutes),
       },
@@ -38,6 +42,7 @@ export const adminRoutes: Routes = [
       },
       {
         path: 'financeiro',
+        canActivate: [adminOnlyGuard],
         loadChildren: () =>
           import('./financeiro/financeiro.routes').then(
             (m) => m.financeiroRoutes,

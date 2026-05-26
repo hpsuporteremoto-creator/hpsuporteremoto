@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import {
+  getUserRole,
   isAdminUser,
   listAllUsers,
   mergeAppMetadata,
@@ -70,7 +71,10 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   }
 
   const { data, error } = await admin.auth.admin.updateUserById(user_id, {
-    app_metadata: mergeAppMetadata(target.user.app_metadata, { is_admin }),
+    app_metadata: mergeAppMetadata(target.user.app_metadata, {
+      role: is_admin ? 'admin' : 'vendedor',
+      is_admin,
+    }),
   });
   if (error) return json({ error: error.message }, 500);
 
@@ -79,6 +83,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       user: {
         id: data.user.id,
         email: data.user.email,
+        role: getUserRole(data.user),
         is_admin: isAdminUser(data.user),
       },
     },

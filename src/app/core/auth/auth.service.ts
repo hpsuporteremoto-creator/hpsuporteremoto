@@ -3,19 +3,24 @@ import { isPlatformBrowser } from '@angular/common';
 import { Session, User } from '@supabase/supabase-js';
 import { SupabaseService } from '../supabase/supabase.service';
 
+export type AuthRole = 'admin' | 'vendedor' | null;
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly supabase = inject(SupabaseService).client;
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   private readonly _session = signal<Session | null>(null);
-  // Fonte única de autorização administrativa: auth.users.app_metadata.is_admin.
-  private readonly _profileIsAdmin = signal(false);
+  // Fonte única de autorização: auth.users.app_metadata.role/is_admin.
+  private readonly _role = signal<AuthRole>(null);
   private _profileFetch: Promise<void> = Promise.resolve();
   readonly session = this._session.asReadonly();
   readonly user = computed<User | null>(() => this._session()?.user ?? null);
   readonly isAuthenticated = computed(() => this.user() !== null);
-  readonly isAdmin = computed(() => this._profileIsAdmin());
+  readonly role = this._role.asReadonly();
+  readonly isAdmin = computed(() => this._role() === 'admin');
+  readonly isVendedor = computed(() => this._role() === 'vendedor');
+  readonly isStaff = computed(() => this._role() !== null);
 
   readonly ready: Promise<void>;
 
@@ -64,7 +69,7 @@ export class AuthService {
   }
 
   /**
-   * Refetch do flag `is_admin` de `auth.users.app_metadata` para o usuário atual.
+   * Refetch do role de `auth.users.app_metadata` para o usuário atual.
    * Disparado no boot e a cada mudança de sessão; pode ser chamado
    * manualmente (ex: após o próprio usuário ser promovido) e aguardado via
    * profileFlagReady().
@@ -73,7 +78,7 @@ export class AuthService {
     const fetchPromise = (async () => {
       const userId = this.user()?.id;
       if (!userId) {
-        this._profileIsAdmin.set(false);
+        this._role.set(null);
         return;
       }
       const { data } = await this.supabase.auth.getUser();
@@ -81,23 +86,27 @@ export class AuthService {
       if (user?.id === userId) {
         const session = this._session();
         if (session) this._session.set({ ...session, user });
-        this._profileIsAdmin.set(isAdminMetadata(user.app_metadata));
+        this._role.set(resolveRole(user.app_metadata));
         return;
       }
-      this._profileIsAdmin.set(false);
+      this._role.set(null);
     })();
     this._profileFetch = fetchPromise;
     return fetchPromise;
   }
 
-  /** Aguarda o fetch mais recente do flag is_admin — use após login pra evitar race. */
+  /** Aguarda o fetch mais recente do role — use após login pra evitar race. */
   profileFlagReady(): Promise<void> {
     return this._profileFetch;
   }
 }
 
-function isAdminMetadata(metadata: unknown): boolean {
-  if (typeof metadata !== 'object' || metadata === null) return false;
-  const value = (metadata as Record<string, unknown>)['is_admin'];
-  return value === true || value === 'true';
+function resolveRole(metadata: unknown): AuthRole {
+  if (typeof metadata !== 'object' || metadata === null) return null;
+  const record = metadata as Record<string, unknown>;
+  const role = record['role'];
+  const isAdmin = record['is_admin'];
+  if (role === 'admin' || isAdmin === true || isAdmin === 'true') return 'admin';
+  if (role === 'vendedor') return 'vendedor';
+  return null;
 }

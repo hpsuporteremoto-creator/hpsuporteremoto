@@ -70,27 +70,9 @@ import { UserProfile } from '../usuarios.types';
                   <div class="info">
                     <strong class="nome">{{ u.full_name || '—' }}</strong>
                     <small class="email">{{ u.email }}</small>
-                    @if (isAdmin(u)) {
-                      <span class="admin-chip">ADMIN</span>
-                    }
+                    <span class="admin-chip">{{ roleLabel(u) }}</span>
                   </div>
                   <div class="actions">
-                    <button
-                      mat-icon-button
-                      type="button"
-                      (click)="alternarAdmin(u)"
-                      [disabled]="!canTogglarAdmin(u) || updating()"
-                      [attr.aria-label]="
-                        isAdmin(u) ? 'Remover admin' : 'Tornar admin'
-                      "
-                      [title]="
-                        isAdmin(u) ? 'Remover admin' : 'Tornar admin'
-                      "
-                    >
-                      <mat-icon>{{
-                        isAdmin(u) ? 'remove_moderator' : 'add_moderator'
-                      }}</mat-icon>
-                    </button>
                     <a
                       mat-icon-button
                       [routerLink]="[u.id, 'editar']"
@@ -141,20 +123,18 @@ export class UsuariosListPage {
   }
 
   isAdmin(u: UserProfile): boolean {
-    return u.is_admin;
-  }
-
-  /**
-   * Não permite alterar o próprio flag para evitar auto-lockout na UI.
-   */
-  canTogglarAdmin(u: UserProfile): boolean {
-    if (u.id === this.auth.user()?.id) return false;
-    return true;
+    return u.role === 'admin' || u.is_admin;
   }
 
   canDelete(u: UserProfile): boolean {
     if (this.isAdmin(u)) return false;
     return u.id !== this.auth.user()?.id;
+  }
+
+  roleLabel(u: UserProfile): string {
+    if (this.isAdmin(u)) return 'ADMIN';
+    if (u.role === 'vendedor') return 'VENDEDOR';
+    return 'SEM ACESSO';
   }
 
   initials(u: UserProfile): string {
@@ -174,37 +154,6 @@ export class UsuariosListPage {
       );
     } finally {
       this.loading.set(false);
-    }
-  }
-
-  async alternarAdmin(u: UserProfile): Promise<void> {
-    if (!this.canTogglarAdmin(u)) return;
-    const willBeAdmin = !this.isAdmin(u);
-    const acao = willBeAdmin ? 'tornar' : 'remover';
-    const ok = confirm(
-      `Confirmar: ${acao} ${u.full_name || u.email} como admin?`,
-    );
-    if (!ok) return;
-
-    this.updating.set(true);
-    try {
-      await this.svc.setAdmin(u.id, willBeAdmin);
-      this.usuarios.update(
-        (list) =>
-          list?.map((x) =>
-            x.id === u.id ? { ...x, is_admin: willBeAdmin } : x,
-          ) ?? null,
-      );
-      this.snackBar.open(
-        willBeAdmin ? 'Promovido a admin' : 'Removido de admin',
-        'OK',
-        { duration: 2500 },
-      );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro';
-      this.snackBar.open(msg, 'OK', { duration: 4000 });
-    } finally {
-      this.updating.set(false);
     }
   }
 

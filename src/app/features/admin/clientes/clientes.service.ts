@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
+import { AuthService } from '../../../core/auth/auth.service';
 import { SupabaseService } from '../../../core/supabase/supabase.service';
-import { onlyDigits } from '../../../shared/whatsapp.util';
 import { Cliente, ClienteFormData } from './clientes.types';
 
 export interface ClientesListQuery {
@@ -22,48 +22,49 @@ export interface ClientesCounts {
 
 @Injectable({ providedIn: 'root' })
 export class ClientesService {
+  private readonly auth = inject(AuthService);
   private readonly supabase = inject(SupabaseService).client;
   private readonly table = 'clientes';
 
   async list(query: ClientesListQuery): Promise<ClientesListResult> {
-    const from = query.pageIndex * query.pageSize;
-    const to = from + query.pageSize - 1;
-    let request = this.supabase
-      .from(this.table)
-      .select('*', { count: 'exact' })
-      .eq('ativo', query.ativo)
-      .order('nome', { ascending: true })
-      .range(from, to);
-
-    const termo = query.termo.trim();
-    if (termo) {
-      request = request.or(createSearchFilter(termo));
-    }
-
-    const { data, error, count } = await request;
-    if (error) throw new Error(error.message);
+    const params = new URLSearchParams({
+      ativo: String(query.ativo),
+      termo: query.termo,
+      pageIndex: String(query.pageIndex),
+      pageSize: String(query.pageSize),
+    });
+    const payload = await this.fetchApi<{
+      clientes?: Cliente[];
+      total?: number;
+      error?: string;
+    }>(`/api/list-clients?${params.toString()}`);
     return {
-      clientes: (data ?? []) as Cliente[],
-      total: count ?? 0,
+      clientes: payload.clientes ?? [],
+      total: payload.total ?? 0,
     };
   }
 
   async counts(): Promise<ClientesCounts> {
-    const [ativos, inativos] = await Promise.all([
-      this.countByAtivo(true),
-      this.countByAtivo(false),
-    ]);
-    return { ativos, inativos };
+    const payload = await this.fetchApi<{
+      counts?: ClientesCounts;
+      error?: string;
+    }>('/api/list-clients?ativo=true&pageIndex=0&pageSize=1');
+    return payload.counts ?? { ativos: 0, inativos: 0 };
   }
 
   async get(id: string): Promise<Cliente | null> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select('*')
-      .eq('id', id)
-      .maybeSingle<Cliente>();
-    if (error) throw new Error(error.message);
-    return data;
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const response = await fetch(`/api/get-client?id=${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      cliente?: Cliente;
+      error?: string;
+    };
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload.cliente ?? null;
   }
 
   async create(input: ClienteFormData): Promise<Cliente> {
@@ -95,35 +96,16 @@ export class ClientesService {
     if (error) throw new Error(error.message);
   }
 
-  private async countByAtivo(ativo: boolean): Promise<number> {
-    const { count, error } = await this.supabase
-      .from(this.table)
-      .select('id', { count: 'exact', head: true })
-      .eq('ativo', ativo);
-    if (error) throw new Error(error.message);
-    return count ?? 0;
+  private async fetchApi<T extends { error?: string }>(url: string): Promise<T> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = (await response.json().catch(() => ({}))) as T;
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload;
   }
-}
-
-function createSearchFilter(value: string): string {
-  const termo = escapePostgrestLike(value);
-  const digits = onlyDigits(value);
-  const filters = [
-    `nome.ilike.%${termo}%`,
-    `email.ilike.%${termo}%`,
-    `instagram.ilike.%${termo}%`,
-    `observacao.ilike.%${termo}%`,
-  ];
-  if (digits) filters.push(`whatsapp.ilike.%${digits}%`);
-  return filters.join(',');
-}
-
-function escapePostgrestLike(value: string): string {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/%/g, '\\%')
-    .replace(/_/g, '\\_')
-    .replace(/,/g, '\\,');
 }
 
 // 23505 = violação de índice único do Postgres. Em clientes o único índice

@@ -21,6 +21,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { ClientesService } from '../clientes.service';
 import { Cliente } from '../clientes.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
+import { AuthService } from '../../../../core/auth/auth.service';
 
 @Component({
   selector: 'hp-clientes-list',
@@ -42,27 +43,31 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
       <button mat-icon-button type="button" (click)="voltar()" aria-label="Voltar">
         <mat-icon>arrow_back</mat-icon>
       </button>
-      <span>Clientes</span>
+      <span>{{ auth.isAdmin() ? 'Clientes' : 'Novo pedido' }}</span>
       <span class="spacer"></span>
-      <a mat-flat-button color="primary" routerLink="novo" aria-label="Novo cliente">
-        <mat-icon>add</mat-icon>
-        <span>Novo cliente</span>
-      </a>
+      @if (auth.isAdmin()) {
+        <a mat-flat-button color="primary" routerLink="novo" aria-label="Novo cliente">
+          <mat-icon>add</mat-icon>
+          <span>Novo cliente</span>
+        </a>
+      }
     </mat-toolbar>
 
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" />
     }
 
-    <mat-tab-group
-      [selectedIndex]="tabIndex()"
-      (selectedIndexChange)="onTabChange($event)"
-      mat-stretch-tabs="false"
-      animationDuration="0ms"
-    >
-      <mat-tab [label]="'Ativos (' + activeTotal() + ')'" />
-      <mat-tab [label]="'Inativos (' + inactiveTotal() + ')'" />
-    </mat-tab-group>
+    @if (auth.isAdmin()) {
+      <mat-tab-group
+        [selectedIndex]="tabIndex()"
+        (selectedIndexChange)="onTabChange($event)"
+        mat-stretch-tabs="false"
+        animationDuration="0ms"
+      >
+        <mat-tab [label]="'Ativos (' + activeTotal() + ')'" />
+        <mat-tab [label]="'Inativos (' + inactiveTotal() + ')'" />
+      </mat-tab-group>
+    }
 
     <main class="content">
       @if (error(); as msg) {
@@ -110,7 +115,7 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                 [class.inativo]="!cliente.ativo"
                 tabindex="0"
                 role="link"
-                [attr.aria-label]="'Ver atendimentos de ' + cliente.nome"
+                [attr.aria-label]="clienteActionLabel(cliente)"
                 (click)="abrirAtendimentos(cliente)"
                 (keydown.enter)="abrirAtendimentos(cliente)"
                 (keydown.space)="abrirAtendimentos(cliente); $event.preventDefault()"
@@ -126,22 +131,24 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                       <small class="observacao">{{ cliente.observacao }}</small>
                     }
                   </div>
-                  <div class="actions">
-                    <mat-slide-toggle
-                      [checked]="cliente.ativo"
-                      (click)="$event.stopPropagation()"
-                      (change)="onToggle(cliente, $event.checked)"
-                      aria-label="Ativo"
-                    />
-                    <a
-                      mat-icon-button
-                      [routerLink]="[cliente.id, 'editar']"
-                      (click)="$event.stopPropagation()"
-                      aria-label="Editar"
-                    >
-                      <mat-icon>edit</mat-icon>
-                    </a>
-                  </div>
+                  @if (auth.isAdmin()) {
+                    <div class="actions">
+                      <mat-slide-toggle
+                        [checked]="cliente.ativo"
+                        (click)="$event.stopPropagation()"
+                        (change)="onToggle(cliente, $event.checked)"
+                        aria-label="Ativo"
+                      />
+                      <a
+                        mat-icon-button
+                        [routerLink]="[cliente.id, 'editar']"
+                        (click)="$event.stopPropagation()"
+                        aria-label="Editar"
+                      >
+                        <mat-icon>edit</mat-icon>
+                      </a>
+                    </div>
+                  }
                 </mat-card-content>
               </mat-card>
             }
@@ -165,6 +172,7 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 })
 export class ClientesListPage {
   private readonly svc = inject(ClientesService);
+  protected readonly auth = inject(AuthService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly location = inject(Location);
   private readonly router = inject(Router);
@@ -210,6 +218,7 @@ export class ClientesListPage {
   }
 
   onTabChange(index: number): void {
+    if (!this.auth.isAdmin()) return;
     this.tabIndex.set(index);
     this.pageIndex.set(0);
     void this.carregar();
@@ -221,12 +230,27 @@ export class ClientesListPage {
   }
 
   abrirAtendimentos(cliente: Cliente): void {
+    if (!this.auth.isAdmin()) {
+      void this.router.navigate(['/admin/atendimentos/novo'], {
+        queryParams: {
+          clienteId: cliente.id,
+          clienteNome: cliente.nome,
+        },
+      });
+      return;
+    }
     void this.router.navigate(['/admin/atendimentos'], {
       queryParams: {
         clienteId: cliente.id,
         clienteNome: cliente.nome,
       },
     });
+  }
+
+  clienteActionLabel(cliente: Cliente): string {
+    return this.auth.isAdmin()
+      ? `Ver atendimentos de ${cliente.nome}`
+      : `Criar pedido para ${cliente.nome}`;
   }
 
   async carregar(): Promise<void> {

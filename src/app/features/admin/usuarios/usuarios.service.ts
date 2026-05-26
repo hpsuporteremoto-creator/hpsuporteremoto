@@ -5,6 +5,7 @@ import {
   UserProfile,
   UserUpdateInput,
 } from './usuarios.types';
+import type { UserRole } from './usuarios.types';
 
 @Injectable({ providedIn: 'root' })
 export class UsuariosService {
@@ -55,27 +56,11 @@ export class UsuariosService {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ user_id: id, full_name: input.full_name }),
-    });
-    const payload = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
-    if (!response.ok) {
-      throw new Error(payload.error ?? `Erro ${response.status}`);
-    }
-  }
-
-  async setAdmin(id: string, isAdmin: boolean): Promise<void> {
-    const token = await this.auth.getAccessToken();
-    if (!token) throw new Error('Sessão inválida');
-
-    const response = await fetch('/api/update-user-admin', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ user_id: id, is_admin: isAdmin }),
+      body: JSON.stringify({
+        user_id: id,
+        full_name: input.full_name,
+        role: input.role,
+      }),
     });
     const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
@@ -87,7 +72,7 @@ export class UsuariosService {
 
   async create(
     input: UserCreateInput,
-  ): Promise<{ user: { id: string; email: string } }> {
+  ): Promise<{ user: { id: string; email: string; role: UserRole } }> {
     const token = await this.auth.getAccessToken();
     if (!token) throw new Error('Sessão inválida');
 
@@ -97,12 +82,12 @@ export class UsuariosService {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ email: input.email }),
+      body: JSON.stringify({ email: input.email, role: input.role }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as {
       error?: string;
-      user?: { id: string; email: string };
+      user?: { id: string; email: string; role: UserRole };
     };
     if (!response.ok || !payload.user) {
       throw new Error(

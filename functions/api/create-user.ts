@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from './admin-auth';
+import { mergeAppMetadata, requireAdmin } from './admin-auth';
+import type { UserRole } from './admin-auth';
 
 type Env = {
   SUPABASE_URL: string;
@@ -39,8 +40,12 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   }
 
   const rawEmail = (body as { email?: unknown })?.email;
+  const role = parseUserRole((body as { role?: unknown })?.role);
   if (typeof rawEmail !== 'string') {
     return json({ error: 'Campo "email" obrigatório' }, 400);
+  }
+  if (!role) {
+    return json({ error: 'Perfil de acesso obrigatório' }, 400);
   }
   const email = rawEmail.trim().toLowerCase();
   if (!EMAIL_REGEX.test(email)) {
@@ -50,14 +55,32 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   const { data, error: createError } = await admin.auth.admin.createUser({
     email,
     email_confirm: true,
+    app_metadata: mergeAppMetadata(null, {
+      role,
+      is_admin: role === 'admin',
+    }),
   });
 
   if (createError) {
     return json({ error: translateCreateUserError(createError.message) }, 400);
   }
 
-  return json({ user: { id: data.user.id, email: data.user.email } }, 201);
+  return json(
+    {
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        role,
+        is_admin: role === 'admin',
+      },
+    },
+    201,
+  );
 };
+
+function parseUserRole(value: unknown): Exclude<UserRole, null> | null {
+  return value === 'admin' || value === 'vendedor' ? value : null;
+}
 
 function translateCreateUserError(message: string): string {
   const normalized = message.toLowerCase();

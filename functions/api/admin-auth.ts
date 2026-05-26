@@ -1,7 +1,9 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 
+export type UserRole = 'admin' | 'vendedor' | null;
+
 export type AdminCheckResult =
-  | { ok: true; user: User }
+  | { ok: true; user: User; role: UserRole }
   | { ok: false; status: number; error: string };
 
 export async function requireAdmin(
@@ -26,11 +28,52 @@ export async function requireAdmin(
     return { ok: false, status: 403, error: 'Acesso restrito a administradores' };
   }
 
-  return { ok: true, user };
+  return { ok: true, user, role: 'admin' };
+}
+
+export async function requireStaff(
+  admin: SupabaseClient,
+  request: Request,
+): Promise<AdminCheckResult> {
+  const authHeader = request.headers.get('authorization') ?? '';
+  if (!authHeader.toLowerCase().startsWith('bearer ')) {
+    return { ok: false, status: 401, error: 'Authorization Bearer token ausente' };
+  }
+  const token = authHeader.slice('bearer '.length).trim();
+
+  const {
+    data: { user },
+    error,
+  } = await admin.auth.getUser(token);
+
+  if (error || !user?.email) {
+    return { ok: false, status: 401, error: 'Token inválido' };
+  }
+  const role = getUserRole(user);
+  if (!role) {
+    return { ok: false, status: 403, error: 'Acesso restrito ao time operacional' };
+  }
+
+  return { ok: true, user, role };
 }
 
 export function isAdminUser(user: Pick<User, 'app_metadata'> | null | undefined): boolean {
-  return getMetadataBoolean(user?.app_metadata, 'is_admin');
+  return getUserRole(user) === 'admin';
+}
+
+export function isStaffUser(user: Pick<User, 'app_metadata'> | null | undefined): boolean {
+  return getUserRole(user) !== null;
+}
+
+export function getUserRole(
+  user: Pick<User, 'app_metadata'> | null | undefined,
+): UserRole {
+  const metadata = toRecord(user?.app_metadata);
+  const isAdmin = getMetadataBoolean(metadata, 'is_admin');
+  const role = metadata['role'];
+  if (role === 'admin' || isAdmin) return 'admin';
+  if (role === 'vendedor') return 'vendedor';
+  return null;
 }
 
 export function mergeAppMetadata(

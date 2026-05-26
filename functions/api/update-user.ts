@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import { mergeAppMetadata, requireAdmin } from './admin-auth';
+import {
+  getUserRole,
+  isAdminUser,
+  listAllUsers,
+  mergeAppMetadata,
+  requireAdmin,
+} from './admin-auth';
+import type { UserRole } from './admin-auth';
 
 type Env = {
   SUPABASE_URL: string;
@@ -40,11 +47,18 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     user_id?: unknown;
     full_name?: unknown;
   };
+  const role = parseOptionalUserRole((body as { role?: unknown })?.role);
   if (typeof user_id !== 'string' || user_id.length === 0) {
     return json({ error: 'user_id obrigatório' }, 400);
   }
   if (full_name !== null && typeof full_name !== 'string') {
     return json({ error: 'full_name inválido' }, 400);
+  }
+  if (role === 'invalid') {
+    return json({ error: 'Perfil de acesso inválido' }, 400);
+  }
+  if (role && user_id === adminCheck.user.id && role !== getUserRole(adminCheck.user)) {
+    return json({ error: 'Você não pode alterar seu próprio perfil de acesso' }, 400);
   }
 
   const { data: target, error: targetError } =
@@ -54,12 +68,31 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   }
 
   const normalizedName = full_name?.trim() || null;
-  const { data, error } = await admin.auth.admin.updateUserById(user_id, {
+  if (role && role !== 'admin' && isAdminUser(target.user)) {
+    const users = await listAllUsers(admin);
+    const adminCount = users.filter((user) => isAdminUser(user)).length;
+    if (adminCount <= 1) {
+      return json({ error: 'Não é possível remover o último administrador' }, 400);
+    }
+  }
+
+  const updateInput: {
+    user_metadata: Record<string, unknown>;
+    app_metadata?: Record<string, unknown>;
+  } = {
     user_metadata: mergeAppMetadata(target.user.user_metadata, {
       full_name: normalizedName,
       name: normalizedName,
     }),
-  });
+  };
+  if (role) {
+    updateInput.app_metadata = mergeAppMetadata(target.user.app_metadata, {
+      role,
+      is_admin: role === 'admin',
+    });
+  }
+
+  const { data, error } = await admin.auth.admin.updateUserById(user_id, updateInput);
   if (error) return json({ error: error.message }, 500);
 
   if (data.user.email) {
@@ -74,5 +107,24 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     if (profileError) return json({ error: profileError.message }, 500);
   }
 
-  return json({ ok: true }, 200);
+  return json(
+    {
+      ok: true,
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        role: getUserRole(data.user),
+        is_admin: isAdminUser(data.user),
+      },
+    },
+    200,
+  );
 };
+
+function parseOptionalUserRole(
+  value: unknown,
+): Exclude<UserRole, null> | 'invalid' | null {
+  if (value === undefined) return null;
+  if (value === 'admin' || value === 'vendedor') return value;
+  return 'invalid';
+}

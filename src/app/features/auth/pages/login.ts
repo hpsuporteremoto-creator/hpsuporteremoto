@@ -64,9 +64,13 @@ export class LoginPage {
   constructor() {
     effect(() => {
       if (this.auth.isAuthenticated()) {
-        // Espera o fetch do flag is_admin do DB pra não redirecionar antes do
-        // is_admin() dinâmico estar carregado.
+        // Espera o fetch do role do Auth pra não redirecionar antes das claims.
         void this.auth.profileFlagReady().then(() => {
+          if (!this.auth.isStaff()) {
+            this.error.set('Seu usuário não tem acesso ao sistema.');
+            void this.auth.signOut();
+            return;
+          }
           const target = this.resolveTarget();
           this.router.navigateByUrl(target);
         });
@@ -88,23 +92,17 @@ export class LoginPage {
   /**
    * Decide para onde mandar o usuário recém-autenticado.
    * Honra `?returnUrl=` quando for um path interno (começa com `/` mas
-   * não `//`) e o usuário for admin (ou estiver indo pra uma rota não-admin).
-   * Senão volta ao default: `/admin` se admin, `/` se cliente comum.
+   * não `//`) e o usuário tiver role operacional. Senão volta ao painel.
    */
   private resolveTarget(): string {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-    const isAdmin = this.auth.isAdmin();
     if (
       returnUrl &&
       returnUrl.startsWith('/') &&
       !returnUrl.startsWith('//')
     ) {
-      // Se a returnUrl for admin-only e o usuário não for admin, ignora.
-      if ((returnUrl.startsWith('/admin') || returnUrl === '/') && !isAdmin) {
-        return '/';
-      }
       return returnUrl;
     }
-    return '/';
+    return '/admin';
   }
 }
