@@ -30,6 +30,13 @@ jobs:
       - name: Build Angular app
         run: npm run build
 
+      - name: Build Cloudflare Pages Functions
+        run: >
+          npx wrangler pages functions build functions
+          --outdir dist/hp-suporte-remoto-client/browser
+          --output-routes-path dist/hp-suporte-remoto-client/browser/_routes.json
+          --compatibility-date 2025-05-19
+
       - name: Deploy client to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
