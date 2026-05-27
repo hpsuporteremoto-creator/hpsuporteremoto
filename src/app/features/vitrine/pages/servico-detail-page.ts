@@ -31,7 +31,7 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
         <span class="brand-mark">HP</span>
         <span>
           <strong>HP Suporte Remoto</strong>
-          <small>Vitrine técnica</small>
+          <small>Catálogo técnico</small>
         </span>
       </a>
 
@@ -74,8 +74,8 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
       }
 
       @if (servico(); as item) {
-        <article class="detail-layout">
-          <section class="media">
+        <article class="product-detail">
+          <section class="gallery" aria-label="Imagem do item">
             @if (item.imagem_url) {
               <img [src]="item.imagem_url" [alt]="item.nome" />
             } @else {
@@ -83,7 +83,7 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
             }
           </section>
 
-          <section class="summary">
+          <section class="purchase-panel">
             @if (item.categoria; as categoria) {
               <span class="category">{{ categoria.nome }}</span>
             }
@@ -92,6 +92,37 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
             @if (item.descricao) {
               <p>{{ item.descricao }}</p>
             }
+            <div class="value-list" aria-label="Características">
+              <span>
+                <mat-icon>support_agent</mat-icon>
+                Atendimento remoto
+              </span>
+              <span>
+                <mat-icon>verified</mat-icon>
+                Execução assistida
+              </span>
+              <span>
+                <mat-icon>engineering</mat-icon>
+                Suporte técnico
+              </span>
+            </div>
+            <div class="detail-actions">
+              @if (auth.isAuthenticated()) {
+                <a mat-flat-button color="primary" routerLink="/meus-pedidos">
+                  <mat-icon>assignment</mat-icon>
+                  <span>Meus pedidos</span>
+                </a>
+              } @else {
+                <button mat-flat-button color="primary" type="button" (click)="login()">
+                  <mat-icon>login</mat-icon>
+                  <span>Entrar com Google</span>
+                </button>
+              }
+              <a mat-stroked-button routerLink="/">
+                <mat-icon>storefront</mat-icon>
+                <span>Ver catálogo</span>
+              </a>
+            </div>
           </section>
         </article>
 
