@@ -6,7 +6,7 @@ export type AtendimentoState =
   | 'concluido';
 
 export const ATENDIMENTO_STATE_LABEL: Readonly<Record<AtendimentoState, string>> = {
-  aguardando_confirmacao: 'Aguardando confirmação',
+  aguardando_confirmacao: 'Em andamento',
   recusado: 'Recusado',
   em_andamento: 'Em andamento',
   pagamento: 'Pagamento',
@@ -53,12 +53,7 @@ export interface AtendimentoComRelacoes extends Atendimento {
   servicos_solicitados: AtendimentoServicoRef[];
 }
 
-export type AtendimentoListFilter =
-  | 'novos'
-  | 'em_andamento'
-  | 'pagamento'
-  | 'concluido'
-  | 'recusado';
+export type AtendimentoListFilter = 'em_andamento' | 'pagamento' | 'concluido' | 'recusado';
 
 export interface AtendimentoListOptions {
   clienteId?: string;

@@ -113,34 +113,6 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
         <mat-card appearance="filled" class="info-card">
           <mat-card-content class="state-content">
             @switch (a.state) {
-              @case ('aguardando_confirmacao') {
-                <p class="state-hint">
-                  Solicitação recebida em tempo real. Aceite para iniciar o serviço ou recuse se não
-                  puder atender agora.
-                </p>
-                <div class="action-row">
-                  <button
-                    mat-flat-button
-                    color="primary"
-                    type="button"
-                    (click)="confirmar()"
-                    [disabled]="updating()"
-                  >
-                    <mat-icon>check</mat-icon>
-                    <span>Aceitar e iniciar</span>
-                  </button>
-                  <button
-                    mat-stroked-button
-                    color="warn"
-                    type="button"
-                    (click)="recusar()"
-                    [disabled]="updating()"
-                  >
-                    <mat-icon>block</mat-icon>
-                    <span>Recusar</span>
-                  </button>
-                </div>
-              }
               @case ('em_andamento') {
                 <p class="state-hint">
                   Atendimento em execução. Ao terminar, confirme o serviço para gerar o PIX e enviar
@@ -418,18 +390,6 @@ export class AtendimentoDetailPage {
     } finally {
       this.loading.set(false);
     }
-  }
-
-  async confirmar(): Promise<void> {
-    const a = this.atendimento();
-    if (!a) return;
-    await this.transition(a.id, 'em_andamento');
-  }
-
-  async recusar(): Promise<void> {
-    const a = this.atendimento();
-    if (!a) return;
-    await this.transition(a.id, 'recusado');
   }
 
   onDescontoChange(event: Event): void {

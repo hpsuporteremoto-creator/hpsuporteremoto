@@ -18,7 +18,6 @@ import {
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 
 const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
-  'novos',
   'em_andamento',
   'pagamento',
   'concluido',
@@ -100,7 +99,6 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
         mat-stretch-tabs="false"
         animationDuration="0ms"
       >
-        <mat-tab label="Novos" />
         <mat-tab label="Em atendimento" />
         <mat-tab label="Pagamento" />
         <mat-tab label="Concluídos" />
@@ -187,8 +185,6 @@ export class AtendimentosListPage {
     }
 
     switch (TAB_TO_FILTER[this.tabIndex()]) {
-      case 'novos':
-        return 'Nenhuma solicitação nova.';
       case 'em_andamento':
         return 'Nenhum atendimento em execução.';
       case 'pagamento':

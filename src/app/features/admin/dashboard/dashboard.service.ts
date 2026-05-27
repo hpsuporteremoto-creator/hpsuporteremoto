@@ -1,27 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/supabase/supabase.service';
-import {
-  ATENDIMENTO_STATE_LABEL,
-  AtendimentoState,
-} from '../atendimentos/atendimentos.types';
+import { ATENDIMENTO_STATE_LABEL, AtendimentoState } from '../atendimentos/atendimentos.types';
 import { Transacao } from '../financeiro/financeiro.types';
-import {
-  AdminDashboardData,
-  DashboardDailyPoint,
-  DashboardStateCount,
-} from './dashboard.types';
+import { AdminDashboardData, DashboardDailyPoint, DashboardStateCount } from './dashboard.types';
 
 interface AtendimentoDiaRow {
   readonly created_at: string;
 }
 
-const STATES: readonly AtendimentoState[] = [
-  'aguardando_confirmacao',
-  'em_andamento',
-  'pagamento',
-  'concluido',
-  'recusado',
-];
+const STATES: readonly AtendimentoState[] = ['em_andamento', 'pagamento', 'concluido', 'recusado'];
 
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
@@ -78,10 +65,13 @@ export class DashboardService {
   }
 
   private async countAtendimentos(state: AtendimentoState): Promise<number> {
-    const { count, error } = await this.supabase
-      .from('atendimentos')
-      .select('id', { count: 'exact', head: true })
-      .eq('state', state);
+    let query = this.supabase.from('atendimentos').select('id', { count: 'exact', head: true });
+    query =
+      state === 'em_andamento'
+        ? query.in('state', ['aguardando_confirmacao', 'em_andamento'])
+        : query.eq('state', state);
+
+    const { count, error } = await query;
     if (error) throw new Error(error.message);
     return count ?? 0;
   }

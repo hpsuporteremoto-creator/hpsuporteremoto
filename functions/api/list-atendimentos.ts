@@ -1,13 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireStaff } from './admin-auth';
-import {
-  ATENDIMENTO_SELECT,
-  hydrateServicosSolicitados,
-} from './atendimentos-shared';
-import type {
-  AtendimentoComRelacoes,
-  AtendimentoState,
-} from './atendimentos-shared';
+import { ATENDIMENTO_SELECT, hydrateServicosSolicitados } from './atendimentos-shared';
+import type { AtendimentoComRelacoes, AtendimentoState } from './atendimentos-shared';
 
 type Env = {
   SUPABASE_URL: string;
@@ -16,8 +10,7 @@ type Env = {
 
 type Context = { request: Request; env: Env };
 
-const ALLOWED_FILTERS = new Set<AtendimentoState | 'novos'>([
-  'novos',
+const ALLOWED_FILTERS = new Set<AtendimentoState>([
   'em_andamento',
   'pagamento',
   'concluido',
@@ -46,8 +39,8 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
 
   const url = new URL(request.url);
-  const filter = url.searchParams.get('filter') ?? 'novos';
-  if (!ALLOWED_FILTERS.has(filter as AtendimentoState | 'novos')) {
+  const filter = url.searchParams.get('filter') ?? 'em_andamento';
+  if (!ALLOWED_FILTERS.has(filter as AtendimentoState)) {
     return json({ error: 'Filtro inválido' }, 400);
   }
   const clienteId = url.searchParams.get('clienteId')?.trim();
@@ -59,8 +52,11 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
     .order('created_at', { ascending: false });
 
   if (!todosOsStatus) {
-    const state = filter === 'novos' ? 'aguardando_confirmacao' : filter;
-    query = query.eq('state', state);
+    if (filter === 'em_andamento') {
+      query = query.in('state', ['aguardando_confirmacao', 'em_andamento']);
+    } else {
+      query = query.eq('state', filter);
+    }
   }
 
   if (clienteId) {
@@ -77,9 +73,6 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
     );
     return json({ atendimentos }, 200);
   } catch (err) {
-    return json(
-      { error: err instanceof Error ? err.message : 'Erro ao carregar serviços' },
-      500,
-    );
+    return json({ error: err instanceof Error ? err.message : 'Erro ao carregar serviços' }, 500);
   }
 };

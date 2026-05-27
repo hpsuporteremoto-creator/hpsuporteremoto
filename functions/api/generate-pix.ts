@@ -75,7 +75,11 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (fetchError) return json({ error: fetchError.message }, 500);
   if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
 
-  if (atendimento.state !== 'em_andamento' && atendimento.state !== 'pagamento') {
+  if (
+    atendimento.state !== 'em_andamento' &&
+    atendimento.state !== 'aguardando_confirmacao' &&
+    atendimento.state !== 'pagamento'
+  ) {
     return json(
       {
         error: `PIX só pode ser gerado quando o atendimento está em em_andamento ou pagamento (state atual: ${atendimento.state})`,

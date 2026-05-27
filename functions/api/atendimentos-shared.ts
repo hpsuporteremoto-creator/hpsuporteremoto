@@ -67,10 +67,7 @@ export async function hydrateServicosSolicitados(
   if (error) throw new Error(error.message);
 
   const byId = new Map(
-    ((data ?? []) as AtendimentoServicoRef[]).map((servico) => [
-      servico.id,
-      servico,
-    ]),
+    ((data ?? []) as AtendimentoServicoRef[]).map((servico) => [servico.id, servico]),
   );
   return rows.map((row) => {
     const rowIds =
@@ -81,10 +78,15 @@ export async function hydrateServicosSolicitados(
           : [];
     return {
       ...row,
+      state: normalizeAtendimentoState(row.state),
       servicos_solicitados: rowIds.flatMap((id) => {
         const servico = byId.get(id);
         return servico ? [servico] : [];
       }),
     };
   });
+}
+
+function normalizeAtendimentoState(state: AtendimentoState): AtendimentoState {
+  return state === 'aguardando_confirmacao' ? 'em_andamento' : state;
 }

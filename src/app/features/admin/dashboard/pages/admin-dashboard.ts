@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,11 +9,7 @@ import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
 import type { EChartsCoreOption } from 'echarts/core';
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
-import {
-  GridComponent,
-  LegendComponent,
-  TooltipComponent,
-} from 'echarts/components';
+import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import { DashboardService } from '../dashboard.service';
 import { AdminDashboardData } from '../dashboard.types';
@@ -67,12 +57,7 @@ interface DashboardKpi {
           <p>Visão operacional dos atendimentos, cobrança e capacidade ativa.</p>
         </div>
         <div class="hero-actions">
-          <button
-            mat-stroked-button
-            type="button"
-            (click)="carregar()"
-            [disabled]="loading()"
-          >
+          <button mat-stroked-button type="button" (click)="carregar()" [disabled]="loading()">
             <mat-icon>refresh</mat-icon>
             <span>Atualizar</span>
           </button>
@@ -93,7 +78,10 @@ interface DashboardKpi {
             <mat-card class="kpi-card tone-{{ kpi.tone }}" appearance="filled">
               @if (kpi.route) {
                 <a [routerLink]="kpi.route" class="kpi-link">
-                  <ng-container [ngTemplateOutlet]="kpiContent" [ngTemplateOutletContext]="{ kpi }" />
+                  <ng-container
+                    [ngTemplateOutlet]="kpiContent"
+                    [ngTemplateOutletContext]="{ kpi }"
+                  />
                 </a>
               } @else {
                 <ng-container [ngTemplateOutlet]="kpiContent" [ngTemplateOutletContext]="{ kpi }" />
@@ -161,23 +149,10 @@ export class AdminDashboardPage {
   protected readonly kpis = computed<DashboardKpi[]>(() => {
     const data = this.data();
     if (!data) return [];
-    const novos = data.stateCounts.find(
-      (item) => item.state === 'aguardando_confirmacao',
-    )?.count ?? 0;
-    const emAndamento = data.stateCounts.find(
-      (item) => item.state === 'em_andamento',
-    )?.count ?? 0;
+    const emAndamento = data.stateCounts.find((item) => item.state === 'em_andamento')?.count ?? 0;
     const pagamento = data.stateCounts.find((item) => item.state === 'pagamento')?.count ?? 0;
 
     return [
-      {
-        label: 'Novos',
-        value: this.formatNumber(novos),
-        helper: 'aguardando aceite',
-        icon: 'pending_actions',
-        tone: 'warning',
-        route: 'atendimentos',
-      },
       {
         label: 'Em andamento',
         value: this.formatNumber(emAndamento),

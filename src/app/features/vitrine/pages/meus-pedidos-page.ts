@@ -10,7 +10,7 @@ import { VitrineService } from '../vitrine.service';
 import { MeuPedido, MeuPedidoState } from '../vitrine.types';
 
 const PEDIDO_STATE_LABEL: Readonly<Record<MeuPedidoState, string>> = {
-  aguardando_confirmacao: 'Aguardando confirmação',
+  aguardando_confirmacao: 'Em andamento',
   recusado: 'Recusado',
   em_andamento: 'Em andamento',
   pagamento: 'Pagamento',
