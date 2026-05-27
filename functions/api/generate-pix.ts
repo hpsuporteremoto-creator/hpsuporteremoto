@@ -23,6 +23,11 @@ type PixReceiverConfig = {
   receiverCity: string;
 };
 
+type ServicoItem = {
+  servico_id: string;
+  quantidade: number;
+};
+
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -51,18 +56,22 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: 'Corpo JSON inválido' }, 400);
   }
 
-  const { atendimento_id, servico_id, servico_ids, desconto_centavos } = (body ?? {}) as {
+  const { atendimento_id, servico_id, servico_ids, servico_itens, desconto_centavos } = (body ??
+    {}) as {
     atendimento_id?: unknown;
     servico_id?: unknown;
     servico_ids?: unknown;
+    servico_itens?: unknown;
     desconto_centavos?: unknown;
   };
 
   if (typeof atendimento_id !== 'string' || atendimento_id.length === 0) {
     return json({ error: 'atendimento_id obrigatório' }, 400);
   }
-  const servicoIds = normalizeServicoIds(servico_ids, servico_id);
-  if (servicoIds.length === 0) {
+  const servicoItens = normalizeServicoItens(servico_itens, servico_ids, servico_id);
+  const servicoIds = expandServicoIds(servicoItens);
+  const uniqueServicoIds = Array.from(new Set(servicoItens.map((item) => item.servico_id)));
+  if (servicoItens.length === 0) {
     return json({ error: 'servico_ids obrigatório' }, 400);
   }
 
@@ -91,7 +100,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   const { data: servicosData, error: servicoError } = await admin
     .from('servicos')
     .select('id, nome, valor_centavos, ativo')
-    .in('id', servicoIds);
+    .in('id', uniqueServicoIds);
 
   if (servicoError) return json({ error: servicoError.message }, 500);
 
@@ -102,12 +111,12 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     ativo: boolean;
   }[];
   const byId = new Map(servicos.map((servico) => [servico.id, servico]));
-  const orderedServicos = servicoIds.flatMap((id) => {
-    const servico = byId.get(id);
-    return servico ? [servico] : [];
+  const orderedServicos = servicoItens.flatMap((item) => {
+    const servico = byId.get(item.servico_id);
+    return servico ? [{ ...servico, quantidade: item.quantidade }] : [];
   });
 
-  if (orderedServicos.length !== servicoIds.length) {
+  if (orderedServicos.length !== servicoItens.length) {
     return json({ error: 'Um ou mais serviços não foram encontrados' }, 404);
   }
   const inactive = orderedServicos.find((servico) => !servico.ativo);
@@ -120,7 +129,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: `Serviço com valor inválido: ${invalid.nome}` }, 400);
   }
   const subtotalCentavos = orderedServicos.reduce(
-    (total, servico) => total + servico.valor_centavos,
+    (total, servico) => total + servico.valor_centavos * servico.quantidade,
     0,
   );
   const descontoCentavos = normalizeDescontoCentavos(
@@ -225,23 +234,62 @@ function isCompleteReceiverConfig(config: PixReceiverConfig): boolean {
   );
 }
 
-function normalizeServicoIds(servicoIds: unknown, legacyServicoId: unknown): string[] {
-  const ids = Array.isArray(servicoIds)
-    ? servicoIds
-    : typeof legacyServicoId === 'string'
-      ? [legacyServicoId]
-      : [];
-  return Array.from(
-    new Set(
-      ids
-        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
-        .map((id) => id.trim()),
-    ),
-  );
-}
-
 function normalizeDescontoCentavos(value: unknown, fallback: number): number {
   if (typeof value !== 'number') return Math.max(fallback, 0);
   if (!Number.isInteger(value)) return -1;
   return value;
+}
+
+function normalizeServicoItens(
+  servicoItens: unknown,
+  legacyServicoIds: unknown,
+  legacyServicoId: unknown,
+): ServicoItem[] {
+  if (Array.isArray(servicoItens)) {
+    const normalized = servicoItens.flatMap((item): ServicoItem[] => {
+      if (!item || typeof item !== 'object') return [];
+      const record = item as { servico_id?: unknown; quantidade?: unknown };
+      const servicoId = normalizeServicoId(record.servico_id);
+      if (!servicoId) return [];
+      const quantidade = normalizeQuantidade(record.quantidade);
+      return quantidade > 0 ? [{ servico_id: servicoId, quantidade }] : [];
+    });
+    return mergeServicoItens(normalized);
+  }
+
+  const ids = Array.isArray(legacyServicoIds)
+    ? legacyServicoIds
+    : typeof legacyServicoId === 'string'
+      ? [legacyServicoId]
+      : [];
+  const normalized = ids.flatMap((id): ServicoItem[] => {
+    const servicoId = normalizeServicoId(id);
+    return servicoId ? [{ servico_id: servicoId, quantidade: 1 }] : [];
+  });
+  return mergeServicoItens(normalized);
+}
+
+function mergeServicoItens(items: ServicoItem[]): ServicoItem[] {
+  const byId = new Map<string, number>();
+  for (const item of items) {
+    byId.set(item.servico_id, (byId.get(item.servico_id) ?? 0) + item.quantidade);
+  }
+  return Array.from(byId.entries()).map(([servico_id, quantidade]) => ({
+    servico_id,
+    quantidade,
+  }));
+}
+
+function expandServicoIds(items: readonly ServicoItem[]): string[] {
+  return items.flatMap((item) => Array.from({ length: item.quantidade }, () => item.servico_id));
+}
+
+function normalizeServicoId(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function normalizeQuantidade(value: unknown): number {
+  const quantidade = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(quantidade) || quantidade < 1) return 0;
+  return Math.min(quantidade, 99);
 }

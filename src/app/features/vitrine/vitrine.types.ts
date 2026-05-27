@@ -41,6 +41,8 @@ export interface MeuPedidoServico {
   id: string;
   nome: string;
   valor_centavos: number;
+  quantidade: number;
+  subtotal_centavos: number;
 }
 
 export interface MeuPedidoCliente {

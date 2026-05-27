@@ -88,9 +88,12 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                 @for (s of a.servicos_solicitados; track s.id) {
                   <div class="servico-pill">
                     <mat-icon>design_services</mat-icon>
+                    @if (s.quantidade > 1) {
+                      <span class="servico-quantidade">{{ s.quantidade }}x</span>
+                    }
                     <span class="servico-nome">{{ s.nome }}</span>
                     <span class="servico-valor">
-                      {{ s.valor_centavos / 100 | currency }}
+                      {{ subtotalServico(s) / 100 | currency }}
                     </span>
                   </div>
                 }
@@ -123,13 +126,19 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   <section class="checkout" aria-label="Serviços para cobrança">
                     <div class="checkout-header">
                       <span>Serviços do atendimento</span>
-                      <small>{{ servicosParaCobranca().length }} serviço(s)</small>
+                      <small>{{ quantidadeTotalParaCobranca() }} item(ns)</small>
                     </div>
                     <ul class="checkout-list">
                       @for (servico of servicosParaCobranca(); track servico.id) {
                         <li>
-                          <span>{{ servico.nome }}</span>
-                          <strong>{{ servico.valor_centavos / 100 | currency }}</strong>
+                          <span class="checkout-service">
+                            <strong>{{ servico.nome }}</strong>
+                            <small>
+                              {{ quantidadeServico(servico) }} x
+                              {{ servico.valor_centavos / 100 | currency }}
+                            </small>
+                          </span>
+                          <strong>{{ subtotalServico(servico) / 100 | currency }}</strong>
                         </li>
                       }
                     </ul>
@@ -201,13 +210,19 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   <section class="checkout" aria-label="Cobrança para pagamento">
                     <div class="checkout-header">
                       <span>Cobrança atual</span>
-                      <small>{{ servicosParaCobranca().length }} serviço(s)</small>
+                      <small>{{ quantidadeTotalParaCobranca() }} item(ns)</small>
                     </div>
                     <ul class="checkout-list">
                       @for (servico of servicosParaCobranca(); track servico.id) {
                         <li>
-                          <span>{{ servico.nome }}</span>
-                          <strong>{{ servico.valor_centavos / 100 | currency }}</strong>
+                          <span class="checkout-service">
+                            <strong>{{ servico.nome }}</strong>
+                            <small>
+                              {{ quantidadeServico(servico) }} x
+                              {{ servico.valor_centavos / 100 | currency }}
+                            </small>
+                          </span>
+                          <strong>{{ subtotalServico(servico) / 100 | currency }}</strong>
                         </li>
                       }
                     </ul>
@@ -329,9 +344,15 @@ export class AtendimentoDetailPage {
     }
     return atendimento.servico ? [atendimento.servico] : [];
   });
+  protected readonly quantidadeTotalParaCobranca = computed(() => {
+    return this.servicosParaCobranca().reduce(
+      (total, servico) => total + this.quantidadeServico(servico),
+      0,
+    );
+  });
   protected readonly subtotalParaCobranca = computed(() => {
     return this.servicosParaCobranca().reduce(
-      (total, servico) => total + servico.valor_centavos,
+      (total, servico) => total + this.subtotalServico(servico),
       0,
     );
   });
@@ -409,14 +430,22 @@ export class AtendimentoDetailPage {
 
   private async gerarPix(successMessage: string): Promise<void> {
     const a = this.atendimento();
-    const servicoIds = this.servicosParaCobranca().map((servico) => servico.id);
-    if (!a || servicoIds.length === 0 || this.descontoInvalido() || this.totalParaCobranca() <= 0) {
+    const servicoItens = this.servicosParaCobranca().map((servico) => ({
+      servico_id: servico.id,
+      quantidade: this.quantidadeServico(servico),
+    }));
+    if (
+      !a ||
+      servicoItens.length === 0 ||
+      this.descontoInvalido() ||
+      this.totalParaCobranca() <= 0
+    ) {
       return;
     }
 
     this.updating.set(true);
     try {
-      await this.svc.cobrarEFinalizar(a.id, servicoIds, this.descontoParaCobranca());
+      await this.svc.cobrarEFinalizar(a.id, servicoItens, this.descontoParaCobranca());
       this.snackBar.open(successMessage, 'OK', { duration: 3000 });
       await this.carregar(a.id);
     } catch (err) {
@@ -444,5 +473,17 @@ export class AtendimentoDetailPage {
     } finally {
       this.updating.set(false);
     }
+  }
+
+  protected quantidadeServico(
+    servico: AtendimentoComRelacoes['servicos_solicitados'][number],
+  ): number {
+    return Math.max(servico.quantidade ?? 1, 1);
+  }
+
+  protected subtotalServico(
+    servico: AtendimentoComRelacoes['servicos_solicitados'][number],
+  ): number {
+    return servico.subtotal_centavos ?? servico.valor_centavos * this.quantidadeServico(servico);
   }
 }

@@ -174,13 +174,25 @@ export class DashboardService {
           : row.servico_id
             ? [row.servico_id]
             : [];
+      const quantities = new Map<string, number>();
+      for (const id of rowServicoIds) {
+        quantities.set(id, (quantities.get(id) ?? 0) + 1);
+      }
 
       return {
         id: row.id,
         clienteNome: row.cliente?.nome ?? 'Cliente sem nome',
-        servicos: rowServicoIds.flatMap((id) => {
+        servicos: Array.from(quantities.entries()).flatMap(([id, quantidade]) => {
           const servico = servicosById.get(id);
-          return servico ? [servico] : [];
+          return servico
+            ? [
+                {
+                  ...servico,
+                  quantidade,
+                  subtotal_centavos: servico.valor_centavos * quantidade,
+                },
+              ]
+            : [];
         }),
         descricaoSolicitacao: row.descricao_solicitacao,
         state: this.normalizeAtendimentoState(row.state),
@@ -189,7 +201,9 @@ export class DashboardService {
     });
   }
 
-  private async getServicosById(ids: readonly string[]): Promise<Map<string, DashboardServicoRef>> {
+  private async getServicosById(
+    ids: readonly string[],
+  ): Promise<Map<string, Omit<DashboardServicoRef, 'quantidade' | 'subtotal_centavos'>>> {
     if (ids.length === 0) return new Map();
 
     const { data, error } = await this.supabase
@@ -198,7 +212,11 @@ export class DashboardService {
       .in('id', ids);
     if (error) throw new Error(error.message);
 
-    return new Map(((data ?? []) as DashboardServicoRef[]).map((servico) => [servico.id, servico]));
+    return new Map(
+      ((data ?? []) as Array<Omit<DashboardServicoRef, 'quantidade' | 'subtotal_centavos'>>).map(
+        (servico) => [servico.id, servico],
+      ),
+    );
   }
 
   private buildDailySeries(

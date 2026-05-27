@@ -111,8 +111,13 @@ const PEDIDO_STATE_LABEL: Readonly<Record<MeuPedidoState, string>> = {
                   <ul class="servicos">
                     @for (servico of pedido.servicos_solicitados; track servico.id) {
                       <li>
-                        <span>{{ servico.nome }}</span>
-                        <strong>{{ servico.valor_centavos / 100 | currency }}</strong>
+                        <span>
+                          @if (servico.quantidade > 1) {
+                            {{ servico.quantidade }}x
+                          }
+                          {{ servico.nome }}
+                        </span>
+                        <strong>{{ servico.subtotal_centavos / 100 | currency }}</strong>
                       </li>
                     }
                   </ul>

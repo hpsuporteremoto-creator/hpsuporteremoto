@@ -28,9 +28,14 @@ export interface Atendimento {
 }
 
 export interface CriarAtendimentoParaClienteData {
-  servico_ids: string[];
+  servico_itens: AtendimentoServicoInput[];
   desconto_centavos: number;
   descricao_solicitacao: string | null;
+}
+
+export interface AtendimentoServicoInput {
+  servico_id: string;
+  quantidade: number;
 }
 
 export interface AtendimentoClienteRef {
@@ -45,6 +50,8 @@ export interface AtendimentoServicoRef {
   id: string;
   nome: string;
   valor_centavos: number;
+  quantidade: number;
+  subtotal_centavos: number;
 }
 
 export interface AtendimentoComRelacoes extends Atendimento {

@@ -4,6 +4,8 @@ export interface DashboardServicoRef {
   readonly id: string;
   readonly nome: string;
   readonly valor_centavos: number;
+  readonly quantidade: number;
+  readonly subtotal_centavos: number;
 }
 
 export interface DashboardTodayAtendimento {

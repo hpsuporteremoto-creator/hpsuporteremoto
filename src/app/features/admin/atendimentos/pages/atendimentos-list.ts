@@ -241,7 +241,11 @@ export class AtendimentosListPage {
   }
 
   servicosLabel(servicos: AtendimentoComRelacoes['servicos_solicitados']): string {
-    return servicos.map((servico) => servico.nome).join(', ');
+    return servicos
+      .map((servico) =>
+        servico.quantidade > 1 ? `${servico.quantidade}x ${servico.nome}` : servico.nome,
+      )
+      .join(', ');
   }
 
   async carregar(): Promise<void> {

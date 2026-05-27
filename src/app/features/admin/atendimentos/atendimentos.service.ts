@@ -4,6 +4,7 @@ import {
   AtendimentoComRelacoes,
   AtendimentoListFilter,
   AtendimentoListOptions,
+  AtendimentoServicoInput,
   AtendimentoState,
   CriarAtendimentoParaClienteData,
 } from './atendimentos.types';
@@ -49,7 +50,7 @@ export class AtendimentosService {
   ): Promise<string> {
     const payload = await this.postApi<{ id?: string; error?: string }>('/api/create-atendimento', {
       cliente_id: clienteId,
-      servico_ids: data.servico_ids,
+      servico_itens: data.servico_itens,
       desconto_centavos: data.desconto_centavos,
       descricao_solicitacao: data.descricao_solicitacao,
     });
@@ -61,7 +62,7 @@ export class AtendimentosService {
 
   async cobrarEFinalizar(
     atendimento_id: string,
-    servico_ids: readonly string[],
+    servico_itens: readonly AtendimentoServicoInput[],
     desconto_centavos: number,
   ): Promise<{ pix_brcode: string; valor_centavos: number }> {
     const token = await this.auth.getAccessToken();
@@ -73,7 +74,7 @@ export class AtendimentosService {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ atendimento_id, servico_ids, desconto_centavos }),
+      body: JSON.stringify({ atendimento_id, servico_itens, desconto_centavos }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as {

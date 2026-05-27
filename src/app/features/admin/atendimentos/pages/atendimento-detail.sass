@@ -100,6 +100,11 @@
       font-weight: 500
       font-size: 0.9375rem
 
+    .servico-quantidade
+      color: var(--mat-sys-primary)
+      font-weight: 800
+      font-size: 0.875rem
+
     .servico-valor
       color: var(--mat-sys-tertiary)
       font-weight: 600
@@ -177,6 +182,20 @@
         overflow: hidden
         text-overflow: ellipsis
         white-space: nowrap
+
+      .checkout-service
+        display: flex
+        flex-direction: column
+        gap: 0.125rem
+
+        strong
+          min-width: 0
+          overflow: hidden
+          text-overflow: ellipsis
+          white-space: nowrap
+
+        small
+          color: var(--mat-sys-on-surface-variant)
 
       strong
         white-space: nowrap

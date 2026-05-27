@@ -11,6 +11,8 @@ export type AtendimentoServicoRef = {
   id: string;
   nome: string;
   valor_centavos: number;
+  quantidade: number;
+  subtotal_centavos: number;
 };
 
 export type AtendimentoComRelacoes = {
@@ -51,13 +53,16 @@ export async function hydrateServicosSolicitados(
   const ids = Array.from(
     new Set(
       rows.flatMap((row) => {
-        const ids = row.servico_ids ?? [];
-        return ids.length > 0 ? ids : row.servico_id ? [row.servico_id] : [];
+        return getServicoIdsFromRow(row);
       }),
     ),
   );
   if (ids.length === 0) {
-    return rows.map((row) => ({ ...row, servicos_solicitados: [] }));
+    return rows.map((row) => ({
+      ...row,
+      state: normalizeAtendimentoState(row.state),
+      servicos_solicitados: [],
+    }));
   }
 
   const { data, error } = await admin
@@ -67,24 +72,39 @@ export async function hydrateServicosSolicitados(
   if (error) throw new Error(error.message);
 
   const byId = new Map(
-    ((data ?? []) as AtendimentoServicoRef[]).map((servico) => [servico.id, servico]),
+    ((data ?? []) as Array<Omit<AtendimentoServicoRef, 'quantidade' | 'subtotal_centavos'>>).map(
+      (servico) => [servico.id, servico],
+    ),
   );
   return rows.map((row) => {
-    const rowIds =
-      row.servico_ids && row.servico_ids.length > 0
-        ? row.servico_ids
-        : row.servico_id
-          ? [row.servico_id]
-          : [];
+    const rowIds = getServicoIdsFromRow(row);
+    const quantities = new Map<string, number>();
+    for (const id of rowIds) {
+      quantities.set(id, (quantities.get(id) ?? 0) + 1);
+    }
+
     return {
       ...row,
       state: normalizeAtendimentoState(row.state),
-      servicos_solicitados: rowIds.flatMap((id) => {
+      servicos_solicitados: Array.from(quantities.entries()).flatMap(([id, quantidade]) => {
         const servico = byId.get(id);
-        return servico ? [servico] : [];
+        return servico
+          ? [
+              {
+                ...servico,
+                quantidade,
+                subtotal_centavos: servico.valor_centavos * quantidade,
+              },
+            ]
+          : [];
       }),
     };
   });
+}
+
+function getServicoIdsFromRow(row: AtendimentoComRelacoes): string[] {
+  if (row.servico_ids && row.servico_ids.length > 0) return row.servico_ids;
+  return row.servico_id ? [row.servico_id] : [];
 }
 
 function normalizeAtendimentoState(state: AtendimentoState): AtendimentoState {

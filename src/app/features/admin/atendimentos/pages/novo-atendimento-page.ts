@@ -20,6 +20,11 @@ import { AtendimentosService } from '../atendimentos.service';
 
 const SEM_CATEGORIA_ID = '__sem_categoria__';
 
+interface SelectedServicoItem extends Servico {
+  quantidade: number;
+  subtotal_centavos: number;
+}
+
 @Component({
   selector: 'hp-novo-atendimento-page',
   imports: [
@@ -91,7 +96,7 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
                 (openedChange)="onPanelToggle($event)"
               >
                 <mat-select-trigger>
-                  {{ selectedServicos().length }} serviço(s) ·
+                  {{ selectedQuantidadeTotal() }} item(ns) ·
                   {{ selectedTotal() / 100 | currency }}
                 </mat-select-trigger>
 
@@ -227,9 +232,23 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
                         @if (servico.categoria; as categoria) {
                           <small>{{ categoria.nome }}</small>
                         }
+                        <small> {{ servico.valor_centavos / 100 | currency }} cada </small>
                       </div>
+                      <mat-form-field appearance="outline" class="quantity-field">
+                        <mat-label>Qtd.</mat-label>
+                        <input
+                          matInput
+                          type="number"
+                          min="1"
+                          max="99"
+                          step="1"
+                          inputmode="numeric"
+                          [value]="servico.quantidade"
+                          (input)="onQuantidadeChange(servico.id, $event)"
+                        />
+                      </mat-form-field>
                       <span class="checkout-price">
-                        {{ servico.valor_centavos / 100 | currency }}
+                        {{ servico.subtotal_centavos / 100 | currency }}
                       </span>
                       <button
                         mat-icon-button
@@ -372,7 +391,7 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
       overflow: hidden
     .checkout-list li
       display: grid
-      grid-template-columns: minmax(0, 1fr) auto auto
+      grid-template-columns: minmax(0, 1fr) 5.5rem auto auto
       align-items: center
       gap: 0.75rem
       min-height: 3.75rem
@@ -392,6 +411,10 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
       font-size: 0.9375rem
     .checkout-info small
       color: var(--mat-sys-on-surface-variant)
+    .quantity-field
+      width: 5.5rem
+    .quantity-field ::ng-deep .mat-mdc-form-field-subscript-wrapper
+      display: none
     .checkout-price
       font-weight: 700
       white-space: nowrap
@@ -509,6 +532,9 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
     @media (max-width: 520px)
       .checkout-list li
         grid-template-columns: minmax(0, 1fr) auto
+      .quantity-field
+        grid-column: 1
+        width: 6rem
       .checkout-list li button
         grid-column: 2
       .checkout-price
@@ -537,6 +563,7 @@ export class NovoAtendimentoPage {
   protected readonly clienteNomeFallback = signal('cliente selecionado');
   protected readonly servicos = signal<Servico[]>([]);
   protected readonly selectedServicoIds = signal<string[]>([]);
+  protected readonly selectedServicoQuantidades = signal<Record<string, number>>({});
   protected readonly servicoFiltro = signal('');
   protected readonly servicoCategoriaFiltro = signal<string | null>(null);
   protected readonly loading = signal(false);
@@ -544,15 +571,27 @@ export class NovoAtendimentoPage {
   protected readonly error = signal<string | null>(null);
   protected readonly formatWhatsapp = formatWhatsappDisplay;
 
-  protected readonly selectedServicos = computed(() => {
+  protected readonly selectedServicos = computed<SelectedServicoItem[]>(() => {
     const byId = new Map(this.servicos().map((servico) => [servico.id, servico]));
+    const quantidades = this.selectedServicoQuantidades();
     return this.selectedServicoIds().flatMap((id) => {
       const servico = byId.get(id);
-      return servico ? [servico] : [];
+      if (!servico) return [];
+      const quantidade = Math.max(quantidades[id] ?? 1, 1);
+      return [
+        {
+          ...servico,
+          quantidade,
+          subtotal_centavos: servico.valor_centavos * quantidade,
+        },
+      ];
     });
   });
+  protected readonly selectedQuantidadeTotal = computed(() =>
+    this.selectedServicos().reduce((total, servico) => total + servico.quantidade, 0),
+  );
   protected readonly selectedTotal = computed(() =>
-    this.selectedServicos().reduce((total, servico) => total + servico.valor_centavos, 0),
+    this.selectedServicos().reduce((total, servico) => total + servico.subtotal_centavos, 0),
   );
   protected readonly descontoCentavos = signal(0);
   protected readonly descontoInvalido = computed(
@@ -629,6 +668,13 @@ export class NovoAtendimentoPage {
 
   onServicosChange(ids: string[]): void {
     this.selectedServicoIds.set(ids);
+    this.selectedServicoQuantidades.update((current) => {
+      const next: Record<string, number> = {};
+      for (const id of ids) {
+        next[id] = current[id] ?? 1;
+      }
+      return next;
+    });
   }
 
   onFiltroChange(event: Event): void {
@@ -656,8 +702,21 @@ export class NovoAtendimentoPage {
   removerServico(id: string): void {
     const ids = this.selectedServicoIds().filter((servicoId) => servicoId !== id);
     this.selectedServicoIds.set(ids);
+    this.selectedServicoQuantidades.update((current) => {
+      const { [id]: _removed, ...next } = current;
+      return next;
+    });
     this.form.controls.servico_ids.setValue(ids);
     this.form.controls.servico_ids.markAsTouched();
+  }
+
+  onQuantidadeChange(id: string, event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const quantidade = normalizeQuantidade(input?.value);
+    this.selectedServicoQuantidades.update((current) => ({
+      ...current,
+      [id]: quantidade,
+    }));
   }
 
   onPanelToggle(opened: boolean): void {
@@ -673,7 +732,10 @@ export class NovoAtendimentoPage {
     const value = this.form.getRawValue();
     try {
       const id = await this.atendimentos.criarParaCliente(clienteId, {
-        servico_ids: value.servico_ids,
+        servico_itens: this.selectedServicos().map((servico) => ({
+          servico_id: servico.id,
+          quantidade: servico.quantidade,
+        })),
         desconto_centavos: this.descontoCentavos(),
         descricao_solicitacao: value.descricao_solicitacao.trim() || null,
       });
@@ -735,4 +797,10 @@ function normalizarBusca(value: string): string {
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeQuantidade(value: unknown): number {
+  const quantidade = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(quantidade) || quantidade < 1) return 1;
+  return Math.min(quantidade, 99);
 }

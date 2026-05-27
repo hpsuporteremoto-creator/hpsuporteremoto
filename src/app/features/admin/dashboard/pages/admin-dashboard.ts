@@ -366,7 +366,11 @@ export class AdminDashboardPage {
 
   protected servicosHojeLabel(atendimento: DashboardTodayAtendimento): string {
     if (atendimento.servicos.length > 0) {
-      return atendimento.servicos.map((servico) => servico.nome).join(', ');
+      return atendimento.servicos
+        .map((servico) =>
+          servico.quantidade > 1 ? `${servico.quantidade}x ${servico.nome}` : servico.nome,
+        )
+        .join(', ');
     }
     return atendimento.descricaoSolicitacao?.trim() || 'Sem serviços vinculados';
   }
