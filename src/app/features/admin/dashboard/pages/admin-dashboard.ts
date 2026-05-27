@@ -32,6 +32,7 @@ interface DashboardKpi {
   readonly icon: string;
   readonly tone: 'primary' | 'warning' | 'success' | 'neutral';
   readonly route?: string;
+  readonly queryParams?: Readonly<Record<string, string>>;
 }
 
 @Component({
@@ -79,7 +80,7 @@ interface DashboardKpi {
           @for (kpi of kpis(); track kpi.label) {
             <mat-card class="kpi-card tone-{{ kpi.tone }}" appearance="filled">
               @if (kpi.route) {
-                <a [routerLink]="kpi.route" class="kpi-link">
+                <a [routerLink]="kpi.route" [queryParams]="kpi.queryParams" class="kpi-link">
                   <ng-container
                     [ngTemplateOutlet]="kpiContent"
                     [ngTemplateOutletContext]="{ kpi }"
@@ -206,6 +207,7 @@ export class AdminDashboardPage {
         icon: 'support_agent',
         tone: 'primary',
         route: 'atendimentos',
+        queryParams: { filter: 'em_andamento' },
       },
       {
         label: 'Pagamento',
@@ -214,6 +216,7 @@ export class AdminDashboardPage {
         icon: 'qr_code_2',
         tone: 'warning',
         route: 'atendimentos',
+        queryParams: { filter: 'pagamento' },
       },
       {
         label: 'Receita do mês',

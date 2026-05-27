@@ -202,6 +202,7 @@ export class AtendimentosListPage {
     const params = this.route.snapshot.queryParamMap;
     this.clienteFilterId.set(params.get('clienteId'));
     this.clienteFilterName.set(params.get('clienteNome') ?? 'cliente selecionado');
+    this.tabIndex.set(this.getTabIndexFromFilter(params.get('filter')));
     void this.carregarClienteSelecionado();
     void this.carregar();
   }
@@ -224,6 +225,14 @@ export class AtendimentosListPage {
 
   onTabChange(index: number): void {
     this.tabIndex.set(index);
+    if (!this.clienteFilterId()) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { filter: TAB_TO_FILTER[index] },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
     void this.carregar();
   }
 
@@ -263,5 +272,11 @@ export class AtendimentosListPage {
     } catch {
       this.clienteWhatsapp.set(null);
     }
+  }
+
+  private getTabIndexFromFilter(filter: string | null): number {
+    if (!filter) return 0;
+    const index = TAB_TO_FILTER.indexOf(filter as AtendimentoListFilter);
+    return index >= 0 ? index : 0;
   }
 }
