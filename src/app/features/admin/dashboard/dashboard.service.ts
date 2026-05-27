@@ -2,10 +2,28 @@ import { Injectable, inject } from '@angular/core';
 import { SupabaseService } from '../../../core/supabase/supabase.service';
 import { ATENDIMENTO_STATE_LABEL, AtendimentoState } from '../atendimentos/atendimentos.types';
 import { Transacao } from '../financeiro/financeiro.types';
-import { AdminDashboardData, DashboardDailyPoint, DashboardStateCount } from './dashboard.types';
+import {
+  AdminDashboardData,
+  DashboardDailyPoint,
+  DashboardServicoRef,
+  DashboardStateCount,
+  DashboardTodayAtendimento,
+} from './dashboard.types';
 
 interface AtendimentoDiaRow {
   readonly created_at: string;
+}
+
+interface AtendimentoHojeRow {
+  readonly id: string;
+  readonly servico_id: string | null;
+  readonly servico_ids: string[] | null;
+  readonly descricao_solicitacao: string | null;
+  readonly state: AtendimentoState;
+  readonly created_at: string;
+  readonly cliente: {
+    readonly nome: string;
+  } | null;
 }
 
 const STATES: readonly AtendimentoState[] = ['em_andamento', 'pagamento', 'concluido', 'recusado'];
@@ -16,6 +34,8 @@ export class DashboardService {
 
   async load(): Promise<AdminDashboardData> {
     const today = new Date();
+    const todayStart = this.startOfDay(today);
+    const tomorrowStart = this.addDays(todayStart, 1);
     const from30 = this.addDays(today, -29);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
@@ -26,6 +46,7 @@ export class DashboardService {
       transacoesMes,
       transacoes30Dias,
       atendimentos30Dias,
+      atendimentosHoje,
     ] = await Promise.all([
       this.countStates(),
       this.countClientesAtivos(),
@@ -33,6 +54,7 @@ export class DashboardService {
       this.listTransacoes(this.formatDate(monthStart), this.formatDate(today)),
       this.listTransacoes(this.formatDate(from30), this.formatDate(today)),
       this.listAtendimentosDesde(from30),
+      this.listAtendimentosHoje(todayStart, tomorrowStart),
     ]);
 
     const receitaMesCentavos = transacoesMes
@@ -48,6 +70,7 @@ export class DashboardService {
       receitaMesCentavos,
       saldo30DiasCentavos,
       atendimentos30Dias: atendimentos30Dias.length,
+      atendimentosHoje,
       stateCounts,
       daily: this.buildDailySeries(from30, today, transacoes30Dias, atendimentos30Dias),
     };
@@ -113,6 +136,71 @@ export class DashboardService {
     return (data ?? []) as AtendimentoDiaRow[];
   }
 
+  private async listAtendimentosHoje(from: Date, to: Date): Promise<DashboardTodayAtendimento[]> {
+    const { data, error } = await this.supabase
+      .from('atendimentos')
+      .select(
+        `
+          id, servico_id, servico_ids, descricao_solicitacao,
+          state, created_at,
+          cliente:clientes ( nome )
+        `,
+      )
+      .gte('created_at', from.toISOString())
+      .lt('created_at', to.toISOString())
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+
+    return this.hydrateAtendimentosHoje((data ?? []) as unknown as AtendimentoHojeRow[]);
+  }
+
+  private async hydrateAtendimentosHoje(
+    rows: readonly AtendimentoHojeRow[],
+  ): Promise<DashboardTodayAtendimento[]> {
+    const servicoIds = Array.from(
+      new Set(
+        rows.flatMap((row) => {
+          const ids = row.servico_ids ?? [];
+          return ids.length > 0 ? ids : row.servico_id ? [row.servico_id] : [];
+        }),
+      ),
+    );
+    const servicosById = await this.getServicosById(servicoIds);
+
+    return rows.map((row) => {
+      const rowServicoIds =
+        row.servico_ids && row.servico_ids.length > 0
+          ? row.servico_ids
+          : row.servico_id
+            ? [row.servico_id]
+            : [];
+
+      return {
+        id: row.id,
+        clienteNome: row.cliente?.nome ?? 'Cliente sem nome',
+        servicos: rowServicoIds.flatMap((id) => {
+          const servico = servicosById.get(id);
+          return servico ? [servico] : [];
+        }),
+        descricaoSolicitacao: row.descricao_solicitacao,
+        state: this.normalizeAtendimentoState(row.state),
+        createdAt: row.created_at,
+      };
+    });
+  }
+
+  private async getServicosById(ids: readonly string[]): Promise<Map<string, DashboardServicoRef>> {
+    if (ids.length === 0) return new Map();
+
+    const { data, error } = await this.supabase
+      .from('servicos')
+      .select('id, nome, valor_centavos')
+      .in('id', ids);
+    if (error) throw new Error(error.message);
+
+    return new Map(((data ?? []) as DashboardServicoRef[]).map((servico) => [servico.id, servico]));
+  }
+
   private buildDailySeries(
     from: Date,
     to: Date,
@@ -172,6 +260,14 @@ export class DashboardService {
     const next = new Date(date);
     next.setDate(next.getDate() + amount);
     return next;
+  }
+
+  private startOfDay(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  private normalizeAtendimentoState(state: AtendimentoState): AtendimentoState {
+    return state === 'aguardando_confirmacao' ? 'em_andamento' : state;
   }
 
   private formatDate(date: Date): string {

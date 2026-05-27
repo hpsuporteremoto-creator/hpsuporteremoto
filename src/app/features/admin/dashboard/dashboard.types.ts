@@ -1,5 +1,20 @@
 import { AtendimentoState } from '../atendimentos/atendimentos.types';
 
+export interface DashboardServicoRef {
+  readonly id: string;
+  readonly nome: string;
+  readonly valor_centavos: number;
+}
+
+export interface DashboardTodayAtendimento {
+  readonly id: string;
+  readonly clienteNome: string;
+  readonly servicos: DashboardServicoRef[];
+  readonly descricaoSolicitacao: string | null;
+  readonly state: AtendimentoState;
+  readonly createdAt: string;
+}
+
 export interface DashboardStateCount {
   readonly state: AtendimentoState;
   readonly label: string;
@@ -21,6 +36,7 @@ export interface AdminDashboardData {
   readonly receitaMesCentavos: number;
   readonly saldo30DiasCentavos: number;
   readonly atendimentos30Dias: number;
+  readonly atendimentosHoje: DashboardTodayAtendimento[];
   readonly stateCounts: DashboardStateCount[];
   readonly daily: DashboardDailyPoint[];
 }

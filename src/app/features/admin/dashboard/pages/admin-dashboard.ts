@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -11,8 +11,9 @@ import * as echarts from 'echarts/core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+import { ATENDIMENTO_STATE_LABEL, AtendimentoState } from '../../atendimentos/atendimentos.types';
 import { DashboardService } from '../dashboard.service';
-import { AdminDashboardData } from '../dashboard.types';
+import { AdminDashboardData, DashboardTodayAtendimento } from '../dashboard.types';
 
 echarts.use([
   BarChart,
@@ -36,6 +37,7 @@ interface DashboardKpi {
 @Component({
   selector: 'hp-admin-dashboard',
   imports: [
+    DatePipe,
     NgTemplateOutlet,
     RouterLink,
     MatButtonModule,
@@ -103,6 +105,43 @@ interface DashboardKpi {
           </mat-card-content>
         </ng-template>
 
+        <section class="today-area" aria-labelledby="pedidos-hoje-title">
+          <mat-card appearance="filled" class="today-card">
+            <mat-card-header>
+              <mat-card-title id="pedidos-hoje-title">Pedidos criados hoje</mat-card-title>
+              <mat-card-subtitle>
+                {{ pedidosHojeResumo(dashboard.atendimentosHoje.length) }}
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              @if (dashboard.atendimentosHoje.length === 0) {
+                <p class="today-empty">Nenhum pedido criado hoje.</p>
+              } @else {
+                <div class="today-list">
+                  @for (atendimento of dashboard.atendimentosHoje; track atendimento.id) {
+                    <a
+                      class="today-item"
+                      [routerLink]="['atendimentos', atendimento.id]"
+                      [attr.aria-label]="pedidoHojeLabel(atendimento)"
+                    >
+                      <span class="today-main">
+                        <strong>{{ atendimento.clienteNome }}</strong>
+                        <span>{{ servicosHojeLabel(atendimento) }}</span>
+                      </span>
+                      <span class="today-meta">
+                        <span>{{ atendimento.createdAt | date: 'shortTime' }}</span>
+                        <span class="today-state state-{{ atendimento.state }}">
+                          {{ stateLabel(atendimento.state) }}
+                        </span>
+                      </span>
+                    </a>
+                  }
+                </div>
+              }
+            </mat-card-content>
+          </mat-card>
+        </section>
+
         <section class="charts">
           <mat-card appearance="filled" class="chart-card wide">
             <mat-card-header>
@@ -153,6 +192,13 @@ export class AdminDashboardPage {
     const pagamento = data.stateCounts.find((item) => item.state === 'pagamento')?.count ?? 0;
 
     return [
+      {
+        label: 'Hoje',
+        value: this.formatNumber(data.atendimentosHoje.length),
+        helper: 'pedidos criados',
+        icon: 'today',
+        tone: 'primary',
+      },
       {
         label: 'Em andamento',
         value: this.formatNumber(emAndamento),
@@ -309,6 +355,27 @@ export class AdminDashboardPage {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  protected stateLabel(state: AtendimentoState): string {
+    return ATENDIMENTO_STATE_LABEL[state];
+  }
+
+  protected servicosHojeLabel(atendimento: DashboardTodayAtendimento): string {
+    if (atendimento.servicos.length > 0) {
+      return atendimento.servicos.map((servico) => servico.nome).join(', ');
+    }
+    return atendimento.descricaoSolicitacao?.trim() || 'Sem serviços vinculados';
+  }
+
+  protected pedidosHojeResumo(total: number): string {
+    return total === 1
+      ? '1 pedido criado no dia'
+      : `${this.formatNumber(total)} pedidos criados no dia`;
+  }
+
+  protected pedidoHojeLabel(atendimento: DashboardTodayAtendimento): string {
+    return `Abrir pedido de ${atendimento.clienteNome}`;
   }
 
   private formatCurrency(valueCentavos: number): string {
