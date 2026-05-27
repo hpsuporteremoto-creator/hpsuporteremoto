@@ -21,6 +21,34 @@ type ClienteRow = {
   updated_at: string;
 };
 
+type AtendimentoPurchaseRow = {
+  cliente_id: string;
+  servico_id: string | null;
+  servico_ids: string[] | null;
+  descricao_solicitacao: string | null;
+};
+
+type ServicoSearchRow = {
+  id: string;
+  nome: string;
+  descricao: string | null;
+};
+
+const FETCH_PAGE_SIZE = 1000;
+const CLIENT_ID_CHUNK_SIZE = 200;
+const SEARCH_STOP_WORDS = new Set([
+  'cliente',
+  'clientes',
+  'compra',
+  'compras',
+  'comprado',
+  'comprados',
+  'compraram',
+  'comprou',
+  'todos',
+  'todas',
+]);
+
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -51,6 +79,40 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   const from = pageIndex * pageSize;
   const to = from + pageSize - 1;
 
+  if (termo) {
+    try {
+      const [clientesPorTexto, clientesPorCompraIds, ativos, inativos] =
+        await Promise.all([
+          listClientesBySearch(admin, ativo, termo),
+          findPurchaseClientIds(admin, termo),
+          countByAtivo(admin, true),
+          countByAtivo(admin, false),
+        ]);
+      const clientesPorCompra = await listClientesByIds(
+        admin,
+        ativo,
+        clientesPorCompraIds,
+      );
+      const clientes = mergeClientes([...clientesPorTexto, ...clientesPorCompra]);
+      return json(
+        {
+          clientes: clientes.slice(from, to + 1),
+          total: clientes.length,
+          counts: { ativos, inativos },
+        },
+        200,
+      );
+    } catch (err) {
+      return json(
+        {
+          error:
+            err instanceof Error ? err.message : 'Erro ao filtrar clientes',
+        },
+        500,
+      );
+    }
+  }
+
   let query = admin
     .from('clientes')
     .select('*', { count: 'exact' })
@@ -79,6 +141,129 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
     200,
   );
 };
+
+async function listClientesBySearch(
+  admin: SupabaseClient,
+  ativo: boolean,
+  termo: string,
+): Promise<ClienteRow[]> {
+  const rows: ClienteRow[] = [];
+  for (let from = 0; ; from += FETCH_PAGE_SIZE) {
+    const { data, error } = await admin
+      .from('clientes')
+      .select('*')
+      .eq('ativo', ativo)
+      .or(createSearchFilter(termo))
+      .order('nome', { ascending: true })
+      .range(from, from + FETCH_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const page = (data ?? []) as ClienteRow[];
+    rows.push(...page);
+    if (page.length < FETCH_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+async function listClientesByIds(
+  admin: SupabaseClient,
+  ativo: boolean,
+  ids: ReadonlySet<string>,
+): Promise<ClienteRow[]> {
+  const rows: ClienteRow[] = [];
+  const allIds = [...ids];
+  for (let index = 0; index < allIds.length; index += CLIENT_ID_CHUNK_SIZE) {
+    const chunk = allIds.slice(index, index + CLIENT_ID_CHUNK_SIZE);
+    if (chunk.length === 0) continue;
+    const { data, error } = await admin
+      .from('clientes')
+      .select('*')
+      .eq('ativo', ativo)
+      .in('id', chunk);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as ClienteRow[]));
+  }
+  return rows;
+}
+
+async function findPurchaseClientIds(
+  admin: SupabaseClient,
+  termo: string,
+): Promise<ReadonlySet<string>> {
+  const searchTerms = expandSearchTerms(termo);
+  const [servicos, atendimentos] = await Promise.all([
+    listAllServicos(admin),
+    listAllAtendimentos(admin),
+  ]);
+  const matchingServiceIds = new Set(
+    servicos
+      .filter((servico) =>
+        matchesSearchTerms(
+          `${servico.nome} ${servico.descricao ?? ''}`,
+          searchTerms,
+        ),
+      )
+      .map((servico) => servico.id),
+  );
+
+  const clienteIds = new Set<string>();
+  for (const atendimento of atendimentos) {
+    const servicoIds = [
+      ...(atendimento.servico_id ? [atendimento.servico_id] : []),
+      ...(atendimento.servico_ids ?? []),
+    ];
+    const matchByService = servicoIds.some((id) => matchingServiceIds.has(id));
+    const matchByDescription = matchesSearchTerms(
+      atendimento.descricao_solicitacao ?? '',
+      searchTerms,
+    );
+    if (matchByService || matchByDescription) {
+      clienteIds.add(atendimento.cliente_id);
+    }
+  }
+  return clienteIds;
+}
+
+async function listAllServicos(admin: SupabaseClient): Promise<ServicoSearchRow[]> {
+  const rows: ServicoSearchRow[] = [];
+  for (let from = 0; ; from += FETCH_PAGE_SIZE) {
+    const { data, error } = await admin
+      .from('servicos')
+      .select('id, nome, descricao')
+      .order('id', { ascending: true })
+      .range(from, from + FETCH_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const page = (data ?? []) as ServicoSearchRow[];
+    rows.push(...page);
+    if (page.length < FETCH_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+async function listAllAtendimentos(
+  admin: SupabaseClient,
+): Promise<AtendimentoPurchaseRow[]> {
+  const rows: AtendimentoPurchaseRow[] = [];
+  for (let from = 0; ; from += FETCH_PAGE_SIZE) {
+    const { data, error } = await admin
+      .from('atendimentos')
+      .select('cliente_id, servico_id, servico_ids, descricao_solicitacao')
+      .order('id', { ascending: true })
+      .range(from, from + FETCH_PAGE_SIZE - 1);
+    if (error) throw new Error(error.message);
+    const page = (data ?? []) as AtendimentoPurchaseRow[];
+    rows.push(...page);
+    if (page.length < FETCH_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+function mergeClientes(clientes: ClienteRow[]): ClienteRow[] {
+  const byId = new Map<string, ClienteRow>();
+  for (const cliente of clientes) byId.set(cliente.id, cliente);
+  return [...byId.values()].sort((a, b) =>
+    a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }),
+  );
+}
 
 async function countByAtivo(
   admin: SupabaseClient,
@@ -118,12 +303,17 @@ function expandSearchTerms(value: string): string[] {
   const candidates = new Set<string>();
   if (normalized.length > 0) candidates.add(normalized);
 
-  for (const token of normalized.split(' ').filter((part) => part.length >= 3)) {
+  for (const token of normalized.split(' ').filter(isSearchToken)) {
     candidates.add(token);
     for (const synonym of segmentSynonyms(token)) candidates.add(synonym);
   }
 
   return [...candidates].slice(0, 24);
+}
+
+function isSearchToken(value: string): boolean {
+  if (value.length < 3) return false;
+  return !SEARCH_STOP_WORDS.has(normalizeSearchKey(value));
 }
 
 function segmentSynonyms(value: string): string[] {
@@ -142,6 +332,11 @@ function normalizeSearchKey(value: string): string {
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
+}
+
+function matchesSearchTerms(value: string, terms: readonly string[]): boolean {
+  const normalizedValue = normalizeSearchKey(value);
+  return terms.some((term) => normalizedValue.includes(normalizeSearchKey(term)));
 }
 
 function escapePostgrestLike(value: string): string {
