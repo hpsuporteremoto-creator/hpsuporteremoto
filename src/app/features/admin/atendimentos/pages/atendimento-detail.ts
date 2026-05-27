@@ -140,20 +140,14 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                       <span>Serviços do atendimento</span>
                       <small>{{ quantidadeTotalParaCobranca() }} item(ns)</small>
                     </div>
-                    <mat-form-field appearance="outline" class="full-width order-items-field">
-                      <mat-label>Itens do pedido</mat-label>
+                    <mat-form-field appearance="outline" class="full-width add-service-field">
+                      <mat-label>Adicionar serviço</mat-label>
                       <mat-select
-                        [value]="selectedServicoIds()"
-                        multiple
-                        (selectionChange)="onServicosChange($event.value)"
+                        [value]="servicoParaAdicionarId()"
+                        (selectionChange)="adicionarServico($event.value)"
                         (openedChange)="onPanelToggle($event)"
-                        [disabled]="updating()"
+                        [disabled]="updating() || servicosParaAdicionar().length === 0"
                       >
-                        <mat-select-trigger>
-                          {{ quantidadeTotalParaCobranca() }} item(ns) ·
-                          {{ subtotalParaCobranca() / 100 | currency }}
-                        </mat-select-trigger>
-
                         <div class="servico-busca">
                           <mat-icon>search</mat-icon>
                           <input
@@ -179,7 +173,7 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                           }
                         </div>
 
-                        @for (servico of filteredServicos(); track servico.id) {
+                        @for (servico of filteredServicosParaAdicionar(); track servico.id) {
                           <mat-option [value]="servico.id">
                             {{ servico.nome }}
                             @if (servico.categoria; as categoria) {
@@ -188,8 +182,13 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                             — {{ servico.valor_centavos / 100 | currency }}
                           </mat-option>
                         }
-                        @if (servicosDisponiveis().length > 0 && filteredServicos().length === 0) {
+                        @if (
+                          servicosParaAdicionar().length > 0 &&
+                          filteredServicosParaAdicionar().length === 0
+                        ) {
                           <p class="servico-vazio">Nenhum serviço encontrado.</p>
+                        } @else if (servicosParaAdicionar().length === 0) {
+                          <p class="servico-vazio">Todos os serviços ativos já estão no pedido.</p>
                         }
                       </mat-select>
                     </mat-form-field>
@@ -307,20 +306,14 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                       <span>Cobrança atual</span>
                       <small>{{ quantidadeTotalParaCobranca() }} item(ns)</small>
                     </div>
-                    <mat-form-field appearance="outline" class="full-width order-items-field">
-                      <mat-label>Itens do pedido</mat-label>
+                    <mat-form-field appearance="outline" class="full-width add-service-field">
+                      <mat-label>Adicionar serviço</mat-label>
                       <mat-select
-                        [value]="selectedServicoIds()"
-                        multiple
-                        (selectionChange)="onServicosChange($event.value)"
+                        [value]="servicoParaAdicionarId()"
+                        (selectionChange)="adicionarServico($event.value)"
                         (openedChange)="onPanelToggle($event)"
-                        [disabled]="updating()"
+                        [disabled]="updating() || servicosParaAdicionar().length === 0"
                       >
-                        <mat-select-trigger>
-                          {{ quantidadeTotalParaCobranca() }} item(ns) ·
-                          {{ subtotalParaCobranca() / 100 | currency }}
-                        </mat-select-trigger>
-
                         <div class="servico-busca">
                           <mat-icon>search</mat-icon>
                           <input
@@ -346,7 +339,7 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                           }
                         </div>
 
-                        @for (servico of filteredServicos(); track servico.id) {
+                        @for (servico of filteredServicosParaAdicionar(); track servico.id) {
                           <mat-option [value]="servico.id">
                             {{ servico.nome }}
                             @if (servico.categoria; as categoria) {
@@ -355,8 +348,13 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                             — {{ servico.valor_centavos / 100 | currency }}
                           </mat-option>
                         }
-                        @if (servicosDisponiveis().length > 0 && filteredServicos().length === 0) {
+                        @if (
+                          servicosParaAdicionar().length > 0 &&
+                          filteredServicosParaAdicionar().length === 0
+                        ) {
                           <p class="servico-vazio">Nenhum serviço encontrado.</p>
+                        } @else if (servicosParaAdicionar().length === 0) {
+                          <p class="servico-vazio">Todos os serviços ativos já estão no pedido.</p>
                         }
                       </mat-select>
                     </mat-form-field>
@@ -518,6 +516,7 @@ export class AtendimentoDetailPage {
   protected readonly selectedServicoIds = signal<string[]>([]);
   protected readonly selectedServicoQuantidades = signal<Record<string, number>>({});
   protected readonly servicoFiltro = signal('');
+  protected readonly servicoParaAdicionarId = signal<string | null>(null);
 
   protected readonly servicosParaCobranca = computed<CobrancaServicoItem[]>(() => {
     const atendimento = this.atendimento();
@@ -549,12 +548,14 @@ export class AtendimentoDetailPage {
       ];
     });
   });
-  protected readonly filteredServicos = computed(() => {
-    const termo = normalizeSearchKey(this.servicoFiltro());
+  protected readonly servicosParaAdicionar = computed(() => {
     const selected = new Set(this.selectedServicoIds());
-    if (!termo) return this.servicosDisponiveis();
-    return this.servicosDisponiveis().filter((servico) => {
-      if (selected.has(servico.id)) return true;
+    return this.servicosDisponiveis().filter((servico) => !selected.has(servico.id));
+  });
+  protected readonly filteredServicosParaAdicionar = computed(() => {
+    const termo = normalizeSearchKey(this.servicoFiltro());
+    if (!termo) return this.servicosParaAdicionar();
+    return this.servicosParaAdicionar().filter((servico) => {
       return (
         normalizeSearchKey(servico.nome).includes(termo) ||
         normalizeSearchKey(servico.categoria?.nome ?? '').includes(termo)
@@ -654,13 +655,15 @@ export class AtendimentoDetailPage {
     this.descontoCentavos.set(Math.round(desconto * 100));
   }
 
-  onServicosChange(ids: string[]): void {
-    this.selectedServicoIds.set(ids);
+  adicionarServico(value: unknown): void {
+    if (typeof value !== 'string' || !value) return;
+    this.selectedServicoIds.update((ids) => (ids.includes(value) ? ids : [...ids, value]));
     this.selectedServicoQuantidades.update((current) => {
-      const next: Record<string, number> = {};
-      for (const id of ids) next[id] = current[id] ?? 1;
-      return next;
+      if (current[value]) return current;
+      return { ...current, [value]: 1 };
     });
+    this.servicoParaAdicionarId.set(null);
+    this.servicoFiltro.set('');
   }
 
   onFiltroServicoChange(event: Event): void {
