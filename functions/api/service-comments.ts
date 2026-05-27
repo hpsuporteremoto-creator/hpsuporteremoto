@@ -173,7 +173,13 @@ function metadataText(metadata: unknown, key: string): string | null {
 }
 
 function isMissingVitrineColumn(error: { code?: string; message: string }): boolean {
-  return error.code === '42703' || error.message.includes('servicos.vitrine');
+  const message = error.message.toLowerCase();
+  return (
+    error.code === '42703' ||
+    error.code === 'PGRST204' ||
+    message.includes('servicos.vitrine') ||
+    (message.includes('vitrine') && message.includes('servicos'))
+  );
 }
 
 function isMissingCommentsTable(error: { code?: string; message: string }): boolean {
