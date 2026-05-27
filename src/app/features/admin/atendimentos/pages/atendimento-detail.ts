@@ -7,15 +7,26 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { ServicosService } from '../../servicos/servicos.service';
+import { Servico } from '../../servicos/servicos.types';
 import { AtendimentosService } from '../atendimentos.service';
 import {
   ATENDIMENTO_STATE_LABEL,
   AtendimentoComRelacoes,
+  AtendimentoServicoInput,
   AtendimentoState,
 } from '../atendimentos.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
+
+type CobrancaServicoBase = Pick<Servico, 'id' | 'nome' | 'valor_centavos' | 'categoria'>;
+
+interface CobrancaServicoItem extends CobrancaServicoBase {
+  quantidade: number;
+  subtotal_centavos: number;
+}
 
 @Component({
   selector: 'hp-atendimento-detail',
@@ -28,6 +39,7 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
     MatIconModule,
     MatInputModule,
     MatProgressBarModule,
+    MatSelectModule,
     MatToolbarModule,
   ],
   template: `
@@ -122,26 +134,109 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   o atendimento para pagamento.
                 </p>
 
-                @if (servicosParaCobranca().length > 0) {
+                @if (servicosDisponiveis().length > 0) {
                   <section class="checkout" aria-label="Serviços para cobrança">
                     <div class="checkout-header">
                       <span>Serviços do atendimento</span>
                       <small>{{ quantidadeTotalParaCobranca() }} item(ns)</small>
                     </div>
-                    <ul class="checkout-list">
-                      @for (servico of servicosParaCobranca(); track servico.id) {
-                        <li>
-                          <span class="checkout-service">
-                            <strong>{{ servico.nome }}</strong>
-                            <small>
-                              {{ quantidadeServico(servico) }} x
-                              {{ servico.valor_centavos / 100 | currency }}
-                            </small>
-                          </span>
-                          <strong>{{ subtotalServico(servico) / 100 | currency }}</strong>
-                        </li>
-                      }
-                    </ul>
+                    <mat-form-field appearance="outline" class="full-width order-items-field">
+                      <mat-label>Itens do pedido</mat-label>
+                      <mat-select
+                        [value]="selectedServicoIds()"
+                        multiple
+                        (selectionChange)="onServicosChange($event.value)"
+                        (openedChange)="onPanelToggle($event)"
+                        [disabled]="updating()"
+                      >
+                        <mat-select-trigger>
+                          {{ quantidadeTotalParaCobranca() }} item(ns) ·
+                          {{ subtotalParaCobranca() / 100 | currency }}
+                        </mat-select-trigger>
+
+                        <div class="servico-busca">
+                          <mat-icon>search</mat-icon>
+                          <input
+                            type="text"
+                            placeholder="Buscar serviço"
+                            autocomplete="off"
+                            aria-label="Buscar serviço"
+                            [value]="servicoFiltro()"
+                            (input)="onFiltroServicoChange($event)"
+                            (keydown)="$event.stopPropagation()"
+                            (click)="$event.stopPropagation()"
+                          />
+                          @if (servicoFiltro()) {
+                            <button
+                              type="button"
+                              class="limpar-busca"
+                              aria-label="Limpar busca"
+                              (click)="limparFiltroServico($event)"
+                              (keydown)="$event.stopPropagation()"
+                            >
+                              <mat-icon>close</mat-icon>
+                            </button>
+                          }
+                        </div>
+
+                        @for (servico of filteredServicos(); track servico.id) {
+                          <mat-option [value]="servico.id">
+                            {{ servico.nome }}
+                            @if (servico.categoria; as categoria) {
+                              · {{ categoria.nome }}
+                            }
+                            — {{ servico.valor_centavos / 100 | currency }}
+                          </mat-option>
+                        }
+                        @if (servicosDisponiveis().length > 0 && filteredServicos().length === 0) {
+                          <p class="servico-vazio">Nenhum serviço encontrado.</p>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    @if (servicosParaCobranca().length === 0) {
+                      <p class="empty-checkout">Selecione ao menos um item para cobrar.</p>
+                    } @else {
+                      <ul class="checkout-list">
+                        @for (servico of servicosParaCobranca(); track servico.id) {
+                          <li>
+                            <span class="checkout-service">
+                              <strong>{{ servico.nome }}</strong>
+                              @if (servico.categoria; as categoria) {
+                                <small>{{ categoria.nome }}</small>
+                              }
+                              <small>
+                                {{ quantidadeServico(servico) }} x
+                                {{ servico.valor_centavos / 100 | currency }}
+                              </small>
+                            </span>
+                            <mat-form-field appearance="outline" class="quantity-field">
+                              <mat-label>Qtd.</mat-label>
+                              <input
+                                matInput
+                                type="number"
+                                min="1"
+                                max="99"
+                                step="1"
+                                inputmode="numeric"
+                                [value]="quantidadeServico(servico)"
+                                (input)="onQuantidadeChange(servico.id, $event)"
+                                [disabled]="updating()"
+                              />
+                            </mat-form-field>
+                            <strong>{{ subtotalServico(servico) / 100 | currency }}</strong>
+                            <button
+                              mat-icon-button
+                              type="button"
+                              (click)="removerServico(servico.id)"
+                              [disabled]="updating()"
+                              [attr.aria-label]="'Remover ' + servico.nome"
+                            >
+                              <mat-icon>close</mat-icon>
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                    }
                     <mat-form-field appearance="outline" class="discount-field">
                       <mat-label>Desconto</mat-label>
                       <input
@@ -206,26 +301,109 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   de marcar como pago.
                 </p>
 
-                @if (servicosParaCobranca().length > 0) {
+                @if (servicosDisponiveis().length > 0) {
                   <section class="checkout" aria-label="Cobrança para pagamento">
                     <div class="checkout-header">
                       <span>Cobrança atual</span>
                       <small>{{ quantidadeTotalParaCobranca() }} item(ns)</small>
                     </div>
-                    <ul class="checkout-list">
-                      @for (servico of servicosParaCobranca(); track servico.id) {
-                        <li>
-                          <span class="checkout-service">
-                            <strong>{{ servico.nome }}</strong>
-                            <small>
-                              {{ quantidadeServico(servico) }} x
-                              {{ servico.valor_centavos / 100 | currency }}
-                            </small>
-                          </span>
-                          <strong>{{ subtotalServico(servico) / 100 | currency }}</strong>
-                        </li>
-                      }
-                    </ul>
+                    <mat-form-field appearance="outline" class="full-width order-items-field">
+                      <mat-label>Itens do pedido</mat-label>
+                      <mat-select
+                        [value]="selectedServicoIds()"
+                        multiple
+                        (selectionChange)="onServicosChange($event.value)"
+                        (openedChange)="onPanelToggle($event)"
+                        [disabled]="updating()"
+                      >
+                        <mat-select-trigger>
+                          {{ quantidadeTotalParaCobranca() }} item(ns) ·
+                          {{ subtotalParaCobranca() / 100 | currency }}
+                        </mat-select-trigger>
+
+                        <div class="servico-busca">
+                          <mat-icon>search</mat-icon>
+                          <input
+                            type="text"
+                            placeholder="Buscar serviço"
+                            autocomplete="off"
+                            aria-label="Buscar serviço"
+                            [value]="servicoFiltro()"
+                            (input)="onFiltroServicoChange($event)"
+                            (keydown)="$event.stopPropagation()"
+                            (click)="$event.stopPropagation()"
+                          />
+                          @if (servicoFiltro()) {
+                            <button
+                              type="button"
+                              class="limpar-busca"
+                              aria-label="Limpar busca"
+                              (click)="limparFiltroServico($event)"
+                              (keydown)="$event.stopPropagation()"
+                            >
+                              <mat-icon>close</mat-icon>
+                            </button>
+                          }
+                        </div>
+
+                        @for (servico of filteredServicos(); track servico.id) {
+                          <mat-option [value]="servico.id">
+                            {{ servico.nome }}
+                            @if (servico.categoria; as categoria) {
+                              · {{ categoria.nome }}
+                            }
+                            — {{ servico.valor_centavos / 100 | currency }}
+                          </mat-option>
+                        }
+                        @if (servicosDisponiveis().length > 0 && filteredServicos().length === 0) {
+                          <p class="servico-vazio">Nenhum serviço encontrado.</p>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    @if (servicosParaCobranca().length === 0) {
+                      <p class="empty-checkout">Selecione ao menos um item para cobrar.</p>
+                    } @else {
+                      <ul class="checkout-list">
+                        @for (servico of servicosParaCobranca(); track servico.id) {
+                          <li>
+                            <span class="checkout-service">
+                              <strong>{{ servico.nome }}</strong>
+                              @if (servico.categoria; as categoria) {
+                                <small>{{ categoria.nome }}</small>
+                              }
+                              <small>
+                                {{ quantidadeServico(servico) }} x
+                                {{ servico.valor_centavos / 100 | currency }}
+                              </small>
+                            </span>
+                            <mat-form-field appearance="outline" class="quantity-field">
+                              <mat-label>Qtd.</mat-label>
+                              <input
+                                matInput
+                                type="number"
+                                min="1"
+                                max="99"
+                                step="1"
+                                inputmode="numeric"
+                                [value]="quantidadeServico(servico)"
+                                (input)="onQuantidadeChange(servico.id, $event)"
+                                [disabled]="updating()"
+                              />
+                            </mat-form-field>
+                            <strong>{{ subtotalServico(servico) / 100 | currency }}</strong>
+                            <button
+                              mat-icon-button
+                              type="button"
+                              (click)="removerServico(servico.id)"
+                              [disabled]="updating()"
+                              [attr.aria-label]="'Remover ' + servico.nome"
+                            >
+                              <mat-icon>close</mat-icon>
+                            </button>
+                          </li>
+                        }
+                      </ul>
+                    }
                     <mat-form-field appearance="outline" class="discount-field">
                       <mat-label>Desconto</mat-label>
                       <input
@@ -271,9 +449,9 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                     <mat-icon>qr_code_2</mat-icon>
                     <span>Atualizar PIX {{ totalParaCobranca() / 100 | currency }}</span>
                   </button>
-                  @if (descontoAlterado()) {
+                  @if (cobrancaAlterada()) {
                     <p class="discount-warning" role="status">
-                      Atualize o PIX para aplicar o desconto antes de finalizar.
+                      Atualize o PIX para aplicar itens ou desconto antes de finalizar.
                     </p>
                   }
                 } @else if (a.valor_centavos !== null) {
@@ -298,7 +476,7 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   color="primary"
                   type="button"
                   (click)="marcarPago()"
-                  [disabled]="updating() || descontoAlterado() || descontoInvalido()"
+                  [disabled]="updating() || cobrancaAlterada() || descontoInvalido()"
                 >
                   <mat-icon>check_circle</mat-icon>
                   <span>Marcar como pago e finalizar</span>
@@ -326,6 +504,7 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 })
 export class AtendimentoDetailPage {
   private readonly svc = inject(AtendimentosService);
+  private readonly servicosSvc = inject(ServicosService);
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
   private readonly snackBar = inject(MatSnackBar);
@@ -335,14 +514,52 @@ export class AtendimentoDetailPage {
   protected readonly updating = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly descontoCentavos = signal(0);
+  protected readonly servicosDisponiveis = signal<CobrancaServicoBase[]>([]);
+  protected readonly selectedServicoIds = signal<string[]>([]);
+  protected readonly selectedServicoQuantidades = signal<Record<string, number>>({});
+  protected readonly servicoFiltro = signal('');
 
-  protected readonly servicosParaCobranca = computed(() => {
+  protected readonly servicosParaCobranca = computed<CobrancaServicoItem[]>(() => {
     const atendimento = this.atendimento();
-    if (!atendimento) return [];
-    if (atendimento.servicos_solicitados.length > 0) {
-      return atendimento.servicos_solicitados;
+    const byId = new Map<string, CobrancaServicoBase>();
+    for (const servico of this.servicosDisponiveis()) byId.set(servico.id, servico);
+    if (atendimento) {
+      for (const servico of atendimento.servicos_solicitados) {
+        byId.set(servico.id, { ...servico, categoria: byId.get(servico.id)?.categoria ?? null });
+      }
+      if (atendimento.servico) {
+        byId.set(atendimento.servico.id, {
+          ...atendimento.servico,
+          categoria: byId.get(atendimento.servico.id)?.categoria ?? null,
+        });
+      }
     }
-    return atendimento.servico ? [atendimento.servico] : [];
+
+    const quantidades = this.selectedServicoQuantidades();
+    return this.selectedServicoIds().flatMap((id) => {
+      const servico = byId.get(id);
+      if (!servico) return [];
+      const quantidade = Math.max(quantidades[id] ?? 1, 1);
+      return [
+        {
+          ...servico,
+          quantidade,
+          subtotal_centavos: servico.valor_centavos * quantidade,
+        },
+      ];
+    });
+  });
+  protected readonly filteredServicos = computed(() => {
+    const termo = normalizeSearchKey(this.servicoFiltro());
+    const selected = new Set(this.selectedServicoIds());
+    if (!termo) return this.servicosDisponiveis();
+    return this.servicosDisponiveis().filter((servico) => {
+      if (selected.has(servico.id)) return true;
+      return (
+        normalizeSearchKey(servico.nome).includes(termo) ||
+        normalizeSearchKey(servico.categoria?.nome ?? '').includes(termo)
+      );
+    });
   });
   protected readonly quantidadeTotalParaCobranca = computed(() => {
     return this.servicosParaCobranca().reduce(
@@ -367,6 +584,21 @@ export class AtendimentoDetailPage {
   );
   protected readonly descontoAlterado = computed(
     () => this.descontoParaCobranca() !== (this.atendimento()?.desconto_centavos ?? 0),
+  );
+  protected readonly itensAlterados = computed(() => {
+    const atendimento = this.atendimento();
+    if (!atendimento) return false;
+    const atuais = normalizeItensMap(getAtendimentoItens(atendimento));
+    const selecionados = normalizeItensMap(
+      this.servicosParaCobranca().map((servico) => ({
+        servico_id: servico.id,
+        quantidade: this.quantidadeServico(servico),
+      })),
+    );
+    return !areItensEqual(atuais, selecionados);
+  });
+  protected readonly cobrancaAlterada = computed(
+    () => this.descontoAlterado() || this.itensAlterados(),
   );
 
   constructor() {
@@ -399,13 +631,15 @@ export class AtendimentoDetailPage {
     this.loading.set(true);
     this.error.set(null);
     try {
-      const a = await this.svc.get(id);
+      const [a, servicos] = await Promise.all([this.svc.get(id), this.servicosSvc.listAtivos()]);
       this.atendimento.set(a);
       this.descontoCentavos.set(Math.max(a?.desconto_centavos ?? 0, 0));
       if (!a) {
         this.error.set('Atendimento não encontrado');
         return;
       }
+      this.servicosDisponiveis.set(mergeServicosDisponiveis(servicos, a));
+      this.setSelectedItens(getAtendimentoItens(a));
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Erro ao carregar');
     } finally {
@@ -418,6 +652,47 @@ export class AtendimentoDetailPage {
     const value = Number(input?.value ?? 0);
     const desconto = Number.isFinite(value) ? Math.max(0, value) : 0;
     this.descontoCentavos.set(Math.round(desconto * 100));
+  }
+
+  onServicosChange(ids: string[]): void {
+    this.selectedServicoIds.set(ids);
+    this.selectedServicoQuantidades.update((current) => {
+      const next: Record<string, number> = {};
+      for (const id of ids) next[id] = current[id] ?? 1;
+      return next;
+    });
+  }
+
+  onFiltroServicoChange(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    this.servicoFiltro.set(input?.value ?? '');
+  }
+
+  limparFiltroServico(event: Event): void {
+    event.stopPropagation();
+    this.servicoFiltro.set('');
+  }
+
+  removerServico(id: string): void {
+    const ids = this.selectedServicoIds().filter((servicoId) => servicoId !== id);
+    this.selectedServicoIds.set(ids);
+    this.selectedServicoQuantidades.update((current) => {
+      const { [id]: _removed, ...next } = current;
+      return next;
+    });
+  }
+
+  onQuantidadeChange(id: string, event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const quantidade = normalizeQuantidade(input?.value);
+    this.selectedServicoQuantidades.update((current) => ({
+      ...current,
+      [id]: quantidade,
+    }));
+  }
+
+  onPanelToggle(opened: boolean): void {
+    if (!opened) this.servicoFiltro.set('');
   }
 
   async cobrarEFinalizar(): Promise<void> {
@@ -475,15 +750,95 @@ export class AtendimentoDetailPage {
     }
   }
 
-  protected quantidadeServico(
-    servico: AtendimentoComRelacoes['servicos_solicitados'][number],
-  ): number {
+  protected quantidadeServico(servico: { quantidade?: number }): number {
     return Math.max(servico.quantidade ?? 1, 1);
   }
 
   protected subtotalServico(
-    servico: AtendimentoComRelacoes['servicos_solicitados'][number],
+    servico: Pick<CobrancaServicoItem, 'valor_centavos' | 'quantidade' | 'subtotal_centavos'>,
   ): number {
     return servico.subtotal_centavos ?? servico.valor_centavos * this.quantidadeServico(servico);
   }
+
+  private setSelectedItens(itens: readonly AtendimentoServicoInput[]): void {
+    this.selectedServicoIds.set(itens.map((item) => item.servico_id));
+    this.selectedServicoQuantidades.set(
+      Object.fromEntries(
+        itens.map((item) => [item.servico_id, normalizeQuantidade(item.quantidade)]),
+      ),
+    );
+  }
+}
+
+function getAtendimentoItens(atendimento: AtendimentoComRelacoes): AtendimentoServicoInput[] {
+  const servicos =
+    atendimento.servicos_solicitados.length > 0
+      ? atendimento.servicos_solicitados
+      : atendimento.servico
+        ? [atendimento.servico]
+        : [];
+  return servicos.map((servico) => ({
+    servico_id: servico.id,
+    quantidade: normalizeQuantidade(servico.quantidade),
+  }));
+}
+
+function mergeServicosDisponiveis(
+  ativos: readonly Servico[],
+  atendimento: AtendimentoComRelacoes,
+): CobrancaServicoBase[] {
+  const byId = new Map<string, CobrancaServicoBase>();
+  for (const servico of ativos) byId.set(servico.id, servico);
+  for (const servico of atendimento.servicos_solicitados) {
+    byId.set(servico.id, {
+      id: servico.id,
+      nome: servico.nome,
+      valor_centavos: servico.valor_centavos,
+      categoria: byId.get(servico.id)?.categoria ?? null,
+    });
+  }
+  if (atendimento.servico) {
+    byId.set(atendimento.servico.id, {
+      id: atendimento.servico.id,
+      nome: atendimento.servico.nome,
+      valor_centavos: atendimento.servico.valor_centavos,
+      categoria: byId.get(atendimento.servico.id)?.categoria ?? null,
+    });
+  }
+  return [...byId.values()].sort((a, b) =>
+    a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }),
+  );
+}
+
+function normalizeItensMap(itens: readonly AtendimentoServicoInput[]): Map<string, number> {
+  const byId = new Map<string, number>();
+  for (const item of itens) {
+    byId.set(
+      item.servico_id,
+      (byId.get(item.servico_id) ?? 0) + normalizeQuantidade(item.quantidade),
+    );
+  }
+  return byId;
+}
+
+function areItensEqual(a: ReadonlyMap<string, number>, b: ReadonlyMap<string, number>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [id, quantidade] of a) {
+    if (b.get(id) !== quantidade) return false;
+  }
+  return true;
+}
+
+function normalizeQuantidade(value: unknown): number {
+  const quantidade = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(quantidade) || quantidade < 1) return 1;
+  return Math.min(quantidade, 99);
+}
+
+function normalizeSearchKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
 }

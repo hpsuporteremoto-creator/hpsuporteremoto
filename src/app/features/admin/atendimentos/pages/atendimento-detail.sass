@@ -31,7 +31,7 @@
 
 .content
   padding: 1rem
-  max-width: 36rem
+  max-width: 44rem
   margin: 0 auto
   display: flex
   flex-direction: column
@@ -144,6 +144,10 @@
     overflow: hidden
     background: var(--mat-sys-surface-container-low)
 
+  .order-items-field
+    width: calc(100% - 2rem)
+    margin: 1rem 1rem 0
+
   .checkout-header,
   .checkout-summary,
   .checkout-total
@@ -171,7 +175,7 @@
 
     li
       display: grid
-      grid-template-columns: minmax(0, 1fr) auto
+      grid-template-columns: minmax(0, 1fr) 5.5rem auto auto
       align-items: center
       gap: 0.75rem
       padding: 0.75rem 1rem
@@ -199,6 +203,18 @@
 
       strong
         white-space: nowrap
+
+      .quantity-field
+        width: 5.5rem
+
+      button
+        justify-self: end
+
+  .empty-checkout
+    margin: 0
+    padding: 1rem
+    color: var(--mat-sys-on-surface-variant)
+    border-bottom: 1px solid var(--mat-sys-outline-variant)
 
   .discount-field
     width: calc(100% - 2rem)
@@ -266,6 +282,61 @@
       align-items: center
       justify-content: center
       gap: 0.5rem
+
+.servico-busca
+  position: sticky
+  top: 0
+  z-index: 1
+  display: flex
+  align-items: center
+  gap: 0.5rem
+  padding: 0.625rem 1rem
+  background: var(--mat-sys-surface-container)
+  border-bottom: 1px solid var(--mat-sys-outline-variant)
+
+  input
+    flex: 1
+    min-width: 0
+    border: 0
+    outline: 0
+    background: transparent
+    color: var(--mat-sys-on-surface)
+    font: inherit
+
+  mat-icon
+    color: var(--mat-sys-on-surface-variant)
+
+.limpar-busca
+  border: 0
+  background: transparent
+  color: var(--mat-sys-on-surface-variant)
+  cursor: pointer
+  display: inline-flex
+  align-items: center
+  justify-content: center
+  padding: 0.25rem
+
+.servico-vazio
+  margin: 0
+  padding: 1rem
+  color: var(--mat-sys-on-surface-variant)
+
+@media (max-width: 560px)
+  .state-content
+    .checkout-list
+      li
+        grid-template-columns: minmax(0, 1fr) auto
+
+        .quantity-field
+          grid-column: 1
+          width: 6rem
+
+        > strong
+          grid-column: 1
+
+        button
+          grid-column: 2
+          grid-row: 2
 
 .brcode-block
   display: flex
