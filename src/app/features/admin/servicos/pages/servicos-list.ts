@@ -3,7 +3,9 @@ import { CurrencyPipe, Location } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -21,7 +23,9 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
     RouterLink,
     MatButtonModule,
     MatCardModule,
+    MatFormFieldModule,
     MatIconModule,
+    MatInputModule,
     MatProgressBarModule,
     MatSlideToggleModule,
     MatTabsModule,
@@ -61,6 +65,37 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
     <main class="content">
       @if (error(); as msg) {
         <p class="error">{{ msg }}</p>
+      }
+
+      @if (servicos()) {
+        <section class="search-area" aria-label="Busca de serviços">
+          <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Buscar serviços</mat-label>
+            <mat-icon matPrefix>search</mat-icon>
+            <input
+              matInput
+              type="search"
+              placeholder="Ex.: AutoCAD, treinamento, limpeza"
+              [value]="termoBusca()"
+              (input)="onBuscaChange($event)"
+              autocomplete="off"
+            />
+            @if (termoBusca()) {
+              <button
+                mat-icon-button
+                matSuffix
+                type="button"
+                (click)="limparBusca()"
+                aria-label="Limpar busca"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+          </mat-form-field>
+          <p class="result-count" aria-live="polite">
+            {{ servicosFiltrados()?.length ?? 0 }} serviço(s) encontrado(s)
+          </p>
+        </section>
       }
 
       @if (categorias().length > 0 || hasSemCategoria()) {
@@ -153,6 +188,7 @@ export class ServicosListPage {
   protected readonly semCategoriaId = SEM_CATEGORIA_ID;
   protected readonly servicos = signal<Servico[] | null>(null);
   protected readonly categoriaSelecionada = signal<string | null>(null);
+  protected readonly termoBusca = signal('');
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly tabIndex = signal(0);
@@ -176,13 +212,23 @@ export class ServicosListPage {
     const list = this.servicos();
     if (!list) return null;
     const categoriaId = this.categoriaSelecionada();
-    if (!categoriaId) return list;
-    if (categoriaId === SEM_CATEGORIA_ID) {
-      return list.filter((servico) => !servico.categoria);
-    }
-    return list.filter((servico) => servico.categoria?.id === categoriaId);
+    const termo = normalizarBusca(this.termoBusca());
+    return list.filter((servico) => {
+      const matchesCategoria =
+        !categoriaId ||
+        (categoriaId === SEM_CATEGORIA_ID
+          ? !servico.categoria
+          : servico.categoria?.id === categoriaId);
+      if (!matchesCategoria) return false;
+      if (!termo) return true;
+      return textoBuscaServico(servico).includes(termo);
+    });
   });
   protected readonly emptyMessage = computed(() => {
+    if (this.termoBusca() && this.categoriaSelecionada()) {
+      return 'Nenhum serviço encontrado nesta categoria.';
+    }
+    if (this.termoBusca()) return 'Nenhum serviço encontrado para esta busca.';
     if (this.categoriaSelecionada()) return 'Nenhum serviço nesta categoria.';
     return this.tabIndex() === 0
       ? 'Nenhum serviço ativo cadastrado.'
@@ -204,6 +250,15 @@ export class ServicosListPage {
 
   selecionarCategoria(categoriaId: string | null): void {
     this.categoriaSelecionada.set(categoriaId);
+  }
+
+  onBuscaChange(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    this.termoBusca.set(input?.value ?? '');
+  }
+
+  limparBusca(): void {
+    this.termoBusca.set('');
   }
 
   async carregar(): Promise<void> {
@@ -245,4 +300,26 @@ export class ServicosListPage {
         : servicos.some((servico) => servico.categoria?.id === categoriaId);
     if (!hasCategoria) this.categoriaSelecionada.set(null);
   }
+}
+
+function textoBuscaServico(servico: Servico): string {
+  return normalizarBusca(
+    [
+      servico.nome,
+      servico.descricao,
+      servico.categoria?.nome,
+      servico.vitrine ? 'vitrine' : '',
+      String(servico.valor_centavos / 100),
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
+}
+
+function normalizarBusca(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
 }
