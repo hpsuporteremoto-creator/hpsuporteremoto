@@ -5,8 +5,13 @@ import {
   PixRecebedorConfigFormData,
   ResumoFinanceiro,
   Transacao,
+  TransacaoAtendimentoRef,
   TransacaoFormData,
 } from './financeiro.types';
+
+type TransacaoRow = Omit<Transacao, 'atendimento'> & {
+  atendimento?: TransacaoAtendimentoRef | TransacaoAtendimentoRef[] | null;
+};
 
 @Injectable({ providedIn: 'root' })
 export class FinanceiroService {
@@ -17,13 +22,27 @@ export class FinanceiroService {
   async list(from: string, to: string): Promise<Transacao[]> {
     const { data, error } = await this.supabase
       .from(this.table)
-      .select('*')
+      .select(
+        `
+          id, tipo, valor_centavos, descricao, atendimento_id,
+          data, created_at, updated_at,
+          atendimento:atendimentos (
+            id,
+            cliente:clientes ( id, nome )
+          )
+        `,
+      )
       .gte('data', from)
       .lte('data', to)
       .order('data', { ascending: false })
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    return (data ?? []) as Transacao[];
+    return ((data ?? []) as unknown as TransacaoRow[]).map((row) => ({
+      ...row,
+      atendimento: Array.isArray(row.atendimento)
+        ? (row.atendimento[0] ?? null)
+        : (row.atendimento ?? null),
+    }));
   }
 
   async get(id: string): Promise<Transacao | null> {
@@ -47,10 +66,7 @@ export class FinanceiroService {
   }
 
   async remove(id: string): Promise<void> {
-    const { error } = await this.supabase
-      .from(this.table)
-      .delete()
-      .eq('id', id);
+    const { error } = await this.supabase.from(this.table).delete().eq('id', id);
     if (error) throw new Error(error.message);
   }
 
@@ -64,9 +80,7 @@ export class FinanceiroService {
     return data;
   }
 
-  async savePixRecebedorConfig(
-    input: PixRecebedorConfigFormData,
-  ): Promise<PixRecebedorConfig> {
+  async savePixRecebedorConfig(input: PixRecebedorConfigFormData): Promise<PixRecebedorConfig> {
     const { data, error } = await this.supabase
       .from(this.pixConfigTable)
       .upsert({ id: 1, ...input }, { onConflict: 'id' })

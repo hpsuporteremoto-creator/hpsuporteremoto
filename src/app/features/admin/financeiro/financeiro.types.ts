@@ -1,11 +1,22 @@
 export type TransacaoTipo = 'entrada' | 'saida';
 
+export interface TransacaoClienteRef {
+  id: string;
+  nome: string;
+}
+
+export interface TransacaoAtendimentoRef {
+  id: string;
+  cliente: TransacaoClienteRef | null;
+}
+
 export interface Transacao {
   id: string;
   tipo: TransacaoTipo;
   valor_centavos: number;
   descricao: string;
   atendimento_id: string | null;
+  atendimento?: TransacaoAtendimentoRef | null;
   data: string; // YYYY-MM-DD
   created_at: string;
   updated_at: string;

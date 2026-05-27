@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe, Location } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
@@ -25,9 +19,7 @@ function todayISO(): string {
 
 function firstOfMonthISO(): string {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
+  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 }
 
 @Component({
@@ -52,11 +44,7 @@ function firstOfMonthISO(): string {
       </button>
       <span>Financeiro</span>
       <span class="spacer"></span>
-      <a
-        mat-stroked-button
-        routerLink="recebedor-pix"
-        aria-label="Configurar recebedor PIX"
-      >
+      <a mat-stroked-button routerLink="recebedor-pix" aria-label="Configurar recebedor PIX">
         <mat-icon>qr_code_2</mat-icon>
         <span>Recebedor PIX</span>
       </a>
@@ -119,18 +107,18 @@ function firstOfMonthISO(): string {
         } @else {
           <div class="list">
             @for (t of list; track t.id) {
-              <mat-card
-                class="transacao-card tipo-{{ t.tipo }}"
-                appearance="filled"
-              >
+              <mat-card class="transacao-card tipo-{{ t.tipo }}" appearance="filled">
                 <mat-card-content class="row">
                   <div class="info">
-                    <strong class="descricao">{{ t.descricao }}</strong>
-                    <small class="data">{{ t.data | date:'shortDate' }}</small>
+                    <strong class="descricao">{{ transacaoTitulo(t) }}</strong>
+                    @if (transacaoDetalhe(t); as detalhe) {
+                      <small class="detalhe">{{ detalhe }}</small>
+                    }
+                    <small class="data">{{ t.data | date: 'shortDate' }}</small>
                   </div>
                   <div class="valor-wrap">
                     <span class="valor">
-                      {{ (t.tipo === 'entrada' ? '+' : '-') }}{{ t.valor_centavos / 100 | currency }}
+                      {{ t.tipo === 'entrada' ? '+' : '-' }}{{ t.valor_centavos / 100 | currency }}
                     </span>
                     <button
                       mat-icon-button
@@ -195,18 +183,14 @@ export class FinanceiroListPage {
       const data = await this.svc.list(from, to);
       this.transacoes.set(data);
     } catch (err) {
-      this.error.set(
-        err instanceof Error ? err.message : 'Erro ao carregar transações',
-      );
+      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar transações');
     } finally {
       this.loading.set(false);
     }
   }
 
   async apagar(t: Transacao): Promise<void> {
-    const ok = confirm(
-      `Apagar "${t.descricao}"? Esta ação não pode ser desfeita.`,
-    );
+    const ok = confirm(`Apagar "${this.transacaoTitulo(t)}"? Esta ação não pode ser desfeita.`);
     if (!ok) return;
 
     this.updating.set(true);
@@ -220,5 +204,14 @@ export class FinanceiroListPage {
     } finally {
       this.updating.set(false);
     }
+  }
+
+  protected transacaoTitulo(t: Transacao): string {
+    return t.atendimento?.cliente?.nome?.trim() || t.descricao;
+  }
+
+  protected transacaoDetalhe(t: Transacao): string | null {
+    if (!t.atendimento_id || t.descricao === this.transacaoTitulo(t)) return null;
+    return t.descricao;
   }
 }
