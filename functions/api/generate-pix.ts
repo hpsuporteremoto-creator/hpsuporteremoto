@@ -51,10 +51,11 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: 'Corpo JSON inválido' }, 400);
   }
 
-  const { atendimento_id, servico_id, servico_ids } = (body ?? {}) as {
+  const { atendimento_id, servico_id, servico_ids, desconto_centavos } = (body ?? {}) as {
     atendimento_id?: unknown;
     servico_id?: unknown;
     servico_ids?: unknown;
+    desconto_centavos?: unknown;
   };
 
   if (typeof atendimento_id !== 'string' || atendimento_id.length === 0) {
@@ -74,10 +75,10 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (fetchError) return json({ error: fetchError.message }, 500);
   if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
 
-  if (atendimento.state !== 'em_andamento') {
+  if (atendimento.state !== 'em_andamento' && atendimento.state !== 'pagamento') {
     return json(
       {
-        error: `PIX só pode ser gerado quando o atendimento está em em_andamento (state atual: ${atendimento.state})`,
+        error: `PIX só pode ser gerado quando o atendimento está em em_andamento ou pagamento (state atual: ${atendimento.state})`,
       },
       409,
     );
@@ -109,8 +110,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (inactive) return json({ error: `Serviço inativo: ${inactive.nome}` }, 400);
 
   const invalid = orderedServicos.find(
-    (servico) =>
-      typeof servico.valor_centavos !== 'number' || servico.valor_centavos <= 0,
+    (servico) => typeof servico.valor_centavos !== 'number' || servico.valor_centavos <= 0,
   );
   if (invalid) {
     return json({ error: `Serviço com valor inválido: ${invalid.nome}` }, 400);
@@ -119,10 +119,10 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     (total, servico) => total + servico.valor_centavos,
     0,
   );
-  const descontoCentavos =
-    typeof atendimento.desconto_centavos === 'number'
-      ? atendimento.desconto_centavos
-      : 0;
+  const descontoCentavos = normalizeDescontoCentavos(
+    desconto_centavos,
+    typeof atendimento.desconto_centavos === 'number' ? atendimento.desconto_centavos : 0,
+  );
 
   if (descontoCentavos < 0) {
     return json({ error: 'Desconto inválido' }, 400);
@@ -211,23 +211,17 @@ async function getPixReceiverConfig(
   if (isCompleteReceiverConfig(envConfig)) return envConfig;
 
   return {
-    error:
-      'Configure o recebedor PIX em Financeiro > Recebedor PIX antes de gerar cobrança.',
+    error: 'Configure o recebedor PIX em Financeiro > Recebedor PIX antes de gerar cobrança.',
   };
 }
 
 function isCompleteReceiverConfig(config: PixReceiverConfig): boolean {
   return (
-    config.pixKey.length > 0 &&
-    config.receiverName.length > 0 &&
-    config.receiverCity.length > 0
+    config.pixKey.length > 0 && config.receiverName.length > 0 && config.receiverCity.length > 0
   );
 }
 
-function normalizeServicoIds(
-  servicoIds: unknown,
-  legacyServicoId: unknown,
-): string[] {
+function normalizeServicoIds(servicoIds: unknown, legacyServicoId: unknown): string[] {
   const ids = Array.isArray(servicoIds)
     ? servicoIds
     : typeof legacyServicoId === 'string'
@@ -236,10 +230,14 @@ function normalizeServicoIds(
   return Array.from(
     new Set(
       ids
-        .filter(
-          (id): id is string => typeof id === 'string' && id.trim().length > 0,
-        )
+        .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
         .map((id) => id.trim()),
     ),
   );
+}
+
+function normalizeDescontoCentavos(value: unknown, fallback: number): number {
+  if (typeof value !== 'number') return Math.max(fallback, 0);
+  if (!Number.isInteger(value)) return -1;
+  return value;
 }

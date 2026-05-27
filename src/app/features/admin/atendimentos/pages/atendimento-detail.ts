@@ -3,7 +3,9 @@ import { CurrencyPipe, DatePipe, Location } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -22,7 +24,9 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
     DatePipe,
     MatButtonModule,
     MatCardModule,
+    MatFormFieldModule,
     MatIconModule,
+    MatInputModule,
     MatProgressBarModule,
     MatToolbarModule,
   ],
@@ -57,12 +61,9 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
           <mat-card-content class="cliente-content">
             <p>
               <mat-icon>chat</mat-icon>
-              <a
-                [href]="'https://wa.me/' + a.cliente.whatsapp"
-                target="_blank"
-                rel="noopener"
-                >{{ formatWhatsapp(a.cliente.whatsapp) }}</a
-              >
+              <a [href]="'https://wa.me/' + a.cliente.whatsapp" target="_blank" rel="noopener">{{
+                formatWhatsapp(a.cliente.whatsapp)
+              }}</a>
             </p>
             @if (a.cliente.email) {
               <p><mat-icon>mail</mat-icon> {{ a.cliente.email }}</p>
@@ -160,6 +161,20 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                         </li>
                       }
                     </ul>
+                    <mat-form-field appearance="outline" class="discount-field">
+                      <mat-label>Desconto</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputmode="decimal"
+                        [value]="descontoParaCobranca() / 100"
+                        (input)="onDescontoChange($event)"
+                        [disabled]="updating()"
+                      />
+                      <span matTextPrefix>R$&nbsp;</span>
+                    </mat-form-field>
                     <div class="checkout-summary">
                       <div>
                         <span>Subtotal</span>
@@ -193,7 +208,12 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   color="primary"
                   type="button"
                   (click)="cobrarEFinalizar()"
-                  [disabled]="servicosParaCobranca().length === 0 || descontoInvalido() || totalParaCobranca() <= 0 || updating()"
+                  [disabled]="
+                    servicosParaCobranca().length === 0 ||
+                    descontoInvalido() ||
+                    totalParaCobranca() <= 0 ||
+                    updating()
+                  "
                 >
                   <mat-icon>qr_code_2</mat-icon>
                   <span>Finalizar e cobrar {{ totalParaCobranca() / 100 | currency }}</span>
@@ -201,9 +221,75 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
               }
               @case ('pagamento') {
                 <p class="state-hint">
-                  PIX gerado. Copie o BR Code ou confirme o recebimento na conta para finalizar.
+                  PIX gerado. Se o valor for renegociado, ajuste o desconto e atualize o PIX antes
+                  de marcar como pago.
                 </p>
-                @if (a.valor_centavos !== null) {
+
+                @if (servicosParaCobranca().length > 0) {
+                  <section class="checkout" aria-label="Cobrança para pagamento">
+                    <div class="checkout-header">
+                      <span>Cobrança atual</span>
+                      <small>{{ servicosParaCobranca().length }} serviço(s)</small>
+                    </div>
+                    <ul class="checkout-list">
+                      @for (servico of servicosParaCobranca(); track servico.id) {
+                        <li>
+                          <span>{{ servico.nome }}</span>
+                          <strong>{{ servico.valor_centavos / 100 | currency }}</strong>
+                        </li>
+                      }
+                    </ul>
+                    <mat-form-field appearance="outline" class="discount-field">
+                      <mat-label>Desconto</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputmode="decimal"
+                        [value]="descontoParaCobranca() / 100"
+                        (input)="onDescontoChange($event)"
+                        [disabled]="updating()"
+                      />
+                      <span matTextPrefix>R$&nbsp;</span>
+                    </mat-form-field>
+                    <div class="checkout-summary">
+                      <div>
+                        <span>Subtotal</span>
+                        <strong>{{ subtotalParaCobranca() / 100 | currency }}</strong>
+                      </div>
+                      @if (descontoParaCobranca() > 0) {
+                        <div class="discount-line">
+                          <span>Desconto</span>
+                          <strong>-{{ descontoParaCobranca() / 100 | currency }}</strong>
+                        </div>
+                      }
+                    </div>
+                    @if (descontoInvalido()) {
+                      <p class="discount-error" role="alert">
+                        O desconto precisa ser menor que o subtotal.
+                      </p>
+                    }
+                    <div class="checkout-total">
+                      <span>Total da cobrança</span>
+                      <strong>{{ totalParaCobranca() / 100 | currency }}</strong>
+                    </div>
+                  </section>
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    (click)="atualizarPix()"
+                    [disabled]="descontoInvalido() || totalParaCobranca() <= 0 || updating()"
+                  >
+                    <mat-icon>qr_code_2</mat-icon>
+                    <span>Atualizar PIX {{ totalParaCobranca() / 100 | currency }}</span>
+                  </button>
+                  @if (descontoAlterado()) {
+                    <p class="discount-warning" role="status">
+                      Atualize o PIX para aplicar o desconto antes de finalizar.
+                    </p>
+                  }
+                } @else if (a.valor_centavos !== null) {
                   <p class="valor">{{ a.valor_centavos / 100 | currency }}</p>
                 }
                 @if (a.pix_brcode; as brcode) {
@@ -225,7 +311,7 @@ import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
                   color="primary"
                   type="button"
                   (click)="marcarPago()"
-                  [disabled]="updating()"
+                  [disabled]="updating() || descontoAlterado() || descontoInvalido()"
                 >
                   <mat-icon>check_circle</mat-icon>
                   <span>Marcar como pago e finalizar</span>
@@ -261,6 +347,7 @@ export class AtendimentoDetailPage {
   protected readonly loading = signal(false);
   protected readonly updating = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly descontoCentavos = signal(0);
 
   protected readonly servicosParaCobranca = computed(() => {
     const atendimento = this.atendimento();
@@ -276,9 +363,7 @@ export class AtendimentoDetailPage {
       0,
     );
   });
-  protected readonly descontoParaCobranca = computed(() =>
-    Math.max(this.atendimento()?.desconto_centavos ?? 0, 0),
-  );
+  protected readonly descontoParaCobranca = computed(() => Math.max(this.descontoCentavos(), 0));
   protected readonly descontoInvalido = computed(
     () =>
       this.servicosParaCobranca().length > 0 &&
@@ -286,6 +371,9 @@ export class AtendimentoDetailPage {
   );
   protected readonly totalParaCobranca = computed(() =>
     Math.max(this.subtotalParaCobranca() - this.descontoParaCobranca(), 0),
+  );
+  protected readonly descontoAlterado = computed(
+    () => this.descontoParaCobranca() !== (this.atendimento()?.desconto_centavos ?? 0),
   );
 
   constructor() {
@@ -320,6 +408,7 @@ export class AtendimentoDetailPage {
     try {
       const a = await this.svc.get(id);
       this.atendimento.set(a);
+      this.descontoCentavos.set(Math.max(a?.desconto_centavos ?? 0, 0));
       if (!a) {
         this.error.set('Atendimento não encontrado');
         return;
@@ -343,22 +432,32 @@ export class AtendimentoDetailPage {
     await this.transition(a.id, 'recusado');
   }
 
+  onDescontoChange(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const value = Number(input?.value ?? 0);
+    const desconto = Number.isFinite(value) ? Math.max(0, value) : 0;
+    this.descontoCentavos.set(Math.round(desconto * 100));
+  }
+
   async cobrarEFinalizar(): Promise<void> {
+    await this.gerarPix('PIX gerado para cobrança.');
+  }
+
+  async atualizarPix(): Promise<void> {
+    await this.gerarPix('PIX atualizado.');
+  }
+
+  private async gerarPix(successMessage: string): Promise<void> {
     const a = this.atendimento();
     const servicoIds = this.servicosParaCobranca().map((servico) => servico.id);
-    if (
-      !a ||
-      servicoIds.length === 0 ||
-      this.descontoInvalido() ||
-      this.totalParaCobranca() <= 0
-    ) {
+    if (!a || servicoIds.length === 0 || this.descontoInvalido() || this.totalParaCobranca() <= 0) {
       return;
     }
 
     this.updating.set(true);
     try {
-      await this.svc.cobrarEFinalizar(a.id, servicoIds);
-      this.snackBar.open('PIX gerado para cobrança.', 'OK', { duration: 3000 });
+      await this.svc.cobrarEFinalizar(a.id, servicoIds, this.descontoParaCobranca());
+      this.snackBar.open(successMessage, 'OK', { duration: 3000 });
       await this.carregar(a.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao gerar PIX';

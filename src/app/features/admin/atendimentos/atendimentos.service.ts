@@ -47,15 +47,12 @@ export class AtendimentosService {
     clienteId: string,
     data: CriarAtendimentoParaClienteData,
   ): Promise<string> {
-    const payload = await this.postApi<{ id?: string; error?: string }>(
-      '/api/create-atendimento',
-      {
-        cliente_id: clienteId,
-        servico_ids: data.servico_ids,
-        desconto_centavos: data.desconto_centavos,
-        descricao_solicitacao: data.descricao_solicitacao,
-      },
-    );
+    const payload = await this.postApi<{ id?: string; error?: string }>('/api/create-atendimento', {
+      cliente_id: clienteId,
+      servico_ids: data.servico_ids,
+      desconto_centavos: data.desconto_centavos,
+      descricao_solicitacao: data.descricao_solicitacao,
+    });
     if (!payload.id) {
       throw new Error('Falha ao criar atendimento');
     }
@@ -65,6 +62,7 @@ export class AtendimentosService {
   async cobrarEFinalizar(
     atendimento_id: string,
     servico_ids: readonly string[],
+    desconto_centavos: number,
   ): Promise<{ pix_brcode: string; valor_centavos: number }> {
     const token = await this.auth.getAccessToken();
     if (!token) throw new Error('Sessão inválida');
@@ -75,7 +73,7 @@ export class AtendimentosService {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ atendimento_id, servico_ids }),
+      body: JSON.stringify({ atendimento_id, servico_ids, desconto_centavos }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as {
