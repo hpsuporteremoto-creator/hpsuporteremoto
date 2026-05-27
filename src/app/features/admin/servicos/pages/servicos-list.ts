@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, Location } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,6 +11,8 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ServicosService } from '../servicos.service';
 import { Servico } from '../servicos.types';
+
+const SEM_CATEGORIA_ID = '__sem_categoria__';
 
 @Component({
   selector: 'hp-servicos-list',
@@ -38,11 +34,7 @@ import { Servico } from '../servicos.types';
       </button>
       <span>Serviços</span>
       <span class="spacer"></span>
-      <a
-        mat-stroked-button
-        routerLink="categorias"
-        aria-label="Gerenciar categorias"
-      >
+      <a mat-stroked-button routerLink="categorias" aria-label="Gerenciar categorias">
         <mat-icon>category</mat-icon>
         <span>Gerenciar categorias</span>
       </a>
@@ -71,17 +63,46 @@ import { Servico } from '../servicos.types';
         <p class="error">{{ msg }}</p>
       }
 
-      @if (servicos(); as list) {
+      @if (categorias().length > 0 || hasSemCategoria()) {
+        <nav class="category-filter" aria-label="Filtrar serviços por categoria">
+          <button
+            type="button"
+            [class.active]="categoriaSelecionada() === null"
+            [attr.aria-pressed]="categoriaSelecionada() === null"
+            (click)="selecionarCategoria(null)"
+          >
+            Todos
+          </button>
+          @for (categoria of categorias(); track categoria.id) {
+            <button
+              type="button"
+              [class.active]="categoriaSelecionada() === categoria.id"
+              [attr.aria-pressed]="categoriaSelecionada() === categoria.id"
+              (click)="selecionarCategoria(categoria.id)"
+            >
+              {{ categoria.nome }}
+            </button>
+          }
+          @if (hasSemCategoria()) {
+            <button
+              type="button"
+              [class.active]="categoriaSelecionada() === semCategoriaId"
+              [attr.aria-pressed]="categoriaSelecionada() === semCategoriaId"
+              (click)="selecionarCategoria(semCategoriaId)"
+            >
+              Sem categoria
+            </button>
+          }
+        </nav>
+      }
+
+      @if (servicosFiltrados(); as list) {
         @if (list.length === 0) {
           <p class="empty">{{ emptyMessage() }}</p>
         } @else {
           <div class="list">
             @for (servico of list; track servico.id) {
-              <mat-card
-                class="servico-card"
-                appearance="filled"
-                [class.inativo]="!servico.ativo"
-              >
+              <mat-card class="servico-card" appearance="filled" [class.inativo]="!servico.ativo">
                 <mat-card-content class="row">
                   <div class="thumb" aria-hidden="true">
                     @if (servico.imagem_url) {
@@ -109,11 +130,7 @@ import { Servico } from '../servicos.types';
                       (change)="onToggle(servico, $event.checked)"
                       aria-label="Ativo"
                     />
-                    <a
-                      mat-icon-button
-                      [routerLink]="[servico.id, 'editar']"
-                      aria-label="Editar"
-                    >
+                    <a mat-icon-button [routerLink]="[servico.id, 'editar']" aria-label="Editar">
                       <mat-icon>edit</mat-icon>
                     </a>
                   </div>
@@ -133,17 +150,44 @@ export class ServicosListPage {
   private readonly snackBar = inject(MatSnackBar);
   private readonly location = inject(Location);
 
+  protected readonly semCategoriaId = SEM_CATEGORIA_ID;
   protected readonly servicos = signal<Servico[] | null>(null);
+  protected readonly categoriaSelecionada = signal<string | null>(null);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly tabIndex = signal(0);
   protected readonly activeTotal = signal(0);
   protected readonly inactiveTotal = signal(0);
-  protected readonly emptyMessage = computed(() =>
-    this.tabIndex() === 0
-      ? 'Nenhum serviço ativo cadastrado.'
-      : 'Nenhum serviço inativo cadastrado.',
+  protected readonly categorias = computed(() => {
+    const byId = new Map<string, { id: string; nome: string }>();
+    for (const servico of this.servicos() ?? []) {
+      if (!servico.categoria) continue;
+      byId.set(servico.categoria.id, {
+        id: servico.categoria.id,
+        nome: servico.categoria.nome,
+      });
+    }
+    return [...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+  });
+  protected readonly hasSemCategoria = computed(() =>
+    (this.servicos() ?? []).some((servico) => !servico.categoria),
   );
+  protected readonly servicosFiltrados = computed(() => {
+    const list = this.servicos();
+    if (!list) return null;
+    const categoriaId = this.categoriaSelecionada();
+    if (!categoriaId) return list;
+    if (categoriaId === SEM_CATEGORIA_ID) {
+      return list.filter((servico) => !servico.categoria);
+    }
+    return list.filter((servico) => servico.categoria?.id === categoriaId);
+  });
+  protected readonly emptyMessage = computed(() => {
+    if (this.categoriaSelecionada()) return 'Nenhum serviço nesta categoria.';
+    return this.tabIndex() === 0
+      ? 'Nenhum serviço ativo cadastrado.'
+      : 'Nenhum serviço inativo cadastrado.';
+  });
 
   constructor() {
     void this.carregar();
@@ -158,6 +202,10 @@ export class ServicosListPage {
     void this.carregar();
   }
 
+  selecionarCategoria(categoriaId: string | null): void {
+    this.categoriaSelecionada.set(categoriaId);
+  }
+
   async carregar(): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
@@ -169,10 +217,9 @@ export class ServicosListPage {
       this.activeTotal.set(counts.ativos);
       this.inactiveTotal.set(counts.inativos);
       this.servicos.set(data);
+      this.ensureCategoriaValida(data);
     } catch (err) {
-      this.error.set(
-        err instanceof Error ? err.message : 'Erro ao carregar serviços',
-      );
+      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar serviços');
     } finally {
       this.loading.set(false);
     }
@@ -182,14 +229,20 @@ export class ServicosListPage {
     try {
       await this.svc.toggleAtivo(servico.id, ativo);
       await this.carregar();
-      this.snackBar.open(
-        `Serviço ${ativo ? 'ativado' : 'desativado'}`,
-        'OK',
-        { duration: 2500 },
-      );
+      this.snackBar.open(`Serviço ${ativo ? 'ativado' : 'desativado'}`, 'OK', { duration: 2500 });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro';
       this.snackBar.open(msg, 'OK', { duration: 4000 });
     }
+  }
+
+  private ensureCategoriaValida(servicos: readonly Servico[]): void {
+    const categoriaId = this.categoriaSelecionada();
+    if (!categoriaId) return;
+    const hasCategoria =
+      categoriaId === SEM_CATEGORIA_ID
+        ? servicos.some((servico) => !servico.categoria)
+        : servicos.some((servico) => servico.categoria?.id === categoriaId);
+    if (!hasCategoria) this.categoriaSelecionada.set(null);
   }
 }

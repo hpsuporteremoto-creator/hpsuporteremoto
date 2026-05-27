@@ -15,6 +15,37 @@
   text-align: center
   padding: 2rem
 
+.category-filter
+  display: flex
+  gap: 0.5rem
+  margin-bottom: 1rem
+  overflow-x: auto
+  padding-bottom: 0.125rem
+
+  button
+    min-height: 2.25rem
+    padding: 0 1rem
+    border: 1px solid var(--mat-sys-outline-variant)
+    border-radius: 999px
+    background: var(--mat-sys-surface-container)
+    color: var(--mat-sys-on-surface)
+    font: inherit
+    font-weight: 700
+    white-space: nowrap
+    cursor: pointer
+
+  button:hover
+    border-color: var(--mat-sys-primary)
+
+  button:focus-visible
+    outline: 3px solid var(--mat-sys-primary)
+    outline-offset: 2px
+
+  button.active
+    border-color: var(--mat-sys-primary)
+    background: var(--mat-sys-primary)
+    color: var(--mat-sys-on-primary)
+
 .list
   display: flex
   flex-direction: column

@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, Location } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -23,6 +17,8 @@ import { ServicosService } from '../../servicos/servicos.service';
 import { Servico } from '../../servicos/servicos.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 import { AtendimentosService } from '../atendimentos.service';
+
+const SEM_CATEGORIA_ID = '__sem_categoria__';
 
 @Component({
   selector: 'hp-novo-atendimento-page',
@@ -123,6 +119,46 @@ import { AtendimentosService } from '../atendimentos.service';
                     </button>
                   }
                 </div>
+
+                @if (categoriasServico().length > 0 || hasServicosSemCategoria()) {
+                  <div
+                    class="servico-categorias"
+                    role="group"
+                    aria-label="Filtrar serviços por categoria"
+                  >
+                    <button
+                      type="button"
+                      [class.active]="servicoCategoriaFiltro() === null"
+                      [attr.aria-pressed]="servicoCategoriaFiltro() === null"
+                      (click)="selecionarCategoriaServico(null, $event)"
+                      (keydown)="$event.stopPropagation()"
+                    >
+                      Todos
+                    </button>
+                    @for (categoria of categoriasServico(); track categoria.id) {
+                      <button
+                        type="button"
+                        [class.active]="servicoCategoriaFiltro() === categoria.id"
+                        [attr.aria-pressed]="servicoCategoriaFiltro() === categoria.id"
+                        (click)="selecionarCategoriaServico(categoria.id, $event)"
+                        (keydown)="$event.stopPropagation()"
+                      >
+                        {{ categoria.nome }}
+                      </button>
+                    }
+                    @if (hasServicosSemCategoria()) {
+                      <button
+                        type="button"
+                        [class.active]="servicoCategoriaFiltro() === semCategoriaId"
+                        [attr.aria-pressed]="servicoCategoriaFiltro() === semCategoriaId"
+                        (click)="selecionarCategoriaServico(semCategoriaId, $event)"
+                        (keydown)="$event.stopPropagation()"
+                      >
+                        Sem categoria
+                      </button>
+                    }
+                  </div>
+                }
 
                 @for (s of filteredServicos(); track s.id) {
                   <mat-option [value]="s.id">
@@ -238,7 +274,9 @@ import { AtendimentosService } from '../atendimentos.service';
                 mat-flat-button
                 color="primary"
                 type="submit"
-                [disabled]="form.invalid || descontoInvalido() || saving() || loading() || !cliente()"
+                [disabled]="
+                  form.invalid || descontoInvalido() || saving() || loading() || !cliente()
+                "
               >
                 <mat-icon>add_task</mat-icon>
                 <span>Criar e iniciar</span>
@@ -417,6 +455,32 @@ import { AtendimentosService } from '../atendimentos.service';
       outline: none
     .servico-busca input::placeholder
       color: var(--mat-sys-on-surface-variant)
+    .servico-categorias
+      display: flex
+      gap: 0.5rem
+      padding: 0.5rem 0.75rem
+      overflow-x: auto
+      background: var(--mat-sys-surface-container)
+      border-bottom: 1px solid var(--mat-sys-outline-variant)
+    .servico-categorias button
+      min-height: 2rem
+      padding: 0 0.75rem
+      border: 1px solid var(--mat-sys-outline-variant)
+      border-radius: 999px
+      background: var(--mat-sys-surface-container-high)
+      color: var(--mat-sys-on-surface)
+      font: inherit
+      font-size: 0.875rem
+      font-weight: 700
+      white-space: nowrap
+      cursor: pointer
+    .servico-categorias button:focus-visible
+      outline: 3px solid var(--mat-sys-primary)
+      outline-offset: 2px
+    .servico-categorias button.active
+      border-color: var(--mat-sys-primary)
+      background: var(--mat-sys-primary)
+      color: var(--mat-sys-on-primary)
     .limpar-busca
       display: inline-flex
       align-items: center
@@ -467,12 +531,14 @@ export class NovoAtendimentoPage {
   private readonly snackBar = inject(MatSnackBar);
   private readonly fb = inject(FormBuilder).nonNullable;
 
+  protected readonly semCategoriaId = SEM_CATEGORIA_ID;
   protected readonly cliente = signal<Cliente | null>(null);
   protected readonly clienteId = signal<string | null>(null);
   protected readonly clienteNomeFallback = signal('cliente selecionado');
   protected readonly servicos = signal<Servico[]>([]);
   protected readonly selectedServicoIds = signal<string[]>([]);
   protected readonly servicoFiltro = signal('');
+  protected readonly servicoCategoriaFiltro = signal<string | null>(null);
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -486,31 +552,49 @@ export class NovoAtendimentoPage {
     });
   });
   protected readonly selectedTotal = computed(() =>
-    this.selectedServicos().reduce(
-      (total, servico) => total + servico.valor_centavos,
-      0,
-    ),
+    this.selectedServicos().reduce((total, servico) => total + servico.valor_centavos, 0),
   );
   protected readonly descontoCentavos = signal(0);
   protected readonly descontoInvalido = computed(
-    () =>
-      this.selectedServicos().length > 0 &&
-      this.descontoCentavos() >= this.selectedTotal(),
+    () => this.selectedServicos().length > 0 && this.descontoCentavos() >= this.selectedTotal(),
   );
   protected readonly totalComDesconto = computed(() =>
     Math.max(this.selectedTotal() - this.descontoCentavos(), 0),
   );
+  protected readonly categoriasServico = computed(() => {
+    const byId = new Map<string, { id: string; nome: string }>();
+    for (const servico of this.servicos()) {
+      if (!servico.categoria) continue;
+      byId.set(servico.categoria.id, {
+        id: servico.categoria.id,
+        nome: servico.categoria.nome,
+      });
+    }
+    return [...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+  });
+  protected readonly hasServicosSemCategoria = computed(() =>
+    this.servicos().some((servico) => !servico.categoria),
+  );
   protected readonly filteredServicos = computed(() => {
     const termo = normalizarBusca(this.servicoFiltro());
+    const categoriaId = this.servicoCategoriaFiltro();
     const todos = this.servicos();
-    if (!termo) return todos;
+    if (!termo && !categoriaId) return todos;
     const selecionados = new Set(this.selectedServicoIds());
-    return todos.filter(
-      (servico) =>
-        selecionados.has(servico.id) ||
+    return todos.filter((servico) => {
+      if (selecionados.has(servico.id)) return true;
+      const matchesCategoria =
+        !categoriaId ||
+        (categoriaId === SEM_CATEGORIA_ID
+          ? !servico.categoria
+          : servico.categoria?.id === categoriaId);
+      if (!matchesCategoria) return false;
+      return (
+        !termo ||
         normalizarBusca(servico.nome).includes(termo) ||
-        normalizarBusca(servico.categoria?.nome ?? '').includes(termo),
-    );
+        normalizarBusca(servico.categoria?.nome ?? '').includes(termo)
+      );
+    });
   });
 
   protected readonly form = this.fb.group({
@@ -564,6 +648,11 @@ export class NovoAtendimentoPage {
     this.servicoFiltro.set('');
   }
 
+  selecionarCategoriaServico(categoriaId: string | null, event: Event): void {
+    event.stopPropagation();
+    this.servicoCategoriaFiltro.set(categoriaId);
+  }
+
   removerServico(id: string): void {
     const ids = this.selectedServicoIds().filter((servicoId) => servicoId !== id);
     this.selectedServicoIds.set(ids);
@@ -610,6 +699,7 @@ export class NovoAtendimentoPage {
         this.error.set('Cliente não encontrado.');
       }
       this.servicos.set(servicos);
+      this.ensureServicoCategoriaValida(servicos);
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Erro ao carregar dados');
     } finally {
@@ -625,6 +715,16 @@ export class NovoAtendimentoPage {
       clienteId,
       clienteNome: cliente?.nome ?? this.clienteNomeFallback(),
     };
+  }
+
+  private ensureServicoCategoriaValida(servicos: readonly Servico[]): void {
+    const categoriaId = this.servicoCategoriaFiltro();
+    if (!categoriaId) return;
+    const hasCategoria =
+      categoriaId === SEM_CATEGORIA_ID
+        ? servicos.some((servico) => !servico.categoria)
+        : servicos.some((servico) => servico.categoria?.id === categoriaId);
+    if (!hasCategoria) this.servicoCategoriaFiltro.set(null);
   }
 }
 

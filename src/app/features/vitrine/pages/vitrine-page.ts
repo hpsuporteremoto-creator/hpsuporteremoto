@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,6 +8,8 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { AuthService } from '../../../core/auth/auth.service';
 import { VitrineService } from '../vitrine.service';
 import { VitrineServico } from '../vitrine.types';
+
+const SEM_CATEGORIA_ID = '__sem_categoria__';
 
 @Component({
   selector: 'hp-vitrine-page',
@@ -61,7 +57,7 @@ import { VitrineServico } from '../vitrine.types';
         <h1 id="vitrine-title">Conteúdos técnicos</h1>
       </section>
 
-      @if (categorias().length > 0) {
+      @if (categorias().length > 0 || hasSemCategoria()) {
         <nav class="category-menu" aria-label="Categorias da vitrine">
           <button
             type="button"
@@ -79,6 +75,16 @@ import { VitrineServico } from '../vitrine.types';
               (click)="selecionarCategoria(categoria.id)"
             >
               {{ categoria.nome }}
+            </button>
+          }
+          @if (hasSemCategoria()) {
+            <button
+              type="button"
+              [class.active]="categoriaSelecionada() === semCategoriaId"
+              [attr.aria-pressed]="categoriaSelecionada() === semCategoriaId"
+              (click)="selecionarCategoria(semCategoriaId)"
+            >
+              Sem categoria
             </button>
           }
         </nav>
@@ -140,6 +146,7 @@ export class VitrinePage {
   protected readonly auth = inject(AuthService);
   private readonly vitrine = inject(VitrineService);
 
+  protected readonly semCategoriaId = SEM_CATEGORIA_ID;
   protected readonly servicos = signal<VitrineServico[]>([]);
   protected readonly categoriaSelecionada = signal<string | null>(null);
   protected readonly loading = signal(false);
@@ -155,9 +162,15 @@ export class VitrinePage {
     }
     return [...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome));
   });
+  protected readonly hasSemCategoria = computed(() =>
+    this.servicos().some((servico) => !servico.categoria),
+  );
   protected readonly servicosFiltrados = computed(() => {
     const categoriaId = this.categoriaSelecionada();
     if (!categoriaId) return this.servicos();
+    if (categoriaId === SEM_CATEGORIA_ID) {
+      return this.servicos().filter((servico) => !servico.categoria);
+    }
     return this.servicos().filter((servico) => servico.categoria?.id === categoriaId);
   });
   protected readonly emptyMessage = computed(() =>
@@ -176,10 +189,13 @@ export class VitrinePage {
     try {
       const servicos = await this.vitrine.listServicos();
       this.servicos.set(servicos);
-      if (
-        this.categoriaSelecionada() &&
-        !servicos.some((servico) => servico.categoria?.id === this.categoriaSelecionada())
-      ) {
+      const categoriaSelecionada = this.categoriaSelecionada();
+      const categoriaValida =
+        !categoriaSelecionada ||
+        (categoriaSelecionada === SEM_CATEGORIA_ID
+          ? servicos.some((servico) => !servico.categoria)
+          : servicos.some((servico) => servico.categoria?.id === categoriaSelecionada));
+      if (!categoriaValida) {
         this.categoriaSelecionada.set(null);
       }
     } catch (err) {
