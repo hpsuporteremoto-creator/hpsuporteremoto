@@ -81,18 +81,13 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
 
   if (termo) {
     try {
-      const [clientesPorTexto, clientesPorCompraIds, ativos, inativos] =
-        await Promise.all([
-          listClientesBySearch(admin, ativo, termo),
-          findPurchaseClientIds(admin, termo),
-          countByAtivo(admin, true),
-          countByAtivo(admin, false),
-        ]);
-      const clientesPorCompra = await listClientesByIds(
-        admin,
-        ativo,
-        clientesPorCompraIds,
-      );
+      const [clientesPorTexto, clientesPorCompraIds, ativos, inativos] = await Promise.all([
+        listClientesBySearch(admin, ativo, termo),
+        findPurchaseClientIds(admin, termo),
+        countByAtivo(admin, true),
+        countByAtivo(admin, false),
+      ]);
+      const clientesPorCompra = await listClientesByIds(admin, ativo, clientesPorCompraIds);
       const clientes = mergeClientes([...clientesPorTexto, ...clientesPorCompra]);
       return json(
         {
@@ -105,24 +100,19 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
     } catch (err) {
       return json(
         {
-          error:
-            err instanceof Error ? err.message : 'Erro ao filtrar clientes',
+          error: err instanceof Error ? err.message : 'Erro ao filtrar clientes',
         },
         500,
       );
     }
   }
 
-  let query = admin
+  const query = admin
     .from('clientes')
     .select('*', { count: 'exact' })
     .eq('ativo', ativo)
     .order('nome', { ascending: true })
     .range(from, to);
-
-  if (termo) {
-    query = query.or(createSearchFilter(termo));
-  }
 
   const [{ data, error, count }, ativos, inativos] = await Promise.all([
     query,
@@ -153,7 +143,6 @@ async function listClientesBySearch(
       .from('clientes')
       .select('*')
       .eq('ativo', ativo)
-      .or(createSearchFilter(termo))
       .order('nome', { ascending: true })
       .range(from, from + FETCH_PAGE_SIZE - 1);
     if (error) throw new Error(error.message);
@@ -161,7 +150,7 @@ async function listClientesBySearch(
     rows.push(...page);
     if (page.length < FETCH_PAGE_SIZE) break;
   }
-  return rows;
+  return rows.filter((cliente) => matchesClienteSearch(cliente, termo));
 }
 
 async function listClientesByIds(
@@ -197,10 +186,7 @@ async function findPurchaseClientIds(
   const matchingServiceIds = new Set(
     servicos
       .filter((servico) =>
-        matchesSearchTerms(
-          `${servico.nome} ${servico.descricao ?? ''}`,
-          searchTerms,
-        ),
+        matchesSearchTerms(`${servico.nome} ${servico.descricao ?? ''}`, searchTerms),
       )
       .map((servico) => servico.id),
   );
@@ -239,9 +225,7 @@ async function listAllServicos(admin: SupabaseClient): Promise<ServicoSearchRow[
   return rows;
 }
 
-async function listAllAtendimentos(
-  admin: SupabaseClient,
-): Promise<AtendimentoPurchaseRow[]> {
+async function listAllAtendimentos(admin: SupabaseClient): Promise<AtendimentoPurchaseRow[]> {
   const rows: AtendimentoPurchaseRow[] = [];
   for (let from = 0; ; from += FETCH_PAGE_SIZE) {
     const { data, error } = await admin
@@ -265,10 +249,7 @@ function mergeClientes(clientes: ClienteRow[]): ClienteRow[] {
   );
 }
 
-async function countByAtivo(
-  admin: SupabaseClient,
-  ativo: boolean,
-): Promise<number> {
+async function countByAtivo(admin: SupabaseClient, ativo: boolean): Promise<number> {
   const { count, error } = await admin
     .from('clientes')
     .select('id', { count: 'exact', head: true })
@@ -281,21 +262,6 @@ function toNonNegativeInt(value: string | null, fallback: number): number {
   if (value === null) return fallback;
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-function createSearchFilter(value: string): string {
-  const digits = value.replace(/\D/g, '');
-  const filters = expandSearchTerms(value).flatMap((term) => {
-    const termo = escapePostgrestLike(term);
-    return [
-      `nome.ilike.%${termo}%`,
-      `email.ilike.%${termo}%`,
-      `instagram.ilike.%${termo}%`,
-      `observacao.ilike.%${termo}%`,
-    ];
-  });
-  if (digits) filters.push(`whatsapp.ilike.%${digits}%`);
-  return filters.join(',');
 }
 
 function expandSearchTerms(value: string): string[] {
@@ -334,15 +300,28 @@ function normalizeSearchKey(value: string): string {
     .toLowerCase();
 }
 
+function matchesClienteSearch(cliente: ClienteRow, termo: string): boolean {
+  const searchTerms = expandSearchTerms(termo);
+  const searchableText = [cliente.nome, cliente.email, cliente.instagram, cliente.observacao]
+    .filter((value): value is string => Boolean(value))
+    .join(' ');
+  const phoneCandidates = normalizePhoneCandidates(termo);
+  const whatsappDigits = cliente.whatsapp.replace(/\D/g, '');
+  return (
+    matchesSearchTerms(searchableText, searchTerms) ||
+    phoneCandidates.some((digits) => whatsappDigits.includes(digits))
+  );
+}
+
 function matchesSearchTerms(value: string, terms: readonly string[]): boolean {
   const normalizedValue = normalizeSearchKey(value);
   return terms.some((term) => normalizedValue.includes(normalizeSearchKey(term)));
 }
 
-function escapePostgrestLike(value: string): string {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/%/g, '\\%')
-    .replace(/_/g, '\\_')
-    .replace(/,/g, '\\,');
+function normalizePhoneCandidates(value: string): string[] {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return [];
+  const candidates = new Set([digits]);
+  if (digits.startsWith('55') && digits.length >= 12) candidates.add(digits.slice(2));
+  return [...candidates];
 }
