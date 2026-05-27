@@ -1,0 +1,185 @@
+.site-header
+  position: sticky
+  top: 0
+  z-index: 10
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 1rem
+  padding: 0.875rem clamp(1rem, 4vw, 2.5rem)
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1)
+  background: rgba(18, 18, 18, 0.92)
+  backdrop-filter: blur(14px)
+
+.brand
+  display: inline-flex
+  align-items: center
+  gap: 0.75rem
+  color: var(--mat-sys-on-surface)
+  text-decoration: none
+  min-width: 0
+
+  span:last-child
+    display: flex
+    flex-direction: column
+    gap: 0.125rem
+    min-width: 0
+
+  strong
+    font-size: 1rem
+    font-weight: 700
+
+  small
+    color: var(--mat-sys-on-surface-variant)
+    font-size: 0.75rem
+
+.brand-mark
+  width: 2.5rem
+  height: 2.5rem
+  display: grid
+  place-items: center
+  border-radius: 0.5rem
+  background: var(--mat-sys-primary)
+  color: var(--mat-sys-on-primary)
+  font-weight: 800
+
+.header-actions
+  display: flex
+  align-items: center
+  justify-content: flex-end
+  gap: 0.5rem
+  min-width: 0
+
+.user-name
+  max-width: 14rem
+  color: var(--mat-sys-on-surface-variant)
+  overflow: hidden
+  text-overflow: ellipsis
+  white-space: nowrap
+
+.page
+  width: min(58rem, calc(100% - 2rem))
+  margin: 0 auto
+  padding: 2rem 0 4rem
+
+.page-title
+  display: grid
+  gap: 0.25rem
+  margin-bottom: 1.5rem
+
+  p
+    margin: 0
+    color: var(--mat-sys-tertiary)
+    font-weight: 700
+
+  h1
+    margin: 0
+    font-size: clamp(2rem, 5vw, 3.5rem)
+    line-height: 1
+    font-weight: 800
+
+.error
+  color: #ff8a80
+
+.empty-card,
+.pedido-card
+  background: var(--mat-sys-surface-container)
+
+.empty-card mat-card-content
+  display: grid
+  place-items: center
+  gap: 1rem
+  min-height: 14rem
+  text-align: center
+
+  mat-icon
+    width: 3rem
+    height: 3rem
+    font-size: 3rem
+    color: var(--mat-sys-on-surface-variant)
+
+.pedido-list
+  display: grid
+  gap: 1rem
+
+.pedido-card mat-card-content
+  display: grid
+  gap: 1rem
+  padding: 1rem !important
+
+.pedido-heading
+  display: flex
+  align-items: flex-start
+  justify-content: space-between
+  gap: 1rem
+
+  h2
+    margin: 0.25rem 0 0
+    font-size: 1.25rem
+    line-height: 1.2
+
+.state
+  width: max-content
+  max-width: 100%
+  padding: 0.125rem 0.5rem
+  border-radius: 999px
+  background: var(--mat-sys-secondary-container)
+  color: var(--mat-sys-on-secondary-container)
+  font-size: 0.75rem
+  font-weight: 700
+
+.valor
+  color: var(--mat-sys-tertiary)
+  font-size: 1.25rem
+  white-space: nowrap
+
+.servicos
+  list-style: none
+  margin: 0
+  padding: 0
+  border: 1px solid var(--mat-sys-outline-variant)
+  border-radius: 0.5rem
+  overflow: hidden
+
+  li
+    display: flex
+    align-items: center
+    justify-content: space-between
+    gap: 1rem
+    padding: 0.75rem
+    border-bottom: 1px solid var(--mat-sys-outline-variant)
+
+  li:last-child
+    border-bottom: none
+
+  span
+    min-width: 0
+
+  strong
+    white-space: nowrap
+
+.descricao
+  margin: 0
+  color: var(--mat-sys-on-surface-variant)
+  line-height: 1.45
+
+@media (max-width: 720px)
+  .site-header
+    align-items: stretch
+    flex-direction: column
+
+  .header-actions
+    justify-content: space-between
+    flex-wrap: wrap
+
+  .page
+    width: min(100% - 1rem, 58rem)
+    padding-top: 1rem
+
+  .pedido-heading
+    flex-direction: column
+
+  .servicos li
+    align-items: flex-start
+    flex-direction: column
+    gap: 0.375rem

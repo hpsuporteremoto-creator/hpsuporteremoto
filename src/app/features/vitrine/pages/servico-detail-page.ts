@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe, Location } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,10 +10,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '../../../core/auth/auth.service';
 import { VitrineService } from '../vitrine.service';
-import {
-  ServicoComentarioThread,
-  VitrineServico,
-} from '../vitrine.types';
+import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
 
 @Component({
   selector: 'hp-servico-detail-page',
@@ -50,6 +41,10 @@ import {
           <span>Vitrine</span>
         </a>
         @if (auth.user(); as user) {
+          <a mat-button routerLink="/meus-pedidos">
+            <mat-icon>assignment</mat-icon>
+            <span>Meus pedidos</span>
+          </a>
           <button mat-button type="button" (click)="signOut()">
             <mat-icon>logout</mat-icon>
             <span>Sair</span>
@@ -159,9 +154,7 @@ import {
                           <button mat-button type="button" (click)="toggleResponder(comment.id)">
                             Cancelar
                           </button>
-                          <button mat-flat-button color="primary" type="submit">
-                            Responder
-                          </button>
+                          <button mat-flat-button color="primary" type="submit">Responder</button>
                         </div>
                       </form>
                     }

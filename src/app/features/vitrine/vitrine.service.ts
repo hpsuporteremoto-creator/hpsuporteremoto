@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
 import { normalizeServiceImageUrl } from '../../shared/image-url.util';
 import {
+  MeuPedido,
   ServicoComentario,
   ServicoComentarioThread,
   VitrineServico,
@@ -28,6 +29,20 @@ export class VitrineService {
   async getServico(id: string): Promise<VitrineServico | null> {
     const servicos = await this.listServicos();
     return servicos.find((servico) => servico.id === id) ?? null;
+  }
+
+  async listMeusPedidos(): Promise<MeuPedido[]> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Entre com Google para ver seus pedidos.');
+    const response = await fetch('/api/my-atendimentos', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      atendimentos?: MeuPedido[];
+      error?: string;
+    };
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload.atendimentos ?? [];
   }
 
   async listComentarios(servicoId: string): Promise<ServicoComentarioThread[]> {

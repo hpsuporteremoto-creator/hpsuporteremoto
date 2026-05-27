@@ -33,6 +33,10 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
 
       <nav class="header-actions" aria-label="Ações do site">
         @if (auth.user(); as user) {
+          <a mat-button routerLink="/meus-pedidos">
+            <mat-icon>assignment</mat-icon>
+            <span>Meus pedidos</span>
+          </a>
           <button mat-button type="button" (click)="signOut()">
             <mat-icon>logout</mat-icon>
             <span>Sair</span>
