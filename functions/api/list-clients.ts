@@ -99,16 +99,49 @@ function toNonNegativeInt(value: string | null, fallback: number): number {
 }
 
 function createSearchFilter(value: string): string {
-  const termo = escapePostgrestLike(value);
   const digits = value.replace(/\D/g, '');
-  const filters = [
-    `nome.ilike.%${termo}%`,
-    `email.ilike.%${termo}%`,
-    `instagram.ilike.%${termo}%`,
-    `observacao.ilike.%${termo}%`,
-  ];
+  const filters = expandSearchTerms(value).flatMap((term) => {
+    const termo = escapePostgrestLike(term);
+    return [
+      `nome.ilike.%${termo}%`,
+      `email.ilike.%${termo}%`,
+      `instagram.ilike.%${termo}%`,
+      `observacao.ilike.%${termo}%`,
+    ];
+  });
   if (digits) filters.push(`whatsapp.ilike.%${digits}%`);
   return filters.join(',');
+}
+
+function expandSearchTerms(value: string): string[] {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  const candidates = new Set<string>();
+  if (normalized.length > 0) candidates.add(normalized);
+
+  for (const token of normalized.split(' ').filter((part) => part.length >= 3)) {
+    candidates.add(token);
+    for (const synonym of segmentSynonyms(token)) candidates.add(synonym);
+  }
+
+  return [...candidates].slice(0, 24);
+}
+
+function segmentSynonyms(value: string): string[] {
+  const key = normalizeSearchKey(value);
+  if (key.startsWith('arquitet')) {
+    return ['arquitet', 'arquitetura', 'arquiteto', 'arquiteta'];
+  }
+  if (key.startsWith('engenh')) {
+    return ['engenh', 'engenharia', 'engenheiro', 'engenheira'];
+  }
+  return [];
+}
+
+function normalizeSearchKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
 }
 
 function escapePostgrestLike(value: string): string {

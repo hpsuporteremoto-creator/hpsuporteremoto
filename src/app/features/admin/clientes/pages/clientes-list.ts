@@ -73,11 +73,12 @@ import { AuthService } from '../../../../core/auth/auth.service';
       @if (clientes(); as list) {
         <section class="search-area" aria-label="Busca de clientes">
           <mat-form-field appearance="outline" class="search-field">
-            <mat-label>Buscar cliente</mat-label>
+            <mat-label>Filtrar clientes</mat-label>
             <mat-icon matPrefix>search</mat-icon>
             <input
               matInput
               type="search"
+              placeholder="Ex.: Arquitetura, engenheiro, WhatsApp"
               [value]="searchTerm()"
               (input)="onSearch($event)"
               autocomplete="off"
@@ -183,7 +184,7 @@ export class ClientesListPage {
   protected readonly inactiveTotal = signal(0);
   protected readonly resultTotal = signal(0);
   protected readonly emptyMessage = computed(() => {
-    if (this.searchTerm()) return 'Nenhum cliente encontrado.';
+    if (this.searchTerm()) return 'Nenhum cliente encontrado para este filtro.';
     return this.tabIndex() === 0
       ? 'Nenhum cliente ativo encontrado.'
       : 'Nenhum cliente inativo encontrado.';
@@ -206,6 +207,8 @@ export class ClientesListPage {
   }
 
   clearSearch(): void {
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    this.searchTimer = null;
     this.searchTerm.set('');
     this.pageIndex.set(0);
     void this.carregar();
