@@ -152,7 +152,7 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
                       <small class="categoria">{{ categoria.nome }}</small>
                     }
                     @if (servico.vitrine) {
-                      <small class="vitrine">Vitrine</small>
+                      <small class="vitrine">No site</small>
                     }
                     @if (servico.descricao) {
                       <span class="descricao">{{ servico.descricao }}</span>

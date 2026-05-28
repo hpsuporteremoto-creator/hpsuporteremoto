@@ -302,7 +302,7 @@ export class VitrinePage {
         this.categoriaSelecionada.set(null);
       }
     } catch (err) {
-      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar vitrine');
+      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar catálogo');
     } finally {
       this.loading.set(false);
     }

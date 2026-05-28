@@ -38,7 +38,7 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
       <nav class="header-actions" aria-label="Navegação do catálogo">
         <a mat-button routerLink="/">
           <mat-icon>storefront</mat-icon>
-          <span>Vitrine</span>
+          <span>Catálogo</span>
         </a>
         @if (auth.user(); as user) {
           <a mat-button routerLink="/meus-pedidos">
@@ -277,7 +277,7 @@ export class ServicoDetailPage {
     try {
       const servico = await this.vitrine.getServico(id);
       if (!servico) {
-        this.error.set('Conteúdo não encontrado ou fora da vitrine.');
+        this.error.set('Conteúdo não encontrado ou fora do catálogo.');
         return;
       }
       this.servico.set(servico);

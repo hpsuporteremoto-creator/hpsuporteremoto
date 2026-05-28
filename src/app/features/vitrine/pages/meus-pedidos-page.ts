@@ -41,7 +41,7 @@ const PEDIDO_STATE_LABEL: Readonly<Record<MeuPedidoState, string>> = {
       <nav class="header-actions" aria-label="Navegação do catálogo">
         <a mat-button routerLink="/">
           <mat-icon>storefront</mat-icon>
-          <span>Vitrine</span>
+          <span>Catálogo</span>
         </a>
         @if (auth.user(); as user) {
           <button mat-button type="button" (click)="signOut()">

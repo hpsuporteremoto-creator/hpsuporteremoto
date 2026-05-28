@@ -90,7 +90,7 @@ export class LoginPage {
 
   /**
    * Honra `?returnUrl=` quando for um path interno. Cliente comum pode voltar
-   * para a vitrine; `/admin` continua exigindo role operacional.
+   * para o catálogo público; `/admin` continua exigindo role operacional.
    */
   private resolveTarget(): string {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');

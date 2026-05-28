@@ -166,7 +166,7 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
 
             <mat-slide-toggle formControlName="ativo">Serviço ativo</mat-slide-toggle>
             <mat-slide-toggle formControlName="vitrine">
-              Exibir na vitrine
+              Exibir no site
             </mat-slide-toggle>
 
             <div class="actions">
