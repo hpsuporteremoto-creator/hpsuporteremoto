@@ -27,15 +27,15 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
   ],
   template: `
     <header class="detail-header">
-      <a class="brand" routerLink="/" aria-label="HP Suporte Remoto">
+      <a class="brand" routerLink="/" aria-label="HP Softwares">
         <span class="brand-mark">HP</span>
         <span>
-          <strong>HP Suporte Remoto</strong>
+          <strong>HP Softwares</strong>
           <small>Catálogo técnico</small>
         </span>
       </a>
 
-      <nav class="header-actions" aria-label="Ações do site">
+      <nav class="header-actions" aria-label="Navegação do catálogo">
         <a mat-button routerLink="/">
           <mat-icon>storefront</mat-icon>
           <span>Vitrine</span>
@@ -94,16 +94,16 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
             }
             <div class="value-list" aria-label="Características">
               <span>
-                <mat-icon>support_agent</mat-icon>
-                Atendimento remoto
+                <mat-icon>inventory_2</mat-icon>
+                Ficha técnica
               </span>
               <span>
-                <mat-icon>verified</mat-icon>
-                Execução assistida
+                <mat-icon>category</mat-icon>
+                Categoria organizada
               </span>
               <span>
-                <mat-icon>engineering</mat-icon>
-                Suporte técnico
+                <mat-icon>forum</mat-icon>
+                Comentários e respostas
               </span>
             </div>
             <div class="detail-actions">

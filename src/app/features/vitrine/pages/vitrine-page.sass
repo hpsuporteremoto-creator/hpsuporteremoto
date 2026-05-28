@@ -1,3 +1,26 @@
+:host
+  display: block
+  min-height: 100dvh
+  color-scheme: light
+  background: #f7f7f4
+  color: #171717
+  --mat-sys-background: #f7f7f4
+  --mat-sys-surface: #ffffff
+  --mat-sys-surface-container: #ffffff
+  --mat-sys-surface-container-low: #f7f7f4
+  --mat-sys-surface-container-high: #f0f1ec
+  --mat-sys-on-background: #171717
+  --mat-sys-on-surface: #171717
+  --mat-sys-on-surface-variant: #5e625c
+  --mat-sys-outline: #d7d8d1
+  --mat-sys-outline-variant: #e3e4dc
+  --mat-sys-primary: #1d1d1b
+  --mat-sys-on-primary: #ffffff
+  --mat-sys-secondary-container: #edf1e8
+  --mat-sys-on-secondary-container: #1d2b1f
+  --mat-sys-tertiary: #276749
+  --mat-sys-on-tertiary: #ffffff
+
 .site-header
   position: sticky
   top: 0
@@ -8,8 +31,8 @@
   gap: 1rem
   padding: 0.75rem clamp(1rem, 4vw, 2.5rem)
   border-bottom: 1px solid var(--mat-sys-outline-variant)
-  background: color-mix(in srgb, var(--mat-sys-surface), transparent 5%)
-  backdrop-filter: blur(16px)
+  background: color-mix(in srgb, var(--mat-sys-surface), transparent 3%)
+  backdrop-filter: blur(14px)
 
 .brand
   display: inline-flex
@@ -71,7 +94,7 @@
   padding: clamp(0.875rem, 1.8vw, 1.25rem)
   border: 1px solid var(--mat-sys-outline-variant)
   border-radius: 0.75rem
-  background: linear-gradient(135deg, var(--mat-sys-surface-container), var(--mat-sys-surface-container-low))
+  background: var(--mat-sys-surface)
 
 .hero-copy
   display: grid
@@ -88,8 +111,8 @@
   h1
     max-width: 52rem
     margin: 0
-    font-size: clamp(1.75rem, 3vw, 2.85rem)
-    line-height: 1.02
+    font-size: clamp(1.75rem, 2.4vw, 2.35rem)
+    line-height: 1.08
     font-weight: 900
 
 .eyebrow
@@ -113,7 +136,7 @@
 
   strong
     color: var(--mat-sys-tertiary)
-    font-size: clamp(1.25rem, 2.4vw, 1.8rem)
+    font-size: clamp(1.125rem, 1.8vw, 1.45rem)
 
 .catalog-toolbar
   display: grid
@@ -209,14 +232,14 @@
   display: flex
   flex-direction: column
   border-radius: 0.5rem
-  background: var(--mat-sys-surface-container)
+  background: var(--mat-sys-surface)
 
 .media
   aspect-ratio: 16 / 9
   display: grid
   place-items: center
   overflow: hidden
-  background: var(--mat-sys-surface-container-high)
+  background: #f3f3ef
   color: var(--mat-sys-on-surface-variant)
   text-decoration: none
 

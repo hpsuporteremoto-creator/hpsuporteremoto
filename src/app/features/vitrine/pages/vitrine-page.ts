@@ -30,15 +30,15 @@ type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recente
   ],
   template: `
     <header class="site-header">
-      <a class="brand" routerLink="/" aria-label="HP Suporte Remoto">
+      <a class="brand" routerLink="/" aria-label="HP Softwares">
         <span class="brand-mark">HP</span>
         <span>
-          <strong>HP Suporte Remoto</strong>
-          <small>Tecnologia e suporte</small>
+          <strong>HP Softwares</strong>
+          <small>Catálogo técnico</small>
         </span>
       </a>
 
-      <nav class="header-actions" aria-label="Ações do site">
+      <nav class="header-actions" aria-label="Navegação do catálogo">
         @if (auth.user(); as user) {
           <a mat-button routerLink="/meus-pedidos">
             <mat-icon>assignment</mat-icon>
@@ -65,11 +65,10 @@ type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recente
     <main class="page">
       <section class="store-hero" aria-labelledby="vitrine-title">
         <div class="hero-copy">
-          <p class="eyebrow">Catálogo HP</p>
-          <h1 id="vitrine-title">Suporte remoto, instalação e treinamento técnico</h1>
+          <p class="eyebrow">Catálogo</p>
+          <h1 id="vitrine-title">Softwares e conteúdo técnico</h1>
           <p>
-            Soluções organizadas por categoria, com preço visível e detalhes antes de conversar
-            sobre o atendimento.
+            Produtos organizados por categoria, com imagem, preço, descrição e detalhes.
           </p>
         </div>
 
@@ -118,7 +117,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recente
       </section>
 
       @if (categorias().length > 0 || hasSemCategoria()) {
-        <nav class="category-menu" aria-label="Categorias da vitrine">
+        <nav class="category-menu" aria-label="Categorias do catálogo">
           <button
             type="button"
             [class.active]="categoriaSelecionada() === null"
@@ -158,7 +157,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recente
       }
 
       @if (!loading() && servicosFiltrados().length === 0) {
-        <section class="empty" aria-label="Nenhum conteúdo na vitrine">
+        <section class="empty" aria-label="Nenhum item no catálogo">
           <mat-icon>inventory_2</mat-icon>
           <strong>{{ emptyMessage() }}</strong>
         </section>
@@ -171,7 +170,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recente
         }
       </div>
 
-      <section class="product-grid" aria-label="Itens disponíveis">
+      <section class="product-grid" aria-label="Itens do catálogo">
         @for (servico of servicosFiltrados(); track servico.id) {
           <mat-card class="product-card" appearance="outlined">
             <a
@@ -191,7 +190,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recente
                 @if (servico.categoria; as categoria) {
                   <span class="category">{{ categoria.nome }}</span>
                 }
-                <span class="availability">Disponível</span>
+                <span class="availability">No catálogo</span>
               </div>
 
               <h2>
@@ -208,7 +207,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recente
                 </strong>
                 <a mat-flat-button color="primary" [routerLink]="['/servicos', servico.id]">
                   <mat-icon>open_in_new</mat-icon>
-                  <span>Ver detalhes</span>
+                  <span>Ver produto</span>
                 </a>
               </div>
             </mat-card-content>

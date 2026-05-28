@@ -30,15 +30,15 @@ const PEDIDO_STATE_LABEL: Readonly<Record<MeuPedidoState, string>> = {
   ],
   template: `
     <header class="site-header">
-      <a class="brand" routerLink="/" aria-label="HP Suporte Remoto">
+      <a class="brand" routerLink="/" aria-label="HP Softwares">
         <span class="brand-mark">HP</span>
         <span>
-          <strong>HP Suporte Remoto</strong>
+          <strong>HP Softwares</strong>
           <small>Pedidos</small>
         </span>
       </a>
 
-      <nav class="header-actions" aria-label="Ações do site">
+      <nav class="header-actions" aria-label="Navegação do catálogo">
         <a mat-button routerLink="/">
           <mat-icon>storefront</mat-icon>
           <span>Vitrine</span>
