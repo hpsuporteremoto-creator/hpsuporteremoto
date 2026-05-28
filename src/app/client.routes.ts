@@ -17,6 +17,11 @@ export const clientRoutes: Routes = [
       import('./features/vitrine/pages/meus-pedidos-page').then((m) => m.MeusPedidosPage),
   },
   {
+    path: 'catalogo/:categoriaSlug/:servicoSlug',
+    loadComponent: () =>
+      import('./features/vitrine/pages/servico-detail-page').then((m) => m.ServicoDetailPage),
+  },
+  {
     path: 'servicos/:id',
     loadComponent: () =>
       import('./features/vitrine/pages/servico-detail-page').then((m) => m.ServicoDetailPage),

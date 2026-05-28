@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe, Location } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -73,6 +73,14 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
       }
 
       @if (servico(); as item) {
+        <nav class="breadcrumbs" aria-label="Caminho do catálogo">
+          <ol>
+            <li><a routerLink="/">Catálogo</a></li>
+            <li><span>{{ item.categoria?.nome ?? 'Sem categoria' }}</span></li>
+            <li><span aria-current="page">{{ item.nome }}</span></li>
+          </ol>
+        </nav>
+
         <article class="product-detail">
           <section class="gallery" aria-label="Imagem do item">
             @if (item.imagem_url) {
@@ -248,6 +256,7 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
 export class ServicoDetailPage {
   protected readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly vitrine = inject(VitrineService);
   private readonly snackBar = inject(MatSnackBar);
@@ -267,13 +276,18 @@ export class ServicoDetailPage {
 
   async carregar(): Promise<void> {
     const id = this.route.snapshot.paramMap.get('id');
-    if (!id) {
+    const categoriaSlug = this.route.snapshot.paramMap.get('categoriaSlug');
+    const servicoSlug = this.route.snapshot.paramMap.get('servicoSlug');
+    if (!id && (!categoriaSlug || !servicoSlug)) {
       this.error.set('Conteúdo não encontrado');
       return;
     }
     this.loading.set(true);
+    this.error.set(null);
     try {
-      const servico = await this.vitrine.getServico(id);
+      const servico = id
+        ? await this.vitrine.getServico(id)
+        : await this.vitrine.getServicoByCatalogPath(categoriaSlug ?? '', servicoSlug ?? '');
       if (!servico) {
         this.error.set('Conteúdo não encontrado ou fora do catálogo.');
         return;
@@ -353,8 +367,7 @@ export class ServicoDetailPage {
   }
 
   async login(): Promise<void> {
-    const id = this.servico()?.id ?? this.route.snapshot.paramMap.get('id') ?? '';
-    await this.auth.signInWithGoogle(id ? `/servicos/${id}` : '/');
+    await this.auth.signInWithGoogle(this.router.url || '/');
   }
 
   async signOut(): Promise<void> {

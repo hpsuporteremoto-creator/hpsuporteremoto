@@ -8,6 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../../core/auth/auth.service';
+import { catalogItemRoute } from '../catalogo-url';
 import { VitrineService } from '../vitrine.service';
 import { VitrineServico } from '../vitrine.types';
 
@@ -169,7 +170,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'recentes';
           <mat-card class="product-card" appearance="outlined">
             <a
               class="media"
-              [routerLink]="['/servicos', servico.id]"
+              [routerLink]="itemRoute(servico)"
               [attr.aria-label]="servico.nome"
             >
               @if (servico.imagem_url) {
@@ -188,7 +189,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'recentes';
               </div>
 
               <h2>
-                <a [routerLink]="['/servicos', servico.id]">{{ servico.nome }}</a>
+                <a [routerLink]="itemRoute(servico)">{{ servico.nome }}</a>
               </h2>
 
               @if (servico.descricao) {
@@ -196,7 +197,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'recentes';
               }
 
               <div class="product-actions">
-                <a mat-flat-button color="primary" [routerLink]="['/servicos', servico.id]">
+                <a mat-flat-button color="primary" [routerLink]="itemRoute(servico)">
                   <mat-icon>open_in_new</mat-icon>
                   <span>Ver produto</span>
                 </a>
@@ -306,6 +307,10 @@ export class VitrinePage {
 
   limparBusca(): void {
     this.termoBusca.set('');
+  }
+
+  protected itemRoute(servico: VitrineServico): string[] {
+    return catalogItemRoute(servico);
   }
 
   selecionarOrdenacao(value: unknown): void {

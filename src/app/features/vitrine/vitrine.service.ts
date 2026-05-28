@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
 import { normalizeServiceImageUrl } from '../../shared/image-url.util';
+import { catalogSlug } from './catalogo-url';
 import {
   MeuPedido,
   ServicoComentario,
@@ -29,6 +30,20 @@ export class VitrineService {
   async getServico(id: string): Promise<VitrineServico | null> {
     const servicos = await this.listServicos();
     return servicos.find((servico) => servico.id === id) ?? null;
+  }
+
+  async getServicoByCatalogPath(
+    categoriaSlug: string,
+    servicoSlug: string,
+  ): Promise<VitrineServico | null> {
+    const servicos = await this.listServicos();
+    return (
+      servicos.find(
+        (servico) =>
+          catalogSlug(servico.categoria?.nome ?? 'sem-categoria') === categoriaSlug &&
+          catalogSlug(servico.nome) === servicoSlug,
+      ) ?? null
+    );
   }
 
   async listMeusPedidos(): Promise<MeuPedido[]> {
