@@ -103,6 +103,36 @@ mat-toolbar
   color: var(--mat-sys-on-surface)
   font-weight: 500
 
+.compras-list
+  display: grid
+  gap: 0.25rem
+  margin: 0.25rem 0
+  padding: 0
+  list-style: none
+
+  li
+    display: grid
+    grid-template-columns: minmax(0, 1fr) auto
+    align-items: start
+    gap: 0.75rem
+    color: var(--mat-sys-on-surface)
+    font-size: 0.8125rem
+    line-height: 1.35
+
+.item-name
+  min-width: 0
+  overflow-wrap: anywhere
+
+  strong
+    margin-right: 0.25rem
+    color: var(--mat-sys-tertiary)
+    font-weight: 700
+
+.item-value
+  color: var(--mat-sys-on-surface-variant)
+  font-variant-numeric: tabular-nums
+  white-space: nowrap
+
 .data
   color: var(--mat-sys-on-surface-variant)
   font-size: 0.75rem
@@ -133,3 +163,17 @@ mat-toolbar
 
   .resumo
     grid-template-columns: 1fr
+
+  .row
+    align-items: stretch
+    flex-direction: column
+
+  .valor-wrap
+    justify-content: space-between
+
+  .compras-list li
+    grid-template-columns: 1fr
+    gap: 0.125rem
+
+  .item-value
+    white-space: normal

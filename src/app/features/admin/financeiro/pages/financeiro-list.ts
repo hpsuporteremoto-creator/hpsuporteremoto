@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe, Location } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -11,15 +11,26 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { FinanceiroService } from '../financeiro.service';
-import { Transacao } from '../financeiro.types';
+import { Transacao, TransacaoServicoRef } from '../financeiro.types';
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localISODate(new Date());
 }
 
 function firstOfMonthISO(): string {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  return localISODate(new Date(now.getFullYear(), now.getMonth(), 1));
+}
+
+function localISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isISODate(value: string | null): value is string {
+  return value !== null && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
 @Component({
@@ -111,6 +122,24 @@ function firstOfMonthISO(): string {
                 <mat-card-content class="row">
                   <div class="info">
                     <strong class="descricao">{{ transacaoTitulo(t) }}</strong>
+                    @let servicosComprados = transacaoServicos(t);
+                    @if (servicosComprados.length > 0) {
+                      <ul class="compras-list" aria-label="Itens comprados">
+                        @for (servico of servicosComprados; track servico.id) {
+                          <li>
+                            <span class="item-name">
+                              @if (servico.quantidade > 1) {
+                                <strong>{{ servico.quantidade }}x</strong>
+                              }
+                              {{ servico.nome }}
+                            </span>
+                            <span class="item-value">
+                              {{ servico.subtotal_centavos / 100 | currency }}
+                            </span>
+                          </li>
+                        }
+                      </ul>
+                    }
                     @if (transacaoDetalhe(t); as detalhe) {
                       <small class="detalhe">{{ detalhe }}</small>
                     }
@@ -144,12 +173,13 @@ function firstOfMonthISO(): string {
 export class FinanceiroListPage {
   private readonly svc = inject(FinanceiroService);
   private readonly location = inject(Location);
+  private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
 
-  protected readonly fromControl = new FormControl(firstOfMonthISO(), {
+  protected readonly fromControl = new FormControl(this.initialDate('from', firstOfMonthISO()), {
     nonNullable: true,
   });
-  protected readonly toControl = new FormControl(todayISO(), {
+  protected readonly toControl = new FormControl(this.initialDate('to', todayISO()), {
     nonNullable: true,
   });
 
@@ -210,8 +240,17 @@ export class FinanceiroListPage {
     return t.atendimento?.cliente?.nome?.trim() || t.descricao;
   }
 
+  protected transacaoServicos(t: Transacao): TransacaoServicoRef[] {
+    return t.atendimento?.servicos_solicitados ?? [];
+  }
+
   protected transacaoDetalhe(t: Transacao): string | null {
     if (!t.atendimento_id || t.descricao === this.transacaoTitulo(t)) return null;
     return t.descricao;
+  }
+
+  private initialDate(param: 'from' | 'to', fallback: string): string {
+    const value = this.route.snapshot.queryParamMap.get(param);
+    return isISODate(value) ? value : fallback;
   }
 }

@@ -38,6 +38,7 @@ export class DashboardService {
     const tomorrowStart = this.addDays(todayStart, 1);
     const from30 = this.addDays(today, -29);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const todayKey = this.formatDate(today);
 
     const [
       stateCounts,
@@ -60,6 +61,9 @@ export class DashboardService {
     const receitaMesCentavos = transacoesMes
       .filter((transacao) => transacao.tipo === 'entrada')
       .reduce((total, transacao) => total + transacao.valor_centavos, 0);
+    const receitaHojeCentavos = transacoesMes
+      .filter((transacao) => transacao.tipo === 'entrada' && transacao.data === todayKey)
+      .reduce((total, transacao) => total + transacao.valor_centavos, 0);
     const saldo30DiasCentavos = transacoes30Dias.reduce((total, transacao) => {
       return total + (transacao.tipo === 'entrada' ? 1 : -1) * transacao.valor_centavos;
     }, 0);
@@ -67,6 +71,7 @@ export class DashboardService {
     return {
       clientesAtivos,
       servicosAtivos,
+      receitaHojeCentavos,
       receitaMesCentavos,
       saldo30DiasCentavos,
       atendimentos30Dias: atendimentos30Dias.length,
@@ -289,7 +294,10 @@ export class DashboardService {
   }
 
   private formatDate(date: Date): string {
-    return date.toISOString().slice(0, 10);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private formatDayLabel(date: Date): string {

@@ -35,6 +35,14 @@ interface DashboardKpi {
   readonly queryParams?: Readonly<Record<string, string>>;
 }
 
+function todayISO(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 @Component({
   selector: 'hp-admin-dashboard',
   imports: [
@@ -191,14 +199,17 @@ export class AdminDashboardPage {
     if (!data) return [];
     const emAndamento = data.stateCounts.find((item) => item.state === 'em_andamento')?.count ?? 0;
     const pagamento = data.stateCounts.find((item) => item.state === 'pagamento')?.count ?? 0;
+    const hoje = todayISO();
 
-    return [
+    const items: DashboardKpi[] = [
       {
         label: 'Hoje',
-        value: this.formatNumber(data.atendimentosHoje.length),
-        helper: 'pedidos criados',
+        value: this.formatCurrency(data.receitaHojeCentavos),
+        helper: 'faturamento do dia',
         icon: 'today',
-        tone: 'primary',
+        tone: 'success',
+        route: 'financeiro',
+        queryParams: { from: hoje, to: hoje },
       },
       {
         label: 'Em andamento',
@@ -243,6 +254,7 @@ export class AdminDashboardPage {
         route: 'servicos',
       },
     ];
+    return items;
   });
 
   protected readonly revenueChartOptions = computed<EChartsCoreOption>(() => {

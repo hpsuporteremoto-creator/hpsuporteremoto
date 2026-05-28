@@ -5,9 +5,21 @@ export interface TransacaoClienteRef {
   nome: string;
 }
 
+export interface TransacaoServicoRef {
+  id: string;
+  nome: string;
+  valor_centavos: number;
+  quantidade: number;
+  subtotal_centavos: number;
+}
+
 export interface TransacaoAtendimentoRef {
   id: string;
+  servico_id: string | null;
+  servico_ids: string[] | null;
+  descricao_solicitacao: string | null;
   cliente: TransacaoClienteRef | null;
+  servicos_solicitados: TransacaoServicoRef[];
 }
 
 export interface Transacao {

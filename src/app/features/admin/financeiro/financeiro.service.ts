@@ -7,11 +7,14 @@ import {
   Transacao,
   TransacaoAtendimentoRef,
   TransacaoFormData,
+  TransacaoServicoRef,
 } from './financeiro.types';
 
 type TransacaoRow = Omit<Transacao, 'atendimento'> & {
   atendimento?: TransacaoAtendimentoRef | TransacaoAtendimentoRef[] | null;
 };
+
+type ServicoBase = Omit<TransacaoServicoRef, 'quantidade' | 'subtotal_centavos'>;
 
 @Injectable({ providedIn: 'root' })
 export class FinanceiroService {
@@ -28,6 +31,9 @@ export class FinanceiroService {
           data, created_at, updated_at,
           atendimento:atendimentos (
             id,
+            servico_id,
+            servico_ids,
+            descricao_solicitacao,
             cliente:clientes ( id, nome )
           )
         `,
@@ -37,12 +43,7 @@ export class FinanceiroService {
       .order('data', { ascending: false })
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
-    return ((data ?? []) as unknown as TransacaoRow[]).map((row) => ({
-      ...row,
-      atendimento: Array.isArray(row.atendimento)
-        ? (row.atendimento[0] ?? null)
-        : (row.atendimento ?? null),
-    }));
+    return this.hydrateTransacoes((data ?? []) as unknown as TransacaoRow[]);
   }
 
   async get(id: string): Promise<Transacao | null> {
@@ -98,5 +99,72 @@ export class FinanceiroService {
       else saidas += t.valor_centavos;
     }
     return { entradas, saidas, saldo: entradas - saidas };
+  }
+
+  private async hydrateTransacoes(rows: readonly TransacaoRow[]): Promise<Transacao[]> {
+    const normalizedRows = rows.map((row) => ({
+      ...row,
+      atendimento: Array.isArray(row.atendimento)
+        ? (row.atendimento[0] ?? null)
+        : (row.atendimento ?? null),
+    }));
+    const servicoIds = Array.from(
+      new Set(
+        normalizedRows.flatMap((row) => {
+          const atendimento = row.atendimento;
+          if (!atendimento) return [];
+          const ids = atendimento.servico_ids ?? [];
+          return ids.length > 0 ? ids : atendimento.servico_id ? [atendimento.servico_id] : [];
+        }),
+      ),
+    );
+    const servicosById = await this.getServicosById(servicoIds);
+
+    return normalizedRows.map((row) => {
+      const atendimento = row.atendimento;
+      if (!atendimento) return { ...row, atendimento: null };
+
+      const ids =
+        atendimento.servico_ids && atendimento.servico_ids.length > 0
+          ? atendimento.servico_ids
+          : atendimento.servico_id
+            ? [atendimento.servico_id]
+            : [];
+      const quantities = new Map<string, number>();
+      for (const id of ids) {
+        quantities.set(id, (quantities.get(id) ?? 0) + 1);
+      }
+
+      return {
+        ...row,
+        atendimento: {
+          ...atendimento,
+          servicos_solicitados: Array.from(quantities.entries()).flatMap(([id, quantidade]) => {
+            const servico = servicosById.get(id);
+            return servico
+              ? [
+                  {
+                    ...servico,
+                    quantidade,
+                    subtotal_centavos: servico.valor_centavos * quantidade,
+                  },
+                ]
+              : [];
+          }),
+        },
+      };
+    });
+  }
+
+  private async getServicosById(ids: readonly string[]): Promise<Map<string, ServicoBase>> {
+    if (ids.length === 0) return new Map();
+
+    const { data, error } = await this.supabase
+      .from('servicos')
+      .select('id, nome, valor_centavos')
+      .in('id', ids);
+    if (error) throw new Error(error.message);
+
+    return new Map(((data ?? []) as ServicoBase[]).map((servico) => [servico.id, servico]));
   }
 }

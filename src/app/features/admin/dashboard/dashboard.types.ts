@@ -35,6 +35,7 @@ export interface DashboardDailyPoint {
 export interface AdminDashboardData {
   readonly clientesAtivos: number;
   readonly servicosAtivos: number;
+  readonly receitaHojeCentavos: number;
   readonly receitaMesCentavos: number;
   readonly saldo30DiasCentavos: number;
   readonly atendimentos30Dias: number;
