@@ -33,6 +33,12 @@ export interface CriarAtendimentoParaClienteData {
   descricao_solicitacao: string | null;
 }
 
+export interface AtualizarAtendimentoEmAndamentoData {
+  servico_itens: AtendimentoServicoInput[];
+  desconto_centavos: number;
+  descricao_solicitacao: string | null;
+}
+
 export interface AtendimentoServicoInput {
   servico_id: string;
   quantidade: number;

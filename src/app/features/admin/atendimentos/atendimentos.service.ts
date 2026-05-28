@@ -6,6 +6,7 @@ import {
   AtendimentoListOptions,
   AtendimentoServicoInput,
   AtendimentoState,
+  AtualizarAtendimentoEmAndamentoData,
   CriarAtendimentoParaClienteData,
 } from './atendimentos.types';
 
@@ -44,6 +45,22 @@ export class AtendimentosService {
     await this.postApi('/api/update-atendimento-state', { id, state });
   }
 
+  async atualizarEmAndamento(
+    id: string,
+    data: AtualizarAtendimentoEmAndamentoData,
+  ): Promise<void> {
+    await this.postApi('/api/update-atendimento', {
+      id,
+      servico_itens: data.servico_itens,
+      desconto_centavos: data.desconto_centavos,
+      descricao_solicitacao: data.descricao_solicitacao,
+    });
+  }
+
+  async excluir(id: string): Promise<void> {
+    await this.postApi('/api/delete-atendimento', { id });
+  }
+
   async criarParaCliente(
     clienteId: string,
     data: CriarAtendimentoParaClienteData,
@@ -64,6 +81,7 @@ export class AtendimentosService {
     atendimento_id: string,
     servico_itens: readonly AtendimentoServicoInput[],
     desconto_centavos: number,
+    descricao_solicitacao?: string | null,
   ): Promise<{ pix_brcode: string; valor_centavos: number }> {
     const token = await this.auth.getAccessToken();
     if (!token) throw new Error('Sessão inválida');
@@ -74,7 +92,12 @@ export class AtendimentosService {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ atendimento_id, servico_itens, desconto_centavos }),
+      body: JSON.stringify({
+        atendimento_id,
+        servico_itens,
+        desconto_centavos,
+        descricao_solicitacao,
+      }),
     });
 
     const payload = (await response.json().catch(() => ({}))) as {

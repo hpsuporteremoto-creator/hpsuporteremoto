@@ -56,13 +56,20 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: 'Corpo JSON inválido' }, 400);
   }
 
-  const { atendimento_id, servico_id, servico_ids, servico_itens, desconto_centavos } = (body ??
-    {}) as {
+  const {
+    atendimento_id,
+    servico_id,
+    servico_ids,
+    servico_itens,
+    desconto_centavos,
+    descricao_solicitacao,
+  } = (body ?? {}) as {
     atendimento_id?: unknown;
     servico_id?: unknown;
     servico_ids?: unknown;
     servico_itens?: unknown;
     desconto_centavos?: unknown;
+    descricao_solicitacao?: unknown;
   };
 
   if (typeof atendimento_id !== 'string' || atendimento_id.length === 0) {
@@ -136,6 +143,10 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     desconto_centavos,
     typeof atendimento.desconto_centavos === 'number' ? atendimento.desconto_centavos : 0,
   );
+  const descricaoSolicitacao =
+    typeof descricao_solicitacao === 'string' && descricao_solicitacao.trim().length > 0
+      ? descricao_solicitacao.trim()
+      : null;
 
   if (descontoCentavos < 0) {
     return json({ error: 'Desconto inválido' }, 400);
@@ -173,6 +184,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       pix_brcode: brcode,
       valor_centavos: totalCentavos,
       desconto_centavos: descontoCentavos,
+      descricao_solicitacao: descricaoSolicitacao,
       servico_id: servicoIds[0],
       servico_ids: servicoIds,
       state: 'pagamento',

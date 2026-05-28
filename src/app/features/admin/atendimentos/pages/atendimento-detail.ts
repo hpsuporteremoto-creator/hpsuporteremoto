@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, DatePipe, Location } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -10,6 +10,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { AuthService } from '../../../../core/auth/auth.service';
 import { ServicosService } from '../../servicos/servicos.service';
 import { Servico } from '../../servicos/servicos.types';
 import { AtendimentosService } from '../atendimentos.service';
@@ -250,6 +251,16 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                       />
                       <span matTextPrefix>R$&nbsp;</span>
                     </mat-form-field>
+                    <mat-form-field appearance="outline" class="description-field">
+                      <mat-label>Descrição do pedido</mat-label>
+                      <textarea
+                        matInput
+                        rows="4"
+                        [value]="descricaoEdicao()"
+                        (input)="onDescricaoChange($event)"
+                        [disabled]="updating()"
+                      ></textarea>
+                    </mat-form-field>
                     <div class="checkout-summary">
                       <div>
                         <span>Subtotal</span>
@@ -277,6 +288,36 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                     Este atendimento não tem serviços selecionados para cobrança.
                   </p>
                 }
+
+                <div class="action-row">
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    (click)="salvarPedidoEmAndamento()"
+                    [disabled]="
+                      !pedidoAlterado() ||
+                      servicosParaCobranca().length === 0 ||
+                      descontoInvalido() ||
+                      totalParaCobranca() <= 0 ||
+                      updating()
+                    "
+                  >
+                    <mat-icon>save</mat-icon>
+                    <span>Salvar alterações</span>
+                  </button>
+                  @if (auth.isAdmin()) {
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      class="danger-action"
+                      (click)="excluirPedidoEmAndamento()"
+                      [disabled]="updating()"
+                    >
+                      <mat-icon>delete_outline</mat-icon>
+                      <span>Excluir pedido</span>
+                    </button>
+                  }
+                </div>
 
                 <button
                   mat-flat-button
@@ -503,7 +544,9 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
 export class AtendimentoDetailPage {
   private readonly svc = inject(AtendimentosService);
   private readonly servicosSvc = inject(ServicosService);
+  protected readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly snackBar = inject(MatSnackBar);
 
@@ -512,6 +555,7 @@ export class AtendimentoDetailPage {
   protected readonly updating = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly descontoCentavos = signal(0);
+  protected readonly descricaoEdicao = signal('');
   protected readonly servicosDisponiveis = signal<CobrancaServicoBase[]>([]);
   protected readonly selectedServicoIds = signal<string[]>([]);
   protected readonly selectedServicoQuantidades = signal<Record<string, number>>({});
@@ -586,6 +630,10 @@ export class AtendimentoDetailPage {
   protected readonly descontoAlterado = computed(
     () => this.descontoParaCobranca() !== (this.atendimento()?.desconto_centavos ?? 0),
   );
+  protected readonly descricaoAlterada = computed(() => {
+    const atual = this.atendimento()?.descricao_solicitacao ?? '';
+    return normalizeDescription(this.descricaoEdicao()) !== normalizeDescription(atual);
+  });
   protected readonly itensAlterados = computed(() => {
     const atendimento = this.atendimento();
     if (!atendimento) return false;
@@ -600,6 +648,9 @@ export class AtendimentoDetailPage {
   });
   protected readonly cobrancaAlterada = computed(
     () => this.descontoAlterado() || this.itensAlterados(),
+  );
+  protected readonly pedidoAlterado = computed(
+    () => this.cobrancaAlterada() || this.descricaoAlterada(),
   );
 
   constructor() {
@@ -635,6 +686,7 @@ export class AtendimentoDetailPage {
       const [a, servicos] = await Promise.all([this.svc.get(id), this.servicosSvc.listAtivos()]);
       this.atendimento.set(a);
       this.descontoCentavos.set(Math.max(a?.desconto_centavos ?? 0, 0));
+      this.descricaoEdicao.set(a?.descricao_solicitacao ?? '');
       if (!a) {
         this.error.set('Atendimento não encontrado');
         return;
@@ -653,6 +705,11 @@ export class AtendimentoDetailPage {
     const value = Number(input?.value ?? 0);
     const desconto = Number.isFinite(value) ? Math.max(0, value) : 0;
     this.descontoCentavos.set(Math.round(desconto * 100));
+  }
+
+  onDescricaoChange(event: Event): void {
+    const input = event.target as HTMLTextAreaElement | null;
+    this.descricaoEdicao.set(input?.value ?? '');
   }
 
   adicionarServico(value: unknown): void {
@@ -702,6 +759,61 @@ export class AtendimentoDetailPage {
     await this.gerarPix('PIX gerado para cobrança.');
   }
 
+  async salvarPedidoEmAndamento(): Promise<void> {
+    const a = this.atendimento();
+    if (
+      !a ||
+      !isEditableState(a.state) ||
+      this.servicosParaCobranca().length === 0 ||
+      this.descontoInvalido() ||
+      this.totalParaCobranca() <= 0
+    ) {
+      return;
+    }
+
+    this.updating.set(true);
+    try {
+      await this.svc.atualizarEmAndamento(a.id, {
+        servico_itens: this.servicosParaCobranca().map((servico) => ({
+          servico_id: servico.id,
+          quantidade: this.quantidadeServico(servico),
+        })),
+        desconto_centavos: this.descontoParaCobranca(),
+        descricao_solicitacao: normalizeDescription(this.descricaoEdicao()),
+      });
+      this.snackBar.open('Pedido atualizado.', 'OK', { duration: 2500 });
+      await this.carregar(a.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar pedido';
+      this.snackBar.open(msg, 'OK', { duration: 4000 });
+    } finally {
+      this.updating.set(false);
+    }
+  }
+
+  async excluirPedidoEmAndamento(): Promise<void> {
+    const a = this.atendimento();
+    if (!a || !isEditableState(a.state) || !this.auth.isAdmin()) return;
+    const ok = confirm(
+      `Excluir o pedido de ${a.cliente.nome}? Esta ação não pode ser desfeita.`,
+    );
+    if (!ok) return;
+
+    this.updating.set(true);
+    try {
+      await this.svc.excluir(a.id);
+      this.snackBar.open('Pedido excluído.', 'OK', { duration: 2500 });
+      await this.router.navigate(['/admin/atendimentos'], {
+        queryParams: { filter: 'em_andamento' },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao excluir pedido';
+      this.snackBar.open(msg, 'OK', { duration: 4000 });
+    } finally {
+      this.updating.set(false);
+    }
+  }
+
   async atualizarPix(): Promise<void> {
     await this.gerarPix('PIX atualizado.');
   }
@@ -723,7 +835,12 @@ export class AtendimentoDetailPage {
 
     this.updating.set(true);
     try {
-      await this.svc.cobrarEFinalizar(a.id, servicoItens, this.descontoParaCobranca());
+      await this.svc.cobrarEFinalizar(
+        a.id,
+        servicoItens,
+        this.descontoParaCobranca(),
+        normalizeDescription(this.descricaoEdicao()),
+      );
       this.snackBar.open(successMessage, 'OK', { duration: 3000 });
       await this.carregar(a.id);
     } catch (err) {
@@ -830,6 +947,15 @@ function areItensEqual(a: ReadonlyMap<string, number>, b: ReadonlyMap<string, nu
     if (b.get(id) !== quantidade) return false;
   }
   return true;
+}
+
+function isEditableState(state: AtendimentoState): boolean {
+  return state === 'em_andamento' || state === 'aguardando_confirmacao';
+}
+
+function normalizeDescription(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function normalizeQuantidade(value: unknown): number {
