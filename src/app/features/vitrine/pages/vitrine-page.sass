@@ -314,21 +314,15 @@
   -webkit-box-orient: vertical
   overflow: hidden
 
-.buy-row
+.product-actions
   display: flex
   align-items: center
-  justify-content: space-between
+  justify-content: flex-end
   gap: 0.75rem
   padding-top: 0.25rem
 
   a
     flex-shrink: 0
-
-.price
-  color: var(--mat-sys-tertiary)
-  font-size: 1.35rem
-  font-weight: 900
-  white-space: nowrap
 
 @media (max-width: 860px)
   .store-hero,
@@ -357,7 +351,7 @@
   .product-grid
     grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr))
 
-  .buy-row
+  .product-actions
     align-items: stretch
     flex-direction: column
 

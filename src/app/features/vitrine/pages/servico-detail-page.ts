@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { CurrencyPipe, DatePipe, Location } from '@angular/common';
+import { DatePipe, Location } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -15,7 +15,6 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
 @Component({
   selector: 'hp-servico-detail-page',
   imports: [
-    CurrencyPipe,
     DatePipe,
     RouterLink,
     MatButtonModule,
@@ -88,7 +87,6 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
               <span class="category">{{ categoria.nome }}</span>
             }
             <h1>{{ item.nome }}</h1>
-            <strong class="price">{{ item.valor_centavos / 100 | currency }}</strong>
             @if (item.descricao) {
               <p>{{ item.descricao }}</p>
             }

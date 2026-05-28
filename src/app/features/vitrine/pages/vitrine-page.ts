@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -13,12 +12,11 @@ import { VitrineService } from '../vitrine.service';
 import { VitrineServico } from '../vitrine.types';
 
 const SEM_CATEGORIA_ID = '__sem_categoria__';
-type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recentes';
+type OrdenacaoCatalogo = 'relevancia' | 'recentes';
 
 @Component({
   selector: 'hp-vitrine-page',
   imports: [
-    CurrencyPipe,
     RouterLink,
     MatButtonModule,
     MatCardModule,
@@ -68,15 +66,13 @@ type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recente
           <p class="eyebrow">Catálogo</p>
           <h1 id="vitrine-title">Softwares e conteúdo técnico</h1>
           <p>
-            Produtos organizados por categoria, com imagem, preço, descrição e detalhes.
+            Produtos organizados por categoria, com imagem, descrição e detalhes.
           </p>
         </div>
 
         <div class="hero-summary" aria-label="Resumo do catálogo">
           <span>{{ totalItens() }} item(ns)</span>
-          @if (menorPrecoCentavos(); as menorPreco) {
-            <strong>A partir de {{ menorPreco / 100 | currency }}</strong>
-          }
+          <strong>Conteúdo organizado</strong>
         </div>
       </section>
 
@@ -109,8 +105,6 @@ type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recente
           <mat-label>Ordenar</mat-label>
           <mat-select [value]="ordenacao()" (selectionChange)="selecionarOrdenacao($event.value)">
             <mat-option value="relevancia">Relevância</mat-option>
-            <mat-option value="menor_preco">Menor preço</mat-option>
-            <mat-option value="maior_preco">Maior preço</mat-option>
             <mat-option value="recentes">Mais recentes</mat-option>
           </mat-select>
         </mat-form-field>
@@ -201,10 +195,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'menor_preco' | 'maior_preco' | 'recente
                 <p class="description">{{ servico.descricao }}</p>
               }
 
-              <div class="buy-row">
-                <strong class="price">
-                  {{ servico.valor_centavos / 100 | currency }}
-                </strong>
+              <div class="product-actions">
                 <a mat-flat-button color="primary" [routerLink]="['/servicos', servico.id]">
                   <mat-icon>open_in_new</mat-icon>
                   <span>Ver produto</span>
@@ -231,10 +222,6 @@ export class VitrinePage {
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly totalItens = computed(() => this.servicos().length);
-  protected readonly menorPrecoCentavos = computed(() => {
-    const valores = this.servicos().map((servico) => servico.valor_centavos);
-    return valores.length > 0 ? Math.min(...valores) : null;
-  });
   protected readonly categorias = computed(() => {
     const byId = new Map<string, { id: string; nome: string; quantidade: number }>();
     for (const servico of this.servicos()) {
@@ -340,10 +327,6 @@ function ordenarServicos(
 ): VitrineServico[] {
   const list = [...servicos];
   switch (ordenacao) {
-    case 'menor_preco':
-      return list.sort((a, b) => a.valor_centavos - b.valor_centavos);
-    case 'maior_preco':
-      return list.sort((a, b) => b.valor_centavos - a.valor_centavos);
     case 'recentes':
       return list.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
     case 'relevancia':
@@ -352,12 +335,7 @@ function ordenarServicos(
 }
 
 function isOrdenacaoCatalogo(value: unknown): value is OrdenacaoCatalogo {
-  return (
-    value === 'relevancia' ||
-    value === 'menor_preco' ||
-    value === 'maior_preco' ||
-    value === 'recentes'
-  );
+  return value === 'relevancia' || value === 'recentes';
 }
 
 function textoBuscaServico(servico: VitrineServico): string {
