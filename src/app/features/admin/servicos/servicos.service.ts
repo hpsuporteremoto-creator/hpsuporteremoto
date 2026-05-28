@@ -161,19 +161,36 @@ export class ServicoCategoriasService {
   private readonly table = 'servico_categorias';
 
   async list(): Promise<ServicoCategoria[]> {
-    const payload = await this.fetchApi<{
-      categorias?: ServicoCategoria[];
-      error?: string;
-    }>('/api/service-categories');
-    return payload.categorias ?? [];
+    try {
+      const payload = await this.fetchApi<{
+        categorias?: ServicoCategoria[];
+        error?: string;
+      }>('/api/service-categories');
+      const categorias = payload.categorias ?? [];
+      if (categorias.length > 0) return categorias;
+      const publicas = await this.listPublicAtivas();
+      return publicas.length > 0 ? publicas : categorias;
+    } catch (err) {
+      const publicas = await this.listPublicAtivas();
+      if (publicas.length > 0) return publicas;
+      throw err;
+    }
   }
 
   async listAtivas(): Promise<ServicoCategoria[]> {
-    const payload = await this.fetchApi<{
-      categorias?: ServicoCategoria[];
-      error?: string;
-    }>('/api/service-categories?ativas=true');
-    return payload.categorias ?? [];
+    try {
+      const payload = await this.fetchApi<{
+        categorias?: ServicoCategoria[];
+        error?: string;
+      }>('/api/service-categories?ativas=true');
+      const categorias = payload.categorias ?? [];
+      if (categorias.length > 0) return categorias;
+      return this.listPublicAtivas();
+    } catch (err) {
+      const publicas = await this.listPublicAtivas();
+      if (publicas.length > 0) return publicas;
+      throw err;
+    }
   }
 
   async get(id: string): Promise<ServicoCategoria | null> {
@@ -222,6 +239,16 @@ export class ServicoCategoriasService {
     const payload = (await response.json().catch(() => ({}))) as T;
     if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
     return payload;
+  }
+
+  private async listPublicAtivas(): Promise<ServicoCategoria[]> {
+    const { data, error } = await this.supabase
+      .from(this.table)
+      .select('*')
+      .eq('ativo', true)
+      .order('nome', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as ServicoCategoria[];
   }
 
   private async postApi<T extends { error?: string } = { error?: string }>(
