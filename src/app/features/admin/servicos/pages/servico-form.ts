@@ -24,6 +24,7 @@ import {
 } from '../servicos.service';
 import { ServicoCategoria, ServicoFormData } from '../servicos.types';
 import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
+import { ServicoDescriptionEditorComponent } from '../components/servico-description-editor';
 
 @Component({
   selector: 'hp-servico-form',
@@ -38,6 +39,7 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
     MatSelectModule,
     MatSlideToggleModule,
     MatToolbarModule,
+    ServicoDescriptionEditorComponent,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -80,18 +82,11 @@ import { normalizeServiceImageUrl } from '../../../../shared/image-url.util';
               <mat-hint>Opcional. Use "Sem categoria" quando não quiser agrupar.</mat-hint>
             </mat-form-field>
 
-            <mat-form-field appearance="outline">
-              <mat-label>Descrição do serviço</mat-label>
-              <textarea
-                matInput
-                formControlName="descricao"
-                rows="4"
-                required
-              ></textarea>
-              @if (form.controls.descricao.hasError('required')) {
-                <mat-error>Descrição é obrigatória</mat-error>
-              }
-            </mat-form-field>
+            <hp-servico-description-editor
+              formControlName="descricao"
+              [invalid]="form.controls.descricao.invalid && form.controls.descricao.touched"
+              errorText="Descrição é obrigatória"
+            />
 
             <mat-form-field appearance="outline">
               <mat-label>URL da imagem</mat-label>

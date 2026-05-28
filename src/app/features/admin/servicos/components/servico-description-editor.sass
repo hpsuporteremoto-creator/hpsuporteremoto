@@ -1,0 +1,84 @@
+.editor
+  display: grid
+  gap: 0
+  border: 1px solid var(--mat-sys-outline-variant)
+  border-radius: 0.75rem
+  overflow: hidden
+  background: var(--mat-sys-surface-container-lowest)
+
+.editor.is-invalid
+  border-color: var(--mat-sys-error)
+
+.editor.is-disabled
+  opacity: 0.72
+
+.editor-header
+  display: flex
+  align-items: flex-start
+  justify-content: space-between
+  gap: 1rem
+  padding: 0.875rem 1rem
+  border-bottom: 1px solid var(--mat-sys-outline-variant)
+
+  div
+    display: grid
+    gap: 0.25rem
+
+  span
+    color: var(--mat-sys-on-surface)
+    font-weight: 800
+
+  small,
+  strong
+    color: var(--mat-sys-on-surface-variant)
+    font-size: 0.8125rem
+
+  strong
+    white-space: nowrap
+
+.toolbar
+  display: flex
+  align-items: center
+  gap: 0.25rem
+  padding: 0.5rem
+  border-bottom: 1px solid var(--mat-sys-outline-variant)
+  background: var(--mat-sys-surface-container-low)
+
+textarea
+  width: 100%
+  min-height: 17rem
+  box-sizing: border-box
+  padding: 1rem
+  border: 0
+  outline: 0
+  resize: vertical
+  background: transparent
+  color: var(--mat-sys-on-surface)
+  font: inherit
+  font-size: 1rem
+  line-height: 1.65
+  white-space: pre-wrap
+
+textarea::placeholder
+  color: var(--mat-sys-on-surface-variant)
+
+textarea:focus-visible
+  outline: 3px solid var(--mat-sys-primary)
+  outline-offset: -3px
+
+.editor-error
+  margin: 0
+  padding: 0 1rem 0.875rem
+  color: var(--mat-sys-error)
+  font-size: 0.75rem
+
+@media (max-width: 640px)
+  .editor-header
+    flex-direction: column
+    gap: 0.5rem
+
+  .toolbar
+    overflow-x: auto
+
+  textarea
+    min-height: 20rem
