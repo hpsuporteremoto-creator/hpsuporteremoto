@@ -134,10 +134,38 @@ function todayISO(): string {
                       [attr.aria-label]="pedidoHojeLabel(atendimento)"
                     >
                       <span class="today-main">
-                        <strong>{{ atendimento.clienteNome }}</strong>
-                        <span>{{ servicosHojeLabel(atendimento) }}</span>
+                        <strong class="today-client">{{ atendimento.clienteNome }}</strong>
+                        @if (atendimento.servicos.length > 0) {
+                          <ul class="today-services" aria-label="Itens do pedido">
+                            @for (servico of atendimento.servicos; track servico.id) {
+                              <li>
+                                <span class="today-service-name">
+                                  @if (servico.quantidade > 1) {
+                                    <strong>{{ servico.quantidade }}x</strong>
+                                  }
+                                  {{ servico.nome }}
+                                </span>
+                                <span class="today-service-value">
+                                  {{ formatCurrency(servico.subtotal_centavos) }}
+                                </span>
+                              </li>
+                            }
+                          </ul>
+                        } @else {
+                          <span class="today-description">
+                            {{ atendimento.descricaoSolicitacao || 'Sem serviços vinculados' }}
+                          </span>
+                        }
+                        @if (atendimento.descontoCentavos > 0) {
+                          <span class="today-discount">
+                            Desconto -{{ formatCurrency(atendimento.descontoCentavos) }}
+                          </span>
+                        }
                       </span>
                       <span class="today-meta">
+                        <strong class="today-value">
+                          {{ formatCurrency(atendimento.valorCentavos) }}
+                        </strong>
                         <span>{{ atendimento.createdAt | date: 'shortTime' }}</span>
                         <span class="today-state state-{{ atendimento.state }}">
                           {{ stateLabel(atendimento.state) }}
@@ -394,10 +422,12 @@ export class AdminDashboardPage {
   }
 
   protected pedidoHojeLabel(atendimento: DashboardTodayAtendimento): string {
-    return `Abrir pedido de ${atendimento.clienteNome}`;
+    return `Abrir pedido de ${atendimento.clienteNome} no valor de ${this.formatCurrency(
+      atendimento.valorCentavos,
+    )}`;
   }
 
-  private formatCurrency(valueCentavos: number): string {
+  protected formatCurrency(valueCentavos: number): string {
     return this.currencyFormatter.format(valueCentavos / 100);
   }
 

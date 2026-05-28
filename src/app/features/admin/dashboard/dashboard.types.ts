@@ -12,6 +12,8 @@ export interface DashboardTodayAtendimento {
   readonly id: string;
   readonly clienteNome: string;
   readonly servicos: DashboardServicoRef[];
+  readonly descontoCentavos: number;
+  readonly valorCentavos: number;
   readonly descricaoSolicitacao: string | null;
   readonly state: AtendimentoState;
   readonly createdAt: string;

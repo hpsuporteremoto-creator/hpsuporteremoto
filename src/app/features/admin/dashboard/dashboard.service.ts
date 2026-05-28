@@ -18,6 +18,8 @@ interface AtendimentoHojeRow {
   readonly id: string;
   readonly servico_id: string | null;
   readonly servico_ids: string[] | null;
+  readonly desconto_centavos: number | null;
+  readonly valor_centavos: number | null;
   readonly descricao_solicitacao: string | null;
   readonly state: AtendimentoState;
   readonly created_at: string;
@@ -146,7 +148,7 @@ export class DashboardService {
       .from('atendimentos')
       .select(
         `
-          id, servico_id, servico_ids, descricao_solicitacao,
+          id, servico_id, servico_ids, desconto_centavos, valor_centavos, descricao_solicitacao,
           state, created_at,
           cliente:clientes ( nome )
         `,
@@ -183,22 +185,30 @@ export class DashboardService {
       for (const id of rowServicoIds) {
         quantities.set(id, (quantities.get(id) ?? 0) + 1);
       }
+      const servicos = Array.from(quantities.entries()).flatMap(([id, quantidade]) => {
+        const servico = servicosById.get(id);
+        return servico
+          ? [
+              {
+                ...servico,
+                quantidade,
+                subtotal_centavos: servico.valor_centavos * quantidade,
+              },
+            ]
+          : [];
+      });
+      const descontoCentavos = Math.max(row.desconto_centavos ?? 0, 0);
+      const subtotalCentavos = servicos.reduce(
+        (total, servico) => total + servico.subtotal_centavos,
+        0,
+      );
 
       return {
         id: row.id,
         clienteNome: row.cliente?.nome ?? 'Cliente sem nome',
-        servicos: Array.from(quantities.entries()).flatMap(([id, quantidade]) => {
-          const servico = servicosById.get(id);
-          return servico
-            ? [
-                {
-                  ...servico,
-                  quantidade,
-                  subtotal_centavos: servico.valor_centavos * quantidade,
-                },
-              ]
-            : [];
-        }),
+        servicos,
+        descontoCentavos,
+        valorCentavos: row.valor_centavos ?? Math.max(subtotalCentavos - descontoCentavos, 0),
         descricaoSolicitacao: row.descricao_solicitacao,
         state: this.normalizeAtendimentoState(row.state),
         createdAt: row.created_at,
