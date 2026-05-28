@@ -526,7 +526,33 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                 @if (a.valor_centavos !== null) {
                   <p class="valor">{{ a.valor_centavos / 100 | currency }}</p>
                 }
+                @if (!a.financeiro_contabilizado) {
+                  <p class="accounting-disabled">
+                    <mat-icon>money_off</mat-icon>
+                    Não entra na contabilidade
+                  </p>
+                }
                 <p class="meta">Finalizado em {{ a.updated_at | date: 'short' }}</p>
+                @if (auth.isAdmin()) {
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    class="accounting-action"
+                    (click)="alterarContabilidade(!a.financeiro_contabilizado)"
+                    [disabled]="updating()"
+                  >
+                    <mat-icon>
+                      {{ a.financeiro_contabilizado ? 'money_off' : 'price_check' }}
+                    </mat-icon>
+                    <span>
+                      {{
+                        a.financeiro_contabilizado
+                          ? 'Desabilitar da contabilidade'
+                          : 'Reabilitar na contabilidade'
+                      }}
+                    </span>
+                  </button>
+                }
               }
               @case ('recusado') {
                 <p class="state-hint">Atendimento recusado.</p>
@@ -845,6 +871,36 @@ export class AtendimentoDetailPage {
       await this.carregar(a.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro ao gerar PIX';
+      this.snackBar.open(msg, 'OK', { duration: 4000 });
+    } finally {
+      this.updating.set(false);
+    }
+  }
+
+  async alterarContabilidade(contabilizar: boolean): Promise<void> {
+    const a = this.atendimento();
+    if (!a || a.state !== 'concluido' || !this.auth.isAdmin()) return;
+
+    const ok = confirm(
+      contabilizar
+        ? 'Reabilitar este atendimento na contabilidade?'
+        : 'Desabilitar este atendimento da contabilidade? Ele continuará no histórico.',
+    );
+    if (!ok) return;
+
+    this.updating.set(true);
+    try {
+      await this.svc.atualizarContabilidade(a.id, contabilizar);
+      this.snackBar.open(
+        contabilizar
+          ? 'Atendimento reabilitado na contabilidade.'
+          : 'Atendimento desabilitado da contabilidade.',
+        'OK',
+        { duration: 3000 },
+      );
+      await this.carregar(a.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao atualizar contabilidade';
       this.snackBar.open(msg, 'OK', { duration: 4000 });
     } finally {
       this.updating.set(false);

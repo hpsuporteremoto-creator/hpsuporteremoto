@@ -61,6 +61,10 @@ export class AtendimentosService {
     await this.postApi('/api/delete-atendimento', { id });
   }
 
+  async atualizarContabilidade(id: string, contabilizar: boolean): Promise<void> {
+    await this.postApi('/api/update-atendimento-accounting', { id, contabilizar });
+  }
+
   async criarParaCliente(
     clienteId: string,
     data: CriarAtendimentoParaClienteData,

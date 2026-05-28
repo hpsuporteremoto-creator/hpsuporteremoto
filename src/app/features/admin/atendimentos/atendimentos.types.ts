@@ -64,6 +64,8 @@ export interface AtendimentoComRelacoes extends Atendimento {
   cliente: AtendimentoClienteRef;
   servico: AtendimentoServicoRef | null;
   servicos_solicitados: AtendimentoServicoRef[];
+  financeiro_contabilizado: boolean;
+  financeiro_transacao_id: string | null;
 }
 
 export type AtendimentoListFilter = 'em_andamento' | 'pagamento' | 'concluido' | 'recusado';

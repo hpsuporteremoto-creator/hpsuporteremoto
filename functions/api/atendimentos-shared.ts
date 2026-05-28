@@ -15,6 +15,10 @@ export type AtendimentoServicoRef = {
   subtotal_centavos: number;
 };
 
+type AtendimentoTransacaoRef = {
+  id: string;
+};
+
 export type AtendimentoComRelacoes = {
   id: string;
   cliente_id: string;
@@ -36,6 +40,9 @@ export type AtendimentoComRelacoes = {
   };
   servico: AtendimentoServicoRef | null;
   servicos_solicitados: AtendimentoServicoRef[];
+  transacoes?: AtendimentoTransacaoRef[] | AtendimentoTransacaoRef | null;
+  financeiro_contabilizado: boolean;
+  financeiro_transacao_id: string | null;
 };
 
 export const ATENDIMENTO_SELECT = `
@@ -43,7 +50,8 @@ export const ATENDIMENTO_SELECT = `
   state, valor_centavos, pix_brcode, descricao_solicitacao,
   created_at, updated_at,
   cliente:clientes ( id, nome, whatsapp, instagram, email ),
-  servico:servicos ( id, nome, valor_centavos )
+  servico:servicos ( id, nome, valor_centavos ),
+  transacoes ( id )
 `;
 
 export async function hydrateServicosSolicitados(
@@ -61,6 +69,7 @@ export async function hydrateServicosSolicitados(
     return rows.map((row) => ({
       ...row,
       state: normalizeAtendimentoState(row.state),
+      ...getFinanceiroStatus(row),
       servicos_solicitados: [],
     }));
   }
@@ -86,6 +95,7 @@ export async function hydrateServicosSolicitados(
     return {
       ...row,
       state: normalizeAtendimentoState(row.state),
+      ...getFinanceiroStatus(row),
       servicos_solicitados: Array.from(quantities.entries()).flatMap(([id, quantidade]) => {
         const servico = byId.get(id);
         return servico
@@ -100,6 +110,22 @@ export async function hydrateServicosSolicitados(
       }),
     };
   });
+}
+
+function getFinanceiroStatus(row: AtendimentoComRelacoes): {
+  financeiro_contabilizado: boolean;
+  financeiro_transacao_id: string | null;
+} {
+  const transacoes = Array.isArray(row.transacoes)
+    ? row.transacoes
+    : row.transacoes
+      ? [row.transacoes]
+      : [];
+  const transacao = transacoes[0] ?? null;
+  return {
+    financeiro_contabilizado: Boolean(transacao),
+    financeiro_transacao_id: transacao?.id ?? null,
+  };
 }
 
 function getServicoIdsFromRow(row: AtendimentoComRelacoes): string[] {
