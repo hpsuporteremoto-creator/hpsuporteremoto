@@ -67,6 +67,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       email,
       observacao,
       ativo: input.ativo === false ? false : true,
+      cadastrado_por_user_id: staffCheck.user.id,
     })
     .select('*')
     .single();

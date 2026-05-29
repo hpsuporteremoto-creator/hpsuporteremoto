@@ -187,6 +187,8 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       descricao_solicitacao: descricaoSolicitacao,
       servico_id: servicoIds[0],
       servico_ids: servicoIds,
+      vendido_por_user_id: staffCheck.user.id,
+      atendido_por_user_id: staffCheck.user.id,
       state: 'pagamento',
     })
     .eq('id', atendimento_id);

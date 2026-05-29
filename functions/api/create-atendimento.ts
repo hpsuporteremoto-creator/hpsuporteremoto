@@ -112,6 +112,9 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       servico_ids: servicoIds,
       desconto_centavos: descontoCentavos,
       descricao_solicitacao: descricaoSolicitacao,
+      criado_por_user_id: staffCheck.user.id,
+      vendido_por_user_id: staffCheck.user.id,
+      atendido_por_user_id: staffCheck.user.id,
       state: 'em_andamento',
     })
     .select('id')

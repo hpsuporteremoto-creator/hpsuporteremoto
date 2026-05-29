@@ -143,6 +143,9 @@ function isISODate(value: string | null): value is string {
                     @if (transacaoDetalhe(t); as detalhe) {
                       <small class="detalhe">{{ detalhe }}</small>
                     }
+                    @if (t.atendimento?.vendido_por; as vendedor) {
+                      <small class="detalhe">Vendido por {{ operadorLabel(vendedor) }}</small>
+                    }
                     <small class="data">{{ t.data | date: 'shortDate' }}</small>
                   </div>
                   <div class="valor-wrap">
@@ -247,6 +250,10 @@ export class FinanceiroListPage {
   protected transacaoDetalhe(t: Transacao): string | null {
     if (!t.atendimento_id || t.descricao === this.transacaoTitulo(t)) return null;
     return t.descricao;
+  }
+
+  protected operadorLabel(operador: NonNullable<Transacao['atendimento']>['vendido_por']): string {
+    return operador?.full_name?.trim() || operador?.email || 'usuário';
   }
 
   private initialDate(param: 'from' | 'to', fallback: string): string {

@@ -67,8 +67,24 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
       admin,
       (data ?? []) as unknown as AtendimentoComRelacoes[],
     );
-    return json({ atendimentos }, 200);
+    return json({ atendimentos: atendimentos.map(toPublicAtendimento) }, 200);
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : 'Erro ao carregar serviços' }, 500);
   }
 };
+
+function toPublicAtendimento(atendimento: AtendimentoComRelacoes): Record<string, unknown> {
+  const {
+    criado_por_user_id: _createdById,
+    vendido_por_user_id: _soldById,
+    atendido_por_user_id: _attendedById,
+    criado_por: _createdBy,
+    vendido_por: _soldBy,
+    atendido_por: _attendedBy,
+    financeiro_contabilizado: _accounting,
+    financeiro_transacao_id: _transactionId,
+    transacoes: _transactions,
+    ...publicAtendimento
+  } = atendimento;
+  return publicAtendimento;
+}

@@ -15,6 +15,12 @@ export type AtendimentoServicoRef = {
   subtotal_centavos: number;
 };
 
+export type AtendimentoUserRef = {
+  id: string;
+  email: string;
+  full_name: string | null;
+};
+
 type AtendimentoTransacaoRef = {
   id: string;
 };
@@ -29,6 +35,9 @@ export type AtendimentoComRelacoes = {
   valor_centavos: number | null;
   pix_brcode: string | null;
   descricao_solicitacao: string | null;
+  criado_por_user_id: string | null;
+  vendido_por_user_id: string | null;
+  atendido_por_user_id: string | null;
   created_at: string;
   updated_at: string;
   cliente: {
@@ -40,6 +49,9 @@ export type AtendimentoComRelacoes = {
   };
   servico: AtendimentoServicoRef | null;
   servicos_solicitados: AtendimentoServicoRef[];
+  criado_por: AtendimentoUserRef | null;
+  vendido_por: AtendimentoUserRef | null;
+  atendido_por: AtendimentoUserRef | null;
   transacoes?: AtendimentoTransacaoRef[] | AtendimentoTransacaoRef | null;
   financeiro_contabilizado: boolean;
   financeiro_transacao_id: string | null;
@@ -48,6 +60,7 @@ export type AtendimentoComRelacoes = {
 export const ATENDIMENTO_SELECT = `
   id, cliente_id, servico_id, servico_ids, desconto_centavos,
   state, valor_centavos, pix_brcode, descricao_solicitacao,
+  criado_por_user_id, vendido_por_user_id, atendido_por_user_id,
   created_at, updated_at,
   cliente:clientes ( id, nome, whatsapp, instagram, email ),
   servico:servicos ( id, nome, valor_centavos ),
@@ -66,12 +79,15 @@ export async function hydrateServicosSolicitados(
     ),
   );
   if (ids.length === 0) {
-    return rows.map((row) => ({
-      ...row,
-      state: normalizeAtendimentoState(row.state),
-      ...getFinanceiroStatus(row),
-      servicos_solicitados: [],
-    }));
+    return hydrateAtendimentoUsers(
+      admin,
+      rows.map((row) => ({
+        ...row,
+        state: normalizeAtendimentoState(row.state),
+        ...getFinanceiroStatus(row),
+        servicos_solicitados: [],
+      })),
+    );
   }
 
   const { data, error } = await admin
@@ -85,7 +101,7 @@ export async function hydrateServicosSolicitados(
       (servico) => [servico.id, servico],
     ),
   );
-  return rows.map((row) => {
+  const hydratedRows = rows.map((row) => {
     const rowIds = getServicoIdsFromRow(row);
     const quantities = new Map<string, number>();
     for (const id of rowIds) {
@@ -110,6 +126,44 @@ export async function hydrateServicosSolicitados(
       }),
     };
   });
+  return hydrateAtendimentoUsers(admin, hydratedRows);
+}
+
+async function hydrateAtendimentoUsers(
+  admin: SupabaseClient,
+  rows: AtendimentoComRelacoes[],
+): Promise<AtendimentoComRelacoes[]> {
+  const ids = Array.from(
+    new Set(
+      rows.flatMap((row) => [
+        row.criado_por_user_id,
+        row.vendido_por_user_id,
+        row.atendido_por_user_id,
+      ]),
+    ),
+  ).filter((id): id is string => typeof id === 'string' && id.length > 0);
+
+  if (ids.length === 0) {
+    return rows.map((row) => ({
+      ...row,
+      criado_por: null,
+      vendido_por: null,
+      atendido_por: null,
+    }));
+  }
+
+  const { data, error } = await admin.from('profiles').select('id, email, full_name').in('id', ids);
+  if (error) throw new Error(error.message);
+
+  const usersById = new Map(((data ?? []) as AtendimentoUserRef[]).map((user) => [user.id, user]));
+  return rows.map((row) => ({
+    ...row,
+    criado_por: row.criado_por_user_id ? (usersById.get(row.criado_por_user_id) ?? null) : null,
+    vendido_por: row.vendido_por_user_id ? (usersById.get(row.vendido_por_user_id) ?? null) : null,
+    atendido_por: row.atendido_por_user_id
+      ? (usersById.get(row.atendido_por_user_id) ?? null)
+      : null,
+  }));
 }
 
 function getFinanceiroStatus(row: AtendimentoComRelacoes): {

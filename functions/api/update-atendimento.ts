@@ -78,9 +78,9 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
 
   const { data: atendimento, error: atendimentoError } = await admin
     .from('atendimentos')
-    .select('id, state')
+    .select('id, state, atendido_por_user_id')
     .eq('id', id)
-    .maybeSingle<{ id: string; state: string }>();
+    .maybeSingle<{ id: string; state: string; atendido_por_user_id: string | null }>();
   if (atendimentoError) return json({ error: atendimentoError.message }, 500);
   if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
   if (!EDITABLE_STATES.has(atendimento.state)) {
@@ -110,18 +110,20 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: 'O desconto precisa ser menor que o subtotal' }, 400);
   }
 
-  const { error } = await admin
-    .from('atendimentos')
-    .update({
-      servico_id: servicoIds[0] ?? null,
-      servico_ids: servicoIds,
-      desconto_centavos: descontoCentavos,
-      descricao_solicitacao: descricaoSolicitacao,
-      pix_brcode: null,
-      valor_centavos: null,
-      state: 'em_andamento',
-    })
-    .eq('id', id);
+  const patch: Record<string, unknown> = {
+    servico_id: servicoIds[0] ?? null,
+    servico_ids: servicoIds,
+    desconto_centavos: descontoCentavos,
+    descricao_solicitacao: descricaoSolicitacao,
+    pix_brcode: null,
+    valor_centavos: null,
+    state: 'em_andamento',
+  };
+  if (!atendimento.atendido_por_user_id) {
+    patch['atendido_por_user_id'] = staffCheck.user.id;
+  }
+
+  const { error } = await admin.from('atendimentos').update(patch).eq('id', id);
   if (error) return json({ error: error.message }, 500);
 
   return json({ ok: true }, 200);

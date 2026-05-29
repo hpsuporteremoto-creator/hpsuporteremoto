@@ -23,6 +23,9 @@ export interface Atendimento {
   valor_centavos: number | null;
   pix_brcode: string | null;
   descricao_solicitacao: string | null;
+  criado_por_user_id: string | null;
+  vendido_por_user_id: string | null;
+  atendido_por_user_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,10 +63,19 @@ export interface AtendimentoServicoRef {
   subtotal_centavos: number;
 }
 
+export interface AtendimentoUserRef {
+  id: string;
+  email: string;
+  full_name: string | null;
+}
+
 export interface AtendimentoComRelacoes extends Atendimento {
   cliente: AtendimentoClienteRef;
   servico: AtendimentoServicoRef | null;
   servicos_solicitados: AtendimentoServicoRef[];
+  criado_por: AtendimentoUserRef | null;
+  vendido_por: AtendimentoUserRef | null;
+  atendido_por: AtendimentoUserRef | null;
   financeiro_contabilizado: boolean;
   financeiro_transacao_id: string | null;
 }

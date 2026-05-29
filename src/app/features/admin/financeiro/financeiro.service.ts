@@ -8,6 +8,7 @@ import {
   TransacaoAtendimentoRef,
   TransacaoFormData,
   TransacaoServicoRef,
+  TransacaoUserRef,
 } from './financeiro.types';
 
 type TransacaoRow = Omit<Transacao, 'atendimento'> & {
@@ -34,6 +35,7 @@ export class FinanceiroService {
             servico_id,
             servico_ids,
             descricao_solicitacao,
+            vendido_por_user_id,
             cliente:clientes ( id, nome )
           )
         `,
@@ -118,7 +120,17 @@ export class FinanceiroService {
         }),
       ),
     );
-    const servicosById = await this.getServicosById(servicoIds);
+    const userIds = Array.from(
+      new Set(
+        normalizedRows.flatMap((row) =>
+          row.atendimento?.vendido_por_user_id ? [row.atendimento.vendido_por_user_id] : [],
+        ),
+      ),
+    );
+    const [servicosById, usersById] = await Promise.all([
+      this.getServicosById(servicoIds),
+      this.getUsersById(userIds),
+    ]);
 
     return normalizedRows.map((row) => {
       const atendimento = row.atendimento;
@@ -139,6 +151,9 @@ export class FinanceiroService {
         ...row,
         atendimento: {
           ...atendimento,
+          vendido_por: atendimento.vendido_por_user_id
+            ? (usersById.get(atendimento.vendido_por_user_id) ?? null)
+            : null,
           servicos_solicitados: Array.from(quantities.entries()).flatMap(([id, quantidade]) => {
             const servico = servicosById.get(id);
             return servico
@@ -166,5 +181,17 @@ export class FinanceiroService {
     if (error) throw new Error(error.message);
 
     return new Map(((data ?? []) as ServicoBase[]).map((servico) => [servico.id, servico]));
+  }
+
+  private async getUsersById(ids: readonly string[]): Promise<Map<string, TransacaoUserRef>> {
+    if (ids.length === 0) return new Map();
+
+    const { data, error } = await this.supabase
+      .from('profiles')
+      .select('id, email, full_name')
+      .in('id', ids);
+    if (error) throw new Error(error.message);
+
+    return new Map(((data ?? []) as TransacaoUserRef[]).map((user) => [user.id, user]));
   }
 }

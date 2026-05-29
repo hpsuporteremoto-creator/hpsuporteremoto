@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Location } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -96,9 +90,7 @@ import { AuthService } from '../../../../core/auth/auth.service';
             }
           </mat-form-field>
 
-          <p class="result-count" aria-live="polite">
-            {{ resultTotal() }} clientes encontrados
-          </p>
+          <p class="result-count" aria-live="polite">{{ resultTotal() }} clientes encontrados</p>
         </section>
 
         @if (resultTotal() === 0) {
@@ -126,6 +118,12 @@ import { AuthService } from '../../../../core/auth/auth.service';
                     }
                     @if (cliente.observacao) {
                       <small class="observacao">{{ cliente.observacao }}</small>
+                    }
+                    @if (cliente.cadastrado_por) {
+                      <small class="operator-line">
+                        <mat-icon>person_add</mat-icon>
+                        <span>Cadastrado por {{ operadorLabel(cliente.cadastrado_por) }}</span>
+                      </small>
                     }
                   </div>
                   <div class="actions">
@@ -238,6 +236,10 @@ export class ClientesListPage {
     return `Ver atendimentos de ${cliente.nome}`;
   }
 
+  operadorLabel(operador: Cliente['cadastrado_por']): string {
+    return operador?.full_name?.trim() || operador?.email || 'usuário';
+  }
+
   async carregar(): Promise<void> {
     this.searchTimer = null;
     this.loading.set(true);
@@ -257,9 +259,7 @@ export class ClientesListPage {
       this.resultTotal.set(result.total);
       this.clientes.set(result.clientes);
     } catch (err) {
-      this.error.set(
-        err instanceof Error ? err.message : 'Erro ao carregar clientes',
-      );
+      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar clientes');
     } finally {
       this.loading.set(false);
     }
@@ -269,11 +269,7 @@ export class ClientesListPage {
     try {
       await this.svc.toggleAtivo(cliente.id, ativo);
       await this.carregar();
-      this.snackBar.open(
-        `Cliente ${ativo ? 'ativado' : 'desativado'}`,
-        'OK',
-        { duration: 2500 },
-      );
+      this.snackBar.open(`Cliente ${ativo ? 'ativado' : 'desativado'}`, 'OK', { duration: 2500 });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro';
       this.snackBar.open(msg, 'OK', { duration: 4000 });

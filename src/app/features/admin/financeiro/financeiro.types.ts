@@ -13,11 +13,19 @@ export interface TransacaoServicoRef {
   subtotal_centavos: number;
 }
 
+export interface TransacaoUserRef {
+  id: string;
+  email: string;
+  full_name: string | null;
+}
+
 export interface TransacaoAtendimentoRef {
   id: string;
   servico_id: string | null;
   servico_ids: string[] | null;
   descricao_solicitacao: string | null;
+  vendido_por_user_id: string | null;
+  vendido_por: TransacaoUserRef | null;
   cliente: TransacaoClienteRef | null;
   servicos_solicitados: TransacaoServicoRef[];
 }

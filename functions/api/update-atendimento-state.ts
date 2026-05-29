@@ -53,10 +53,12 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: 'state inválido' }, 400);
   }
 
-  const { error } = await admin
-    .from('atendimentos')
-    .update({ state })
-    .eq('id', id);
+  const patch: Record<string, unknown> = { state };
+  if (state === 'em_andamento') {
+    patch['atendido_por_user_id'] = staffCheck.user.id;
+  }
+
+  const { error } = await admin.from('atendimentos').update(patch).eq('id', id);
   if (error) return json({ error: error.message }, 500);
 
   return json({ ok: true }, 200);

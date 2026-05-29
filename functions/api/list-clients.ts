@@ -17,8 +17,16 @@ type ClienteRow = {
   email: string | null;
   observacao: string | null;
   ativo: boolean;
+  cadastrado_por_user_id: string | null;
+  cadastrado_por?: UserRef | null;
   created_at: string;
   updated_at: string;
+};
+
+type UserRef = {
+  id: string;
+  email: string;
+  full_name: string | null;
 };
 
 type AtendimentoPurchaseRow = {
@@ -88,7 +96,10 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
         countByAtivo(admin, false),
       ]);
       const clientesPorCompra = await listClientesByIds(admin, ativo, clientesPorCompraIds);
-      const clientes = mergeClientes([...clientesPorTexto, ...clientesPorCompra]);
+      const clientes = await hydrateClientesUsers(
+        admin,
+        mergeClientes([...clientesPorTexto, ...clientesPorCompra]),
+      );
       return json(
         {
           clientes: clientes.slice(from, to + 1),
@@ -122,9 +133,11 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
 
   if (error) return json({ error: error.message }, 500);
 
+  const clientes = await hydrateClientesUsers(admin, (data ?? []) as ClienteRow[]);
+
   return json(
     {
-      clientes: (data ?? []) as ClienteRow[],
+      clientes,
       total: count ?? 0,
       counts: { ativos, inativos },
     },
@@ -247,6 +260,30 @@ function mergeClientes(clientes: ClienteRow[]): ClienteRow[] {
   return [...byId.values()].sort((a, b) =>
     a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }),
   );
+}
+
+async function hydrateClientesUsers(
+  admin: SupabaseClient,
+  clientes: ClienteRow[],
+): Promise<ClienteRow[]> {
+  const ids = Array.from(new Set(clientes.map((cliente) => cliente.cadastrado_por_user_id))).filter(
+    (id): id is string => typeof id === 'string' && id.length > 0,
+  );
+
+  if (ids.length === 0) {
+    return clientes.map((cliente) => ({ ...cliente, cadastrado_por: null }));
+  }
+
+  const { data, error } = await admin.from('profiles').select('id, email, full_name').in('id', ids);
+  if (error) throw new Error(error.message);
+
+  const usersById = new Map(((data ?? []) as UserRef[]).map((user) => [user.id, user]));
+  return clientes.map((cliente) => ({
+    ...cliente,
+    cadastrado_por: cliente.cadastrado_por_user_id
+      ? (usersById.get(cliente.cadastrado_por_user_id) ?? null)
+      : null,
+  }));
 }
 
 async function countByAtivo(admin: SupabaseClient, ativo: boolean): Promise<number> {

@@ -134,6 +134,28 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
                           {{ servicosLabel(a.servicos_solicitados) }}
                         </small>
                       }
+                      @if (a.vendido_por || a.atendido_por || a.criado_por) {
+                        <div class="operator-lines" aria-label="Responsáveis">
+                          @if (a.vendido_por) {
+                            <small>
+                              <mat-icon>point_of_sale</mat-icon>
+                              <span>Venda: {{ operadorLabel(a.vendido_por) }}</span>
+                            </small>
+                          }
+                          @if (a.atendido_por) {
+                            <small>
+                              <mat-icon>engineering</mat-icon>
+                              <span>Atendimento: {{ operadorLabel(a.atendido_por) }}</span>
+                            </small>
+                          }
+                          @if (!a.vendido_por && !a.atendido_por && a.criado_por) {
+                            <small>
+                              <mat-icon>person_add</mat-icon>
+                              <span>Criado por {{ operadorLabel(a.criado_por) }}</span>
+                            </small>
+                          }
+                        </div>
+                      }
                       @if (a.state === 'pagamento' && a.descricao_solicitacao) {
                         <p class="payment-observation">
                           <strong>Obs.</strong>
@@ -252,6 +274,10 @@ export class AtendimentosListPage {
         servico.quantidade > 1 ? `${servico.quantidade}x ${servico.nome}` : servico.nome,
       )
       .join(', ');
+  }
+
+  operadorLabel(operador: AtendimentoComRelacoes['criado_por']): string {
+    return operador?.full_name?.trim() || operador?.email || 'usuário';
   }
 
   async carregar(): Promise<void> {

@@ -91,6 +91,37 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
           </mat-card-content>
         </mat-card>
 
+        @if (a.criado_por || a.vendido_por || a.atendido_por) {
+          <mat-card appearance="filled" class="info-card">
+            <mat-card-header>
+              <mat-card-title>Responsáveis</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="responsaveis-content">
+              @if (a.criado_por) {
+                <p>
+                  <mat-icon>person_add</mat-icon>
+                  <span>Pedido criado por</span>
+                  <strong>{{ operadorLabel(a.criado_por) }}</strong>
+                </p>
+              }
+              @if (a.vendido_por) {
+                <p>
+                  <mat-icon>point_of_sale</mat-icon>
+                  <span>Venda/cobrança</span>
+                  <strong>{{ operadorLabel(a.vendido_por) }}</strong>
+                </p>
+              }
+              @if (a.atendido_por) {
+                <p>
+                  <mat-icon>engineering</mat-icon>
+                  <span>Atendimento</span>
+                  <strong>{{ operadorLabel(a.atendido_por) }}</strong>
+                </p>
+              }
+            </mat-card-content>
+          </mat-card>
+        }
+
         @if (
           a.servicos_solicitados.length > 0 ||
           a.servico ||
@@ -719,6 +750,10 @@ export class AtendimentoDetailPage {
   }
 
   protected readonly formatWhatsapp = formatWhatsappDisplay;
+
+  protected operadorLabel(operador: AtendimentoComRelacoes['criado_por']): string {
+    return operador?.full_name?.trim() || operador?.email || 'usuário';
+  }
 
   async copiar(text: string, msg: string): Promise<void> {
     try {
