@@ -134,6 +134,12 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
                           {{ servicosLabel(a.servicos_solicitados) }}
                         </small>
                       }
+                      @if (a.state === 'pagamento' && a.descricao_solicitacao) {
+                        <p class="payment-observation">
+                          <strong>Obs.</strong>
+                          <span>{{ a.descricao_solicitacao }}</span>
+                        </p>
+                      }
                       <small class="meta">
                         {{ a.created_at | date: 'short' }}
                       </small>

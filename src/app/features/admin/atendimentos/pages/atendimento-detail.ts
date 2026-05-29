@@ -91,7 +91,11 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
           </mat-card-content>
         </mat-card>
 
-        @if (a.descricao_solicitacao || a.servicos_solicitados.length > 0 || a.servico) {
+        @if (
+          a.servicos_solicitados.length > 0 ||
+          a.servico ||
+          (a.descricao_solicitacao && a.state !== 'pagamento')
+        ) {
           <mat-card appearance="filled" class="info-card">
             <mat-card-header>
               <mat-card-title>Solicitação</mat-card-title>
@@ -119,7 +123,7 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                   </span>
                 </div>
               }
-              @if (a.descricao_solicitacao) {
+              @if (a.descricao_solicitacao && a.state !== 'pagamento') {
                 <p class="descricao">{{ a.descricao_solicitacao }}</p>
               }
             </mat-card-content>
@@ -340,6 +344,26 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                   PIX gerado. Se o valor for renegociado, ajuste o desconto e atualize o PIX antes
                   de marcar como pago.
                 </p>
+                <mat-form-field appearance="outline" class="payment-note-field">
+                  <mat-label>Observação de cobrança</mat-label>
+                  <textarea
+                    matInput
+                    rows="6"
+                    [value]="descricaoEdicao()"
+                    (input)="onDescricaoChange($event)"
+                    [disabled]="updating()"
+                  ></textarea>
+                </mat-form-field>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  class="payment-note-action"
+                  (click)="salvarObservacaoPagamento()"
+                  [disabled]="!descricaoAlterada() || updating()"
+                >
+                  <mat-icon>save</mat-icon>
+                  <span>Salvar observação</span>
+                </button>
 
                 @if (servicosDisponiveis().length > 0) {
                   <section class="checkout" aria-label="Cobrança para pagamento">
@@ -820,9 +844,7 @@ export class AtendimentoDetailPage {
   async excluirPedidoEmAndamento(): Promise<void> {
     const a = this.atendimento();
     if (!a || !isEditableState(a.state) || !this.auth.isAdmin()) return;
-    const ok = confirm(
-      `Excluir o pedido de ${a.cliente.nome}? Esta ação não pode ser desfeita.`,
-    );
+    const ok = confirm(`Excluir o pedido de ${a.cliente.nome}? Esta ação não pode ser desfeita.`);
     if (!ok) return;
 
     this.updating.set(true);
@@ -842,6 +864,26 @@ export class AtendimentoDetailPage {
 
   async atualizarPix(): Promise<void> {
     await this.gerarPix('PIX atualizado.');
+  }
+
+  async salvarObservacaoPagamento(): Promise<void> {
+    const a = this.atendimento();
+    if (!a || a.state !== 'pagamento' || !this.descricaoAlterada()) return;
+
+    this.updating.set(true);
+    try {
+      await this.svc.atualizarObservacaoPagamento(
+        a.id,
+        normalizeDescription(this.descricaoEdicao()),
+      );
+      this.snackBar.open('Observação salva.', 'OK', { duration: 2500 });
+      await this.carregar(a.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar observação';
+      this.snackBar.open(msg, 'OK', { duration: 4000 });
+    } finally {
+      this.updating.set(false);
+    }
   }
 
   private async gerarPix(successMessage: string): Promise<void> {
@@ -910,6 +952,25 @@ export class AtendimentoDetailPage {
   async marcarPago(): Promise<void> {
     const a = this.atendimento();
     if (!a) return;
+    if (a.state === 'pagamento') {
+      this.updating.set(true);
+      try {
+        if (this.descricaoAlterada()) {
+          await this.svc.atualizarObservacaoPagamento(
+            a.id,
+            normalizeDescription(this.descricaoEdicao()),
+          );
+        }
+        await this.svc.updateState(a.id, 'concluido');
+        await this.carregar(a.id);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Erro ao finalizar';
+        this.snackBar.open(msg, 'OK', { duration: 4000 });
+      } finally {
+        this.updating.set(false);
+      }
+      return;
+    }
     await this.transition(a.id, 'concluido');
   }
 

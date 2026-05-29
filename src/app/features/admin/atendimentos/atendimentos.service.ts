@@ -45,10 +45,7 @@ export class AtendimentosService {
     await this.postApi('/api/update-atendimento-state', { id, state });
   }
 
-  async atualizarEmAndamento(
-    id: string,
-    data: AtualizarAtendimentoEmAndamentoData,
-  ): Promise<void> {
+  async atualizarEmAndamento(id: string, data: AtualizarAtendimentoEmAndamentoData): Promise<void> {
     await this.postApi('/api/update-atendimento', {
       id,
       servico_itens: data.servico_itens,
@@ -63,6 +60,16 @@ export class AtendimentosService {
 
   async atualizarContabilidade(id: string, contabilizar: boolean): Promise<void> {
     await this.postApi('/api/update-atendimento-accounting', { id, contabilizar });
+  }
+
+  async atualizarObservacaoPagamento(
+    id: string,
+    descricao_solicitacao: string | null,
+  ): Promise<void> {
+    await this.postApi('/api/update-atendimento-observacao', {
+      id,
+      descricao_solicitacao,
+    });
   }
 
   async criarParaCliente(
