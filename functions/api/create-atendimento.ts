@@ -53,6 +53,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     servico_itens?: unknown;
     servico_ids?: unknown;
     desconto_centavos?: unknown;
+    acrescimo_centavos?: unknown;
     descricao_solicitacao?: unknown;
   };
   const clienteId = typeof input.cliente_id === 'string' ? input.cliente_id : '';
@@ -64,6 +65,12 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     Number.isInteger(input.desconto_centavos) &&
     input.desconto_centavos >= 0
       ? input.desconto_centavos
+      : 0;
+  const acrescimoCentavos =
+    typeof input.acrescimo_centavos === 'number' &&
+    Number.isInteger(input.acrescimo_centavos) &&
+    input.acrescimo_centavos >= 0
+      ? input.acrescimo_centavos
       : 0;
   const descricaoSolicitacao =
     typeof input.descricao_solicitacao === 'string' && input.descricao_solicitacao.trim().length > 0
@@ -100,8 +107,8 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     const servico = byId.get(item.servico_id);
     return total + (servico?.valor_centavos ?? 0) * item.quantidade;
   }, 0);
-  if (subtotal > 0 && descontoCentavos >= subtotal) {
-    return json({ error: 'O desconto precisa ser menor que o subtotal' }, 400);
+  if (subtotal + acrescimoCentavos - descontoCentavos <= 0) {
+    return json({ error: 'Os ajustes precisam deixar o total maior que zero' }, 400);
   }
 
   const { data, error } = await admin
@@ -111,6 +118,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       servico_id: servicoIds[0] ?? null,
       servico_ids: servicoIds,
       desconto_centavos: descontoCentavos,
+      acrescimo_centavos: acrescimoCentavos,
       descricao_solicitacao: descricaoSolicitacao,
       criado_por_user_id: staffCheck.user.id,
       vendido_por_user_id: staffCheck.user.id,

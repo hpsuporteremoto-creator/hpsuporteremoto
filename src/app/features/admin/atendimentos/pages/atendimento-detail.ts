@@ -286,6 +286,20 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                       />
                       <span matTextPrefix>R$&nbsp;</span>
                     </mat-form-field>
+                    <mat-form-field appearance="outline" class="discount-field">
+                      <mat-label>Acréscimo</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputmode="decimal"
+                        [value]="acrescimoParaCobranca() / 100"
+                        (input)="onAcrescimoChange($event)"
+                        [disabled]="updating()"
+                      />
+                      <span matTextPrefix>R$&nbsp;</span>
+                    </mat-form-field>
                     <mat-form-field appearance="outline" class="description-field">
                       <mat-label>Descrição do pedido</mat-label>
                       <textarea
@@ -307,10 +321,16 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                           <strong>-{{ descontoParaCobranca() / 100 | currency }}</strong>
                         </div>
                       }
+                      @if (acrescimoParaCobranca() > 0) {
+                        <div class="surcharge-line">
+                          <span>Acréscimo</span>
+                          <strong>+{{ acrescimoParaCobranca() / 100 | currency }}</strong>
+                        </div>
+                      }
                     </div>
-                    @if (descontoInvalido()) {
+                    @if (ajusteInvalido()) {
                       <p class="discount-error" role="alert">
-                        O desconto precisa ser menor que o subtotal.
+                        Os ajustes precisam deixar o total maior que zero.
                       </p>
                     }
                     <div class="checkout-total">
@@ -332,7 +352,7 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                     [disabled]="
                       !pedidoAlterado() ||
                       servicosParaCobranca().length === 0 ||
-                      descontoInvalido() ||
+                      ajusteInvalido() ||
                       totalParaCobranca() <= 0 ||
                       updating()
                     "
@@ -361,7 +381,7 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                   (click)="cobrarEFinalizar()"
                   [disabled]="
                     servicosParaCobranca().length === 0 ||
-                    descontoInvalido() ||
+                    ajusteInvalido() ||
                     totalParaCobranca() <= 0 ||
                     updating()
                   "
@@ -372,8 +392,8 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
               }
               @case ('pagamento') {
                 <p class="state-hint">
-                  PIX gerado. Se o valor for renegociado, ajuste o desconto e atualize o PIX antes
-                  de marcar como pago.
+                  PIX gerado. Se o valor for renegociado, ajuste desconto ou acréscimo e atualize o
+                  PIX antes de marcar como pago.
                 </p>
                 <mat-form-field appearance="outline" class="payment-note-field">
                   <mat-label>Observação de cobrança</mat-label>
@@ -512,6 +532,20 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                       />
                       <span matTextPrefix>R$&nbsp;</span>
                     </mat-form-field>
+                    <mat-form-field appearance="outline" class="discount-field">
+                      <mat-label>Acréscimo</mat-label>
+                      <input
+                        matInput
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputmode="decimal"
+                        [value]="acrescimoParaCobranca() / 100"
+                        (input)="onAcrescimoChange($event)"
+                        [disabled]="updating()"
+                      />
+                      <span matTextPrefix>R$&nbsp;</span>
+                    </mat-form-field>
                     <div class="checkout-summary">
                       <div>
                         <span>Subtotal</span>
@@ -523,10 +557,16 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                           <strong>-{{ descontoParaCobranca() / 100 | currency }}</strong>
                         </div>
                       }
+                      @if (acrescimoParaCobranca() > 0) {
+                        <div class="surcharge-line">
+                          <span>Acréscimo</span>
+                          <strong>+{{ acrescimoParaCobranca() / 100 | currency }}</strong>
+                        </div>
+                      }
                     </div>
-                    @if (descontoInvalido()) {
+                    @if (ajusteInvalido()) {
                       <p class="discount-error" role="alert">
-                        O desconto precisa ser menor que o subtotal.
+                        Os ajustes precisam deixar o total maior que zero.
                       </p>
                     }
                     <div class="checkout-total">
@@ -538,14 +578,14 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                     mat-stroked-button
                     type="button"
                     (click)="atualizarPix()"
-                    [disabled]="descontoInvalido() || totalParaCobranca() <= 0 || updating()"
+                    [disabled]="ajusteInvalido() || totalParaCobranca() <= 0 || updating()"
                   >
                     <mat-icon>qr_code_2</mat-icon>
                     <span>Atualizar PIX {{ totalParaCobranca() / 100 | currency }}</span>
                   </button>
                   @if (cobrancaAlterada()) {
                     <p class="discount-warning" role="status">
-                      Atualize o PIX para aplicar itens ou desconto antes de finalizar.
+                      Atualize o PIX para aplicar itens, desconto ou acréscimo antes de finalizar.
                     </p>
                   }
                 } @else if (a.valor_centavos !== null) {
@@ -570,7 +610,7 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                   color="primary"
                   type="button"
                   (click)="marcarPago()"
-                  [disabled]="updating() || cobrancaAlterada() || descontoInvalido()"
+                  [disabled]="updating() || cobrancaAlterada() || ajusteInvalido()"
                 >
                   <mat-icon>check_circle</mat-icon>
                   <span>Marcar como pago e finalizar</span>
@@ -636,6 +676,7 @@ export class AtendimentoDetailPage {
   protected readonly updating = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly descontoCentavos = signal(0);
+  protected readonly acrescimoCentavos = signal(0);
   protected readonly descricaoEdicao = signal('');
   protected readonly servicosDisponiveis = signal<CobrancaServicoBase[]>([]);
   protected readonly selectedServicoIds = signal<string[]>([]);
@@ -700,16 +741,23 @@ export class AtendimentoDetailPage {
     );
   });
   protected readonly descontoParaCobranca = computed(() => Math.max(this.descontoCentavos(), 0));
-  protected readonly descontoInvalido = computed(
+  protected readonly acrescimoParaCobranca = computed(() => Math.max(this.acrescimoCentavos(), 0));
+  protected readonly totalParaCobranca = computed(() =>
+    Math.max(
+      this.subtotalParaCobranca() + this.acrescimoParaCobranca() - this.descontoParaCobranca(),
+      0,
+    ),
+  );
+  protected readonly ajusteInvalido = computed(
     () =>
       this.servicosParaCobranca().length > 0 &&
-      this.descontoParaCobranca() >= this.subtotalParaCobranca(),
-  );
-  protected readonly totalParaCobranca = computed(() =>
-    Math.max(this.subtotalParaCobranca() - this.descontoParaCobranca(), 0),
+      this.subtotalParaCobranca() + this.acrescimoParaCobranca() - this.descontoParaCobranca() <= 0,
   );
   protected readonly descontoAlterado = computed(
     () => this.descontoParaCobranca() !== (this.atendimento()?.desconto_centavos ?? 0),
+  );
+  protected readonly acrescimoAlterado = computed(
+    () => this.acrescimoParaCobranca() !== (this.atendimento()?.acrescimo_centavos ?? 0),
   );
   protected readonly descricaoAlterada = computed(() => {
     const atual = this.atendimento()?.descricao_solicitacao ?? '';
@@ -728,7 +776,7 @@ export class AtendimentoDetailPage {
     return !areItensEqual(atuais, selecionados);
   });
   protected readonly cobrancaAlterada = computed(
-    () => this.descontoAlterado() || this.itensAlterados(),
+    () => this.descontoAlterado() || this.acrescimoAlterado() || this.itensAlterados(),
   );
   protected readonly pedidoAlterado = computed(
     () => this.cobrancaAlterada() || this.descricaoAlterada(),
@@ -771,6 +819,7 @@ export class AtendimentoDetailPage {
       const [a, servicos] = await Promise.all([this.svc.get(id), this.servicosSvc.listAtivos()]);
       this.atendimento.set(a);
       this.descontoCentavos.set(Math.max(a?.desconto_centavos ?? 0, 0));
+      this.acrescimoCentavos.set(Math.max(a?.acrescimo_centavos ?? 0, 0));
       this.descricaoEdicao.set(a?.descricao_solicitacao ?? '');
       if (!a) {
         this.error.set('Atendimento não encontrado');
@@ -790,6 +839,13 @@ export class AtendimentoDetailPage {
     const value = Number(input?.value ?? 0);
     const desconto = Number.isFinite(value) ? Math.max(0, value) : 0;
     this.descontoCentavos.set(Math.round(desconto * 100));
+  }
+
+  onAcrescimoChange(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const value = Number(input?.value ?? 0);
+    const acrescimo = Number.isFinite(value) ? Math.max(0, value) : 0;
+    this.acrescimoCentavos.set(Math.round(acrescimo * 100));
   }
 
   onDescricaoChange(event: Event): void {
@@ -850,7 +906,7 @@ export class AtendimentoDetailPage {
       !a ||
       !isEditableState(a.state) ||
       this.servicosParaCobranca().length === 0 ||
-      this.descontoInvalido() ||
+      this.ajusteInvalido() ||
       this.totalParaCobranca() <= 0
     ) {
       return;
@@ -864,6 +920,7 @@ export class AtendimentoDetailPage {
           quantidade: this.quantidadeServico(servico),
         })),
         desconto_centavos: this.descontoParaCobranca(),
+        acrescimo_centavos: this.acrescimoParaCobranca(),
         descricao_solicitacao: normalizeDescription(this.descricaoEdicao()),
       });
       this.snackBar.open('Pedido atualizado.', 'OK', { duration: 2500 });
@@ -927,12 +984,7 @@ export class AtendimentoDetailPage {
       servico_id: servico.id,
       quantidade: this.quantidadeServico(servico),
     }));
-    if (
-      !a ||
-      servicoItens.length === 0 ||
-      this.descontoInvalido() ||
-      this.totalParaCobranca() <= 0
-    ) {
+    if (!a || servicoItens.length === 0 || this.ajusteInvalido() || this.totalParaCobranca() <= 0) {
       return;
     }
 
@@ -942,6 +994,7 @@ export class AtendimentoDetailPage {
         a.id,
         servicoItens,
         this.descontoParaCobranca(),
+        this.acrescimoParaCobranca(),
         normalizeDescription(this.descricaoEdicao()),
       );
       this.snackBar.open(successMessage, 'OK', { duration: 3000 });

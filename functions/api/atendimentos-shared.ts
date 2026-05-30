@@ -31,6 +31,7 @@ export type AtendimentoComRelacoes = {
   servico_id: string | null;
   servico_ids: string[] | null;
   desconto_centavos: number;
+  acrescimo_centavos: number;
   state: AtendimentoState;
   valor_centavos: number | null;
   pix_brcode: string | null;
@@ -58,7 +59,7 @@ export type AtendimentoComRelacoes = {
 };
 
 export const ATENDIMENTO_SELECT = `
-  id, cliente_id, servico_id, servico_ids, desconto_centavos,
+  id, cliente_id, servico_id, servico_ids, desconto_centavos, acrescimo_centavos,
   state, valor_centavos, pix_brcode, descricao_solicitacao,
   criado_por_user_id, vendido_por_user_id, atendido_por_user_id,
   created_at, updated_at,

@@ -59,6 +59,7 @@ export interface MeuPedido {
   servico_id: string | null;
   servico_ids: string[] | null;
   desconto_centavos: number;
+  acrescimo_centavos: number;
   state: MeuPedidoState;
   valor_centavos: number | null;
   pix_brcode: string | null;

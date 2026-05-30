@@ -161,6 +161,11 @@ function todayISO(): string {
                             Desconto -{{ formatCurrency(atendimento.descontoCentavos) }}
                           </span>
                         }
+                        @if (atendimento.acrescimoCentavos > 0) {
+                          <span class="today-surcharge">
+                            Acréscimo +{{ formatCurrency(atendimento.acrescimoCentavos) }}
+                          </span>
+                        }
                       </span>
                       <span class="today-meta">
                         <strong class="today-value">

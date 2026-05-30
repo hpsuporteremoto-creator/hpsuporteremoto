@@ -212,6 +212,22 @@ interface SelectedServicoItem extends Servico {
                 <mat-error>Informe um desconto válido</mat-error>
               }
             </mat-form-field>
+            <mat-form-field appearance="outline" class="discount-input">
+              <mat-label>Acréscimo</mat-label>
+              <input
+                matInput
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                formControlName="acrescimo_reais"
+                (input)="onAcrescimoChange($event)"
+              />
+              <span matTextPrefix>R$&nbsp;</span>
+              @if (form.controls.acrescimo_reais.hasError('min')) {
+                <mat-error>Informe um acréscimo válido</mat-error>
+              }
+            </mat-form-field>
           </mat-card-content>
         </mat-card>
 
@@ -273,17 +289,23 @@ interface SelectedServicoItem extends Servico {
                       <strong>-{{ descontoCentavos() / 100 | currency }}</strong>
                     </div>
                   }
+                  @if (acrescimoCentavos() > 0) {
+                    <div class="surcharge-line">
+                      <span>Acréscimo</span>
+                      <strong>+{{ acrescimoCentavos() / 100 | currency }}</strong>
+                    </div>
+                  }
                 </div>
 
-                @if (descontoInvalido()) {
+                @if (ajusteInvalido()) {
                   <p class="discount-error" role="alert">
-                    O desconto precisa ser menor que o subtotal.
+                    Os ajustes precisam deixar o total maior que zero.
                   </p>
                 }
 
                 <div class="checkout-total">
                   <span>Total</span>
-                  <strong>{{ totalComDesconto() / 100 | currency }}</strong>
+                  <strong>{{ totalComAjustes() / 100 | currency }}</strong>
                 </div>
               }
             </mat-card-content>
@@ -293,9 +315,7 @@ interface SelectedServicoItem extends Servico {
                 mat-flat-button
                 color="primary"
                 type="submit"
-                [disabled]="
-                  form.invalid || descontoInvalido() || saving() || loading() || !cliente()
-                "
+                [disabled]="form.invalid || ajusteInvalido() || saving() || loading() || !cliente()"
               >
                 <mat-icon>add_task</mat-icon>
                 <span>Criar e iniciar</span>
@@ -443,6 +463,8 @@ interface SelectedServicoItem extends Servico {
       white-space: nowrap
     .discount-line strong
       color: var(--mat-sys-error)
+    .surcharge-line strong
+      color: var(--mat-sys-primary)
     .discount-error
       margin: 0.75rem 0 0
       color: var(--mat-sys-error)
@@ -594,11 +616,14 @@ export class NovoAtendimentoPage {
     this.selectedServicos().reduce((total, servico) => total + servico.subtotal_centavos, 0),
   );
   protected readonly descontoCentavos = signal(0);
-  protected readonly descontoInvalido = computed(
-    () => this.selectedServicos().length > 0 && this.descontoCentavos() >= this.selectedTotal(),
+  protected readonly acrescimoCentavos = signal(0);
+  protected readonly totalComAjustes = computed(() =>
+    Math.max(this.selectedTotal() + this.acrescimoCentavos() - this.descontoCentavos(), 0),
   );
-  protected readonly totalComDesconto = computed(() =>
-    Math.max(this.selectedTotal() - this.descontoCentavos(), 0),
+  protected readonly ajusteInvalido = computed(
+    () =>
+      this.selectedServicos().length > 0 &&
+      this.selectedTotal() + this.acrescimoCentavos() - this.descontoCentavos() <= 0,
   );
   protected readonly categoriasServico = computed(() => {
     const byId = new Map<string, { id: string; nome: string }>();
@@ -639,6 +664,7 @@ export class NovoAtendimentoPage {
   protected readonly form = this.fb.group({
     servico_ids: this.fb.control<string[]>([], [Validators.required]),
     desconto_reais: [0, [Validators.min(0)]],
+    acrescimo_reais: [0, [Validators.min(0)]],
     descricao_solicitacao: [''],
   });
 
@@ -689,6 +715,13 @@ export class NovoAtendimentoPage {
     this.descontoCentavos.set(Math.round(desconto * 100));
   }
 
+  onAcrescimoChange(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const value = Number(input?.value ?? 0);
+    const acrescimo = Number.isFinite(value) ? Math.max(0, value) : 0;
+    this.acrescimoCentavos.set(Math.round(acrescimo * 100));
+  }
+
   limparFiltro(event: Event): void {
     event.stopPropagation();
     this.servicoFiltro.set('');
@@ -725,7 +758,7 @@ export class NovoAtendimentoPage {
 
   async onSubmit(): Promise<void> {
     const clienteId = this.clienteId();
-    if (this.form.invalid || this.descontoInvalido() || !clienteId || !this.cliente()) return;
+    if (this.form.invalid || this.ajusteInvalido() || !clienteId || !this.cliente()) return;
     this.saving.set(true);
     this.error.set(null);
 
@@ -737,6 +770,7 @@ export class NovoAtendimentoPage {
           quantidade: servico.quantidade,
         })),
         desconto_centavos: this.descontoCentavos(),
+        acrescimo_centavos: this.acrescimoCentavos(),
         descricao_solicitacao: value.descricao_solicitacao.trim() || null,
       });
       this.snackBar.open('Pedido criado e iniciado.', 'OK', { duration: 2500 });

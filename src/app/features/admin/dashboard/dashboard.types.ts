@@ -13,6 +13,7 @@ export interface DashboardTodayAtendimento {
   readonly clienteNome: string;
   readonly servicos: DashboardServicoRef[];
   readonly descontoCentavos: number;
+  readonly acrescimoCentavos: number;
   readonly valorCentavos: number;
   readonly descricaoSolicitacao: string | null;
   readonly state: AtendimentoState;

@@ -19,6 +19,7 @@ interface AtendimentoHojeRow {
   readonly servico_id: string | null;
   readonly servico_ids: string[] | null;
   readonly desconto_centavos: number | null;
+  readonly acrescimo_centavos: number | null;
   readonly valor_centavos: number | null;
   readonly descricao_solicitacao: string | null;
   readonly state: AtendimentoState;
@@ -148,8 +149,8 @@ export class DashboardService {
       .from('atendimentos')
       .select(
         `
-          id, servico_id, servico_ids, desconto_centavos, valor_centavos, descricao_solicitacao,
-          state, created_at,
+          id, servico_id, servico_ids, desconto_centavos, acrescimo_centavos, valor_centavos,
+          descricao_solicitacao, state, created_at,
           cliente:clientes ( nome )
         `,
       )
@@ -198,6 +199,7 @@ export class DashboardService {
           : [];
       });
       const descontoCentavos = Math.max(row.desconto_centavos ?? 0, 0);
+      const acrescimoCentavos = Math.max(row.acrescimo_centavos ?? 0, 0);
       const subtotalCentavos = servicos.reduce(
         (total, servico) => total + servico.subtotal_centavos,
         0,
@@ -208,7 +210,10 @@ export class DashboardService {
         clienteNome: row.cliente?.nome ?? 'Cliente sem nome',
         servicos,
         descontoCentavos,
-        valorCentavos: row.valor_centavos ?? Math.max(subtotalCentavos - descontoCentavos, 0),
+        acrescimoCentavos,
+        valorCentavos:
+          row.valor_centavos ??
+          Math.max(subtotalCentavos + acrescimoCentavos - descontoCentavos, 0),
         descricaoSolicitacao: row.descricao_solicitacao,
         state: this.normalizeAtendimentoState(row.state),
         createdAt: row.created_at,

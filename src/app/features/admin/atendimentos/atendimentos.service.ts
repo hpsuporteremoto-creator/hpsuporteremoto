@@ -50,6 +50,7 @@ export class AtendimentosService {
       id,
       servico_itens: data.servico_itens,
       desconto_centavos: data.desconto_centavos,
+      acrescimo_centavos: data.acrescimo_centavos,
       descricao_solicitacao: data.descricao_solicitacao,
     });
   }
@@ -80,6 +81,7 @@ export class AtendimentosService {
       cliente_id: clienteId,
       servico_itens: data.servico_itens,
       desconto_centavos: data.desconto_centavos,
+      acrescimo_centavos: data.acrescimo_centavos,
       descricao_solicitacao: data.descricao_solicitacao,
     });
     if (!payload.id) {
@@ -92,6 +94,7 @@ export class AtendimentosService {
     atendimento_id: string,
     servico_itens: readonly AtendimentoServicoInput[],
     desconto_centavos: number,
+    acrescimo_centavos: number,
     descricao_solicitacao?: string | null,
   ): Promise<{ pix_brcode: string; valor_centavos: number }> {
     const token = await this.auth.getAccessToken();
@@ -107,6 +110,7 @@ export class AtendimentosService {
         atendimento_id,
         servico_itens,
         desconto_centavos,
+        acrescimo_centavos,
         descricao_solicitacao,
       }),
     });

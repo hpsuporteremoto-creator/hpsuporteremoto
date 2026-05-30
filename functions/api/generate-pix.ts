@@ -62,6 +62,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     servico_ids,
     servico_itens,
     desconto_centavos,
+    acrescimo_centavos,
     descricao_solicitacao,
   } = (body ?? {}) as {
     atendimento_id?: unknown;
@@ -69,6 +70,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     servico_ids?: unknown;
     servico_itens?: unknown;
     desconto_centavos?: unknown;
+    acrescimo_centavos?: unknown;
     descricao_solicitacao?: unknown;
   };
 
@@ -84,7 +86,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
 
   const { data: atendimento, error: fetchError } = await admin
     .from('atendimentos')
-    .select('id, state, desconto_centavos')
+    .select('id, state, desconto_centavos, acrescimo_centavos')
     .eq('id', atendimento_id)
     .maybeSingle();
 
@@ -143,6 +145,10 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     desconto_centavos,
     typeof atendimento.desconto_centavos === 'number' ? atendimento.desconto_centavos : 0,
   );
+  const acrescimoCentavos = normalizeAcrescimoCentavos(
+    acrescimo_centavos,
+    typeof atendimento.acrescimo_centavos === 'number' ? atendimento.acrescimo_centavos : 0,
+  );
   const descricaoSolicitacao =
     typeof descricao_solicitacao === 'string' && descricao_solicitacao.trim().length > 0
       ? descricao_solicitacao.trim()
@@ -151,12 +157,15 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (descontoCentavos < 0) {
     return json({ error: 'Desconto inválido' }, 400);
   }
-
-  if (descontoCentavos >= subtotalCentavos) {
-    return json({ error: 'Desconto precisa ser menor que o subtotal' }, 400);
+  if (acrescimoCentavos < 0) {
+    return json({ error: 'Acréscimo inválido' }, 400);
   }
 
-  const totalCentavos = subtotalCentavos - descontoCentavos;
+  if (subtotalCentavos + acrescimoCentavos - descontoCentavos <= 0) {
+    return json({ error: 'Os ajustes precisam deixar o total maior que zero' }, 400);
+  }
+
+  const totalCentavos = subtotalCentavos + acrescimoCentavos - descontoCentavos;
   const receiverConfig = await getPixReceiverConfig(admin, env);
   if ('error' in receiverConfig) return json({ error: receiverConfig.error }, 500);
 
@@ -184,6 +193,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       pix_brcode: brcode,
       valor_centavos: totalCentavos,
       desconto_centavos: descontoCentavos,
+      acrescimo_centavos: acrescimoCentavos,
       descricao_solicitacao: descricaoSolicitacao,
       servico_id: servicoIds[0],
       servico_ids: servicoIds,
@@ -200,6 +210,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       pix_brcode: brcode,
       subtotal_centavos: subtotalCentavos,
       desconto_centavos: descontoCentavos,
+      acrescimo_centavos: acrescimoCentavos,
       valor_centavos: totalCentavos,
       state: 'pagamento',
     },
@@ -249,6 +260,12 @@ function isCompleteReceiverConfig(config: PixReceiverConfig): boolean {
 }
 
 function normalizeDescontoCentavos(value: unknown, fallback: number): number {
+  if (typeof value !== 'number') return Math.max(fallback, 0);
+  if (!Number.isInteger(value)) return -1;
+  return value;
+}
+
+function normalizeAcrescimoCentavos(value: unknown, fallback: number): number {
   if (typeof value !== 'number') return Math.max(fallback, 0);
   if (!Number.isInteger(value)) return -1;
   return value;
