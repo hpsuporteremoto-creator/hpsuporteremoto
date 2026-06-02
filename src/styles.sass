@@ -25,6 +25,16 @@ body
   min-height: 100dvh
   font-family: Roboto, system-ui, -apple-system, BlinkMacSystemFont, sans-serif
 
+body.is-admin-route
+  [id*='jivo'],
+  [class*='jivo'],
+  [id*='Jivo'],
+  [class*='Jivo'],
+  iframe[src*='jivosite.com']
+    display: none !important
+    visibility: hidden !important
+    pointer-events: none !important
+
 // Material Symbols Outlined: tamanho base e variation settings
 mat-icon
   font-feature-settings: 'liga'

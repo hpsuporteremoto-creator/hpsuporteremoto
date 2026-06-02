@@ -7,6 +7,16 @@ import { VersionBadge } from './shared/version-badge';
 
 const JIVO_SCRIPT_ID = 'jivo-chat-widget';
 const JIVO_SCRIPT_SRC = 'https://code.jivosite.com/widget/QblmcAIALk';
+const ADMIN_ROUTE_CLASS = 'is-admin-route';
+const JIVO_SELECTOR = [
+  `#${JIVO_SCRIPT_ID}`,
+  'script[src*="jivosite.com"]',
+  'iframe[src*="jivosite.com"]',
+  '[id*="jivo"]',
+  '[class*="jivo"]',
+  '[id*="Jivo"]',
+  '[class*="Jivo"]',
+].join(',');
 
 @Component({
   selector: 'app-root',
@@ -20,6 +30,7 @@ const JIVO_SCRIPT_SRC = 'https://code.jivosite.com/widget/QblmcAIALk';
 export class App {
   private readonly document = inject(DOCUMENT);
   private readonly router = inject(Router);
+  private jivoBlockerObserver: MutationObserver | null = null;
 
   constructor() {
     // Faz <mat-icon> usar Material Symbols Outlined (MD3) por padrão.
@@ -33,10 +44,14 @@ export class App {
 
   private syncJivoWidget(url: string): void {
     if (this.isAdminRoute(url)) {
+      this.document.body.classList.add(ADMIN_ROUTE_CLASS);
+      this.startJivoBlocker();
       this.removeJivoWidget();
       return;
     }
 
+    this.document.body.classList.remove(ADMIN_ROUTE_CLASS);
+    this.stopJivoBlocker();
     this.loadJivoWidget();
   }
 
@@ -59,17 +74,22 @@ export class App {
     this.callJivoMethod('close');
     this.callJivoMethod('hideWidget');
 
-    this.document
-      .querySelectorAll(
-        [
-          `#${JIVO_SCRIPT_ID}`,
-          'script[src*="jivosite.com"]',
-          'iframe[src*="jivosite.com"]',
-          '[id*="jivo"]',
-          '[class*="jivo"]',
-        ].join(','),
-      )
-      .forEach((element) => element.remove());
+    this.document.querySelectorAll(JIVO_SELECTOR).forEach((element) => element.remove());
+  }
+
+  private startJivoBlocker(): void {
+    if (this.jivoBlockerObserver) return;
+
+    this.jivoBlockerObserver = new MutationObserver(() => this.removeJivoWidget());
+    this.jivoBlockerObserver.observe(this.document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  private stopJivoBlocker(): void {
+    this.jivoBlockerObserver?.disconnect();
+    this.jivoBlockerObserver = null;
   }
 
   private callJivoMethod(methodName: 'close' | 'hideWidget'): void {
