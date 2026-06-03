@@ -9,12 +9,24 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSelectModule } from '@angular/material/select';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ClientesService } from '../../clientes/clientes.service';
 import { Cliente } from '../../clientes/clientes.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 
 type ContratoCampo = 'objeto' | 'condicoes' | 'observacoes';
+type ContratoStatus = 'a_iniciar' | 'em_andamento' | 'finalizado' | 'cancelado';
+
+const CONTRATO_STATUS_OPTIONS: ReadonlyArray<{
+  readonly value: ContratoStatus;
+  readonly label: string;
+}> = [
+  { value: 'a_iniciar', label: 'A Iniciar' },
+  { value: 'em_andamento', label: 'Em Andamento' },
+  { value: 'finalizado', label: 'Finalizado' },
+  { value: 'cancelado', label: 'Cancelado' },
+];
 
 @Component({
   selector: 'hp-contrato-form',
@@ -27,6 +39,7 @@ type ContratoCampo = 'objeto' | 'condicoes' | 'observacoes';
     MatIconModule,
     MatInputModule,
     MatProgressBarModule,
+    MatSelectModule,
     MatToolbarModule,
   ],
   template: `
@@ -160,6 +173,15 @@ type ContratoCampo = 'objeto' | 'condicoes' | 'observacoes';
           </mat-card-header>
           <mat-card-content class="fields">
             <mat-form-field appearance="outline">
+              <mat-label>Status</mat-label>
+              <mat-select formControlName="status">
+                @for (status of statusOptions; track status.value) {
+                  <mat-option [value]="status.value">{{ status.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
               <mat-label>Objeto do contrato</mat-label>
               <textarea matInput rows="5" formControlName="objeto"></textarea>
               @if (form.controls.objeto.invalid && form.controls.objeto.touched) {
@@ -203,6 +225,10 @@ type ContratoCampo = 'objeto' | 'condicoes' | 'observacoes';
                 <div>
                   <dt>WhatsApp</dt>
                   <dd>{{ formatWhatsapp(selected.whatsapp) }}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd>{{ statusLabel() }}</dd>
                 </div>
                 @if (selected.email) {
                   <div>
@@ -255,6 +281,7 @@ export class ContratoFormPage {
   private readonly route = inject(ActivatedRoute);
 
   protected readonly formatWhatsapp = formatWhatsappDisplay;
+  protected readonly statusOptions = CONTRATO_STATUS_OPTIONS;
   protected readonly cliente = signal<Cliente | null>(null);
   protected readonly clientes = signal<Cliente[]>([]);
   protected readonly clienteBusca = signal('');
@@ -266,6 +293,7 @@ export class ContratoFormPage {
   }).format(new Date());
   protected readonly clienteSelecionadoId = computed(() => this.cliente()?.id ?? null);
   protected readonly form = this.fb.nonNullable.group({
+    status: ['a_iniciar' as ContratoStatus, [Validators.required]],
     objeto: [
       'Prestação de serviços técnicos de software, suporte remoto, instalação, configuração, manutenção e/ou treinamento conforme demanda aprovada entre as partes.',
       [Validators.required],
@@ -316,6 +344,10 @@ export class ContratoFormPage {
 
   temObservacoes(): boolean {
     return this.form.controls.observacoes.value.trim().length > 0;
+  }
+
+  statusLabel(): string {
+    return toContratoStatusLabel(this.form.controls.status.value);
   }
 
   async carregarCliente(id: string): Promise<void> {
@@ -435,6 +467,8 @@ export class ContratoFormPage {
         <dd>${this.escapeHtml(cliente.nome)}</dd>
         <dt>WhatsApp</dt>
         <dd>${this.escapeHtml(this.formatWhatsapp(cliente.whatsapp))}</dd>
+        <dt>Status</dt>
+        <dd>${this.escapeHtml(toContratoStatusLabel(dados.status))}</dd>
         <dt>Email</dt>
         <dd>${this.escapeHtml(cliente.email?.trim() || 'Não informado')}</dd>
         <dt>Instagram</dt>
@@ -467,4 +501,8 @@ export class ContratoFormPage {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
+}
+
+function toContratoStatusLabel(status: ContratoStatus): string {
+  return CONTRATO_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? 'A Iniciar';
 }
