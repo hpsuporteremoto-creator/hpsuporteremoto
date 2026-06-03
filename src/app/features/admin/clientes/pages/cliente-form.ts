@@ -6,7 +6,7 @@ import {
   signal,
 } from '@angular/core';
 import { Location } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -31,6 +31,7 @@ import {
 @Component({
   selector: 'hp-cliente-form',
   imports: [
+    RouterLink,
     ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
@@ -48,6 +49,19 @@ import {
         <mat-icon>arrow_back</mat-icon>
       </button>
       <span>{{ isNew() ? 'Novo cliente' : 'Editar cliente' }}</span>
+      <span class="spacer"></span>
+      @if (id(); as clienteId) {
+        <a
+          mat-flat-button
+          color="primary"
+          [routerLink]="['/admin/contratos/novo']"
+          [queryParams]="{ clienteId }"
+          [attr.aria-label]="'Gerar contrato para ' + form.controls.nome.value"
+        >
+          <mat-icon>description</mat-icon>
+          <span>Gerar contrato</span>
+        </a>
+      }
     </mat-toolbar>
 
     @if (loading() || saving()) {
