@@ -127,6 +127,17 @@ import { AuthService } from '../../../../core/auth/auth.service';
                     }
                   </div>
                   <div class="actions">
+                    <a
+                      mat-stroked-button
+                      class="contract-action"
+                      [routerLink]="['/admin/contratos/novo']"
+                      [queryParams]="{ clienteId: cliente.id }"
+                      (click)="$event.stopPropagation()"
+                      [attr.aria-label]="'Gerar contrato para ' + cliente.nome"
+                    >
+                      <mat-icon>description</mat-icon>
+                      <span>Gerar contrato</span>
+                    </a>
                     <mat-slide-toggle
                       [checked]="cliente.ativo"
                       (click)="$event.stopPropagation()"

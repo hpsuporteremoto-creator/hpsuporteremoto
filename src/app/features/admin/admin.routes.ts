@@ -28,6 +28,13 @@ export const adminRoutes: Routes = [
           import('./clientes/clientes.routes').then((m) => m.clientesRoutes),
       },
       {
+        path: 'contratos',
+        loadChildren: () =>
+          import('./contratos/contratos.routes').then(
+            (m) => m.contratosRoutes,
+          ),
+      },
+      {
         path: 'servicos',
         loadChildren: () =>
           import('./servicos/servicos.routes').then((m) => m.servicosRoutes),

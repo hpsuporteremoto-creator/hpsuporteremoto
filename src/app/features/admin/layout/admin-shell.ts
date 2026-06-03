@@ -158,6 +158,12 @@ export class AdminShell {
     },
     { label: 'Clientes', icon: 'groups', route: ['./clientes'], exact: false },
     {
+      label: 'Contratos',
+      icon: 'description',
+      route: ['./contratos'],
+      exact: false,
+    },
+    {
       label: 'Serviços',
       icon: 'design_services',
       route: ['./servicos'],
@@ -193,6 +199,12 @@ export class AdminShell {
       label: 'Clientes',
       icon: 'groups',
       route: ['./clientes'],
+      exact: false,
+    },
+    {
+      label: 'Contratos',
+      icon: 'description',
+      route: ['./contratos'],
       exact: false,
     },
     {
