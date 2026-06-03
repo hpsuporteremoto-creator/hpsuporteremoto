@@ -77,6 +77,16 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
         </div>
         <div class="client-filter-actions">
           <a
+            mat-flat-button
+            color="primary"
+            [routerLink]="['/admin/contratos/novo']"
+            [queryParams]="{ clienteId: clienteFilterId() }"
+            [attr.aria-label]="'Gerar contrato para ' + clienteFilterName()"
+          >
+            <mat-icon>description</mat-icon>
+            <span>Gerar contrato</span>
+          </a>
+          <a
             mat-stroked-button
             [routerLink]="['/admin/clientes', clienteFilterId(), 'editar']"
             [attr.aria-label]="'Editar cliente ' + clienteFilterName()"
