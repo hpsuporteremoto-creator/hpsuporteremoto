@@ -2,7 +2,7 @@ import { DOCUMENT, Location } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -10,23 +10,15 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ClientesService } from '../../clientes/clientes.service';
 import { Cliente } from '../../clientes/clientes.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
+import { ContratosService } from '../contratos.service';
+import { CONTRATO_STATUS_OPTIONS, ContratoStatus, toContratoStatusLabel } from '../contratos.types';
 
 type ContratoCampo = 'objeto' | 'condicoes' | 'observacoes';
-type ContratoStatus = 'a_iniciar' | 'em_andamento' | 'finalizado' | 'cancelado';
-
-const CONTRATO_STATUS_OPTIONS: ReadonlyArray<{
-  readonly value: ContratoStatus;
-  readonly label: string;
-}> = [
-  { value: 'a_iniciar', label: 'A Iniciar' },
-  { value: 'em_andamento', label: 'Em Andamento' },
-  { value: 'finalizado', label: 'Finalizado' },
-  { value: 'cancelado', label: 'Cancelado' },
-];
 
 @Component({
   selector: 'hp-contrato-form',
@@ -257,10 +249,19 @@ const CONTRATO_STATUS_OPTIONS: ReadonlyArray<{
         </mat-card-content>
         <mat-card-actions align="end">
           <button
+            mat-stroked-button
+            type="button"
+            [disabled]="!cliente() || form.invalid || saving()"
+            (click)="salvarContrato()"
+          >
+            <mat-icon>save</mat-icon>
+            <span>Salvar contrato</span>
+          </button>
+          <button
             mat-flat-button
             color="primary"
             type="button"
-            [disabled]="!cliente() || form.invalid"
+            [disabled]="!cliente() || form.invalid || saving()"
             (click)="imprimirContrato()"
           >
             <mat-icon>print</mat-icon>
@@ -275,10 +276,13 @@ const CONTRATO_STATUS_OPTIONS: ReadonlyArray<{
 })
 export class ContratoFormPage {
   private readonly clientesService = inject(ClientesService);
+  private readonly contratosService = inject(ContratosService);
   private readonly document = inject(DOCUMENT);
   private readonly fb = inject(FormBuilder);
   private readonly location = inject(Location);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly snackBar = inject(MatSnackBar);
 
   protected readonly formatWhatsapp = formatWhatsappDisplay;
   protected readonly statusOptions = CONTRATO_STATUS_OPTIONS;
@@ -287,6 +291,7 @@ export class ContratoFormPage {
   protected readonly clienteBusca = signal('');
   protected readonly loading = signal(false);
   protected readonly loadingClientes = signal(false);
+  protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly hojeLabel = new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'long',
@@ -416,6 +421,35 @@ export class ContratoFormPage {
     windowRef?.setTimeout(() => printWindow.print(), 200);
   }
 
+  async salvarContrato(): Promise<void> {
+    const cliente = this.cliente();
+    if (!cliente || this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
+
+    this.saving.set(true);
+    try {
+      const value = this.form.getRawValue();
+      await this.contratosService.create({
+        cliente_id: cliente.id,
+        status: value.status,
+        objeto: value.objeto.trim(),
+        condicoes: value.condicoes.trim() || null,
+        observacoes: value.observacoes.trim() || null,
+      });
+      this.snackBar.open('Contrato salvo', 'OK', { duration: 2500 });
+      await this.router.navigate(['/admin/contratos'], {
+        queryParams: { status: value.status },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar contrato';
+      this.snackBar.open(msg, 'OK', { duration: 4000 });
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
   private agendarBusca(): void {
     if (this.searchTimer) clearTimeout(this.searchTimer);
     this.searchTimer = setTimeout(() => void this.buscarClientes(), 250);
@@ -501,8 +535,4 @@ export class ContratoFormPage {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   }
-}
-
-function toContratoStatusLabel(status: ContratoStatus): string {
-  return CONTRATO_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? 'A Iniciar';
 }

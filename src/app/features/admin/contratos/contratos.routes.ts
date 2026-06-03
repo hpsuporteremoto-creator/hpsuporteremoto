@@ -4,7 +4,8 @@ export const contratosRoutes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    redirectTo: 'novo',
+    loadComponent: () =>
+      import('./pages/contratos-list').then((m) => m.ContratosListPage),
   },
   {
     path: 'novo',
