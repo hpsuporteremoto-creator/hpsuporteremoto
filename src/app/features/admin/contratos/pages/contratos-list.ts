@@ -86,6 +86,13 @@ type StatusFilter = ContratoStatus | 'todos';
                 <span class="status-badge status-{{ contrato.status }}">
                   {{ statusLabel(contrato.status) }}
                 </span>
+                <a
+                  mat-icon-button
+                  [routerLink]="[contrato.id, 'editar']"
+                  [attr.aria-label]="'Editar contrato de ' + contrato.cliente.nome"
+                >
+                  <mat-icon>edit</mat-icon>
+                </a>
               </mat-card-content>
             </mat-card>
           }

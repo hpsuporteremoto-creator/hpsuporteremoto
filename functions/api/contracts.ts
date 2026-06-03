@@ -27,21 +27,20 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
 
   const url = new URL(request.url);
+  const id = url.searchParams.get('id')?.trim() ?? '';
+  if (id) {
+    const { data, error } = await selectContracts(admin).eq('id', id).maybeSingle();
+    if (error) return json({ error: error.message }, 500);
+    if (!data) return json({ error: 'Contrato não encontrado' }, 404);
+    return json({ contrato: data }, 200);
+  }
+
   const status = normalizeStatus(url.searchParams.get('status'));
   if (url.searchParams.get('status') && !status) {
     return json({ error: 'Status inválido' }, 400);
   }
 
-  let query = admin
-    .from('contratos')
-    .select(
-      `
-      id, cliente_id, status, objeto, condicoes, observacoes,
-      criado_por_user_id, created_at, updated_at,
-      cliente:clientes ( id, nome, whatsapp, email )
-    `,
-    )
-    .order('created_at', { ascending: false });
+  let query = selectContracts(admin).order('created_at', { ascending: false });
 
   if (status) query = query.eq('status', status);
 
@@ -83,6 +82,52 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (error) return json({ error: error.message }, 400);
   return json({ contrato: data }, 201);
 };
+
+export const onRequestPut = async (context: Context): Promise<Response> => {
+  const { request, env } = context;
+  const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const staffCheck = await requireStaff(admin, request);
+  if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return json({ error: 'Corpo JSON inválido' }, 400);
+  }
+
+  const id = normalizeRequiredText(body['id']);
+  if (!id) return json({ error: 'id obrigatório' }, 400);
+
+  const input = buildInput(body, staffCheck.user.id);
+  if ('error' in input) return json({ error: input.error }, 400);
+
+  const { data, error } = await admin
+    .from('contratos')
+    .update(input)
+    .eq('id', id)
+    .select(
+      `
+      id, cliente_id, status, objeto, condicoes, observacoes,
+      criado_por_user_id, created_at, updated_at,
+      cliente:clientes ( id, nome, whatsapp, email )
+    `,
+    )
+    .single();
+
+  if (error) return json({ error: error.message }, 400);
+  return json({ contrato: data }, 200);
+};
+
+function selectContracts(admin: ReturnType<typeof createClient>) {
+  return admin.from('contratos').select(`
+    id, cliente_id, status, objeto, condicoes, observacoes,
+    criado_por_user_id, created_at, updated_at,
+    cliente:clientes ( id, nome, whatsapp, email )
+  `);
+}
 
 function buildInput(body: Record<string, unknown>, userId: string) {
   const clienteId = normalizeRequiredText(body['cliente_id']);

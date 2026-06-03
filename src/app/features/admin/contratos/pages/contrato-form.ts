@@ -39,7 +39,7 @@ type ContratoCampo = 'objeto' | 'condicoes' | 'observacoes';
       <button mat-icon-button type="button" (click)="voltar()" aria-label="Voltar">
         <mat-icon>arrow_back</mat-icon>
       </button>
-      <span>Gerar contrato</span>
+      <span>{{ isEdit() ? 'Editar contrato' : 'Gerar contrato' }}</span>
       <span class="spacer"></span>
       <a mat-button [routerLink]="['/admin/clientes']">
         <mat-icon>groups</mat-icon>
@@ -292,6 +292,8 @@ export class ContratoFormPage {
   protected readonly loading = signal(false);
   protected readonly loadingClientes = signal(false);
   protected readonly saving = signal(false);
+  protected readonly contratoId = signal<string | null>(null);
+  protected readonly isEdit = computed(() => this.contratoId() !== null);
   protected readonly error = signal<string | null>(null);
   protected readonly hojeLabel = new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'long',
@@ -313,6 +315,13 @@ export class ContratoFormPage {
   private searchRun = 0;
 
   constructor() {
+    const contratoId = this.route.snapshot.paramMap.get('id');
+    if (contratoId) {
+      this.contratoId.set(contratoId);
+      void this.carregarContrato(contratoId);
+      return;
+    }
+
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const clienteId = params.get('clienteId');
       if (clienteId) {
@@ -369,6 +378,29 @@ export class ContratoFormPage {
       await this.buscarClientes();
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Erro ao carregar cliente.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  async carregarContrato(id: string): Promise<void> {
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      const contrato = await this.contratosService.get(id);
+      if (!contrato) {
+        this.error.set('Contrato não encontrado.');
+        return;
+      }
+      this.form.setValue({
+        status: contrato.status,
+        objeto: contrato.objeto,
+        condicoes: contrato.condicoes ?? '',
+        observacoes: contrato.observacoes ?? '',
+      });
+      await this.carregarCliente(contrato.cliente_id);
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar contrato.');
     } finally {
       this.loading.set(false);
     }
@@ -431,14 +463,22 @@ export class ContratoFormPage {
     this.saving.set(true);
     try {
       const value = this.form.getRawValue();
-      await this.contratosService.create({
+      const input = {
         cliente_id: cliente.id,
         status: value.status,
         objeto: value.objeto.trim(),
         condicoes: value.condicoes.trim() || null,
         observacoes: value.observacoes.trim() || null,
+      };
+      const id = this.contratoId();
+      if (id) {
+        await this.contratosService.update(id, input);
+      } else {
+        await this.contratosService.create(input);
+      }
+      this.snackBar.open(id ? 'Contrato atualizado' : 'Contrato salvo', 'OK', {
+        duration: 2500,
       });
-      this.snackBar.open('Contrato salvo', 'OK', { duration: 2500 });
       await this.router.navigate(['/admin/contratos'], {
         queryParams: { status: value.status },
       });

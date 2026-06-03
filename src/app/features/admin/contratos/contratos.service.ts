@@ -23,6 +23,23 @@ export class ContratosService {
     return payload.contrato;
   }
 
+  async get(id: string): Promise<Contrato | null> {
+    const payload = await this.fetchApi<{
+      contrato?: Contrato | null;
+      error?: string;
+    }>(`/api/contracts?id=${encodeURIComponent(id)}`);
+    return payload.contrato ?? null;
+  }
+
+  async update(id: string, input: ContratoFormData): Promise<Contrato> {
+    const payload = await this.putApi<{ contrato?: Contrato; error?: string }>('/api/contracts', {
+      id,
+      ...input,
+    });
+    if (!payload.contrato) throw new Error('Falha ao atualizar contrato');
+    return payload.contrato;
+  }
+
   private async fetchApi<T extends { error?: string }>(url: string): Promise<T> {
     const token = await this.auth.getAccessToken();
     if (!token) throw new Error('Sessão inválida');
@@ -39,6 +56,22 @@ export class ContratosService {
     if (!token) throw new Error('Sessão inválida');
     const response = await fetch(url, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const payload = (await response.json().catch(() => ({}))) as T;
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload;
+  }
+
+  private async putApi<T extends { error?: string }>(url: string, body: unknown): Promise<T> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const response = await fetch(url, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
