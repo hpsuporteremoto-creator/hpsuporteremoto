@@ -76,6 +76,14 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
           <strong>{{ clienteFilterName() }}</strong>
         </div>
         <div class="client-filter-actions">
+          <a
+            mat-stroked-button
+            [routerLink]="['/admin/clientes', clienteFilterId(), 'editar']"
+            [attr.aria-label]="'Editar cliente ' + clienteFilterName()"
+          >
+            <mat-icon>edit</mat-icon>
+            <span>Editar cliente</span>
+          </a>
           @if (whatsappLink(); as link) {
             <a
               mat-flat-button
