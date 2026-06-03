@@ -11,7 +11,9 @@ import * as echarts from 'echarts/core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
+import { AuthService } from '../../../../core/auth/auth.service';
 import { ATENDIMENTO_STATE_LABEL, AtendimentoState } from '../../atendimentos/atendimentos.types';
+import { AdminExportacaoService } from '../../exportacao/exportacao.service';
 import { DashboardService } from '../dashboard.service';
 import { AdminDashboardData, DashboardTodayAtendimento } from '../dashboard.types';
 
@@ -72,6 +74,17 @@ function todayISO(): string {
             <mat-icon>refresh</mat-icon>
             <span>Atualizar</span>
           </button>
+          @if (auth.isAdmin()) {
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="exportarExcel()"
+              [disabled]="exporting()"
+            >
+              <mat-icon>{{ exporting() ? 'hourglass_top' : 'download' }}</mat-icon>
+              <span>{{ exporting() ? 'Exportando...' : 'Exportar Excel' }}</span>
+            </button>
+          }
           <a mat-flat-button color="primary" routerLink="clientes">
             <mat-icon>person_search</mat-icon>
             <span>Novo pedido</span>
@@ -214,7 +227,9 @@ function todayISO(): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AdminDashboardPage {
+  protected readonly auth = inject(AuthService);
   private readonly dashboardService = inject(DashboardService);
+  private readonly exportacaoService = inject(AdminExportacaoService);
   private readonly currencyFormatter = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -225,6 +240,7 @@ export class AdminDashboardPage {
 
   protected readonly data = signal<AdminDashboardData | null>(null);
   protected readonly loading = signal(false);
+  protected readonly exporting = signal(false);
   protected readonly error = signal<string | null>(null);
 
   protected readonly kpis = computed<DashboardKpi[]>(() => {
@@ -402,6 +418,18 @@ export class AdminDashboardPage {
       this.error.set(err instanceof Error ? err.message : 'Erro ao carregar dashboard');
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  async exportarExcel(): Promise<void> {
+    this.exporting.set(true);
+    this.error.set(null);
+    try {
+      await this.exportacaoService.exportarTudoExcel();
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : 'Erro ao exportar Excel');
+    } finally {
+      this.exporting.set(false);
     }
   }
 
