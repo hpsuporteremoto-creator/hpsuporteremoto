@@ -89,9 +89,10 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
 
   if (termo) {
     try {
+      const isEmailSearch = looksLikeEmailSearch(termo);
       const [clientesPorTexto, clientesPorCompraIds, ativos, inativos] = await Promise.all([
         listClientesBySearch(admin, ativo, termo),
-        findPurchaseClientIds(admin, termo),
+        isEmailSearch ? Promise.resolve(new Set<string>()) : findPurchaseClientIds(admin, termo),
         countByAtivo(admin, true),
         countByAtivo(admin, false),
       ]);
@@ -338,6 +339,10 @@ function normalizeSearchKey(value: string): string {
 }
 
 function matchesClienteSearch(cliente: ClienteRow, termo: string): boolean {
+  if (looksLikeEmailSearch(termo)) {
+    return matchesEmailSearch(cliente.email, termo);
+  }
+
   const searchTerms = expandSearchTerms(termo);
   const searchableText = [cliente.nome, cliente.email, cliente.instagram, cliente.observacao]
     .filter((value): value is string => Boolean(value))
@@ -348,6 +353,15 @@ function matchesClienteSearch(cliente: ClienteRow, termo: string): boolean {
     matchesSearchTerms(searchableText, searchTerms) ||
     phoneCandidates.some((digits) => whatsappDigits.includes(digits))
   );
+}
+
+function looksLikeEmailSearch(value: string): boolean {
+  return value.includes('@');
+}
+
+function matchesEmailSearch(email: string | null, termo: string): boolean {
+  if (!email) return false;
+  return normalizeSearchKey(email).includes(normalizeSearchKey(termo));
 }
 
 function matchesSearchTerms(value: string, terms: readonly string[]): boolean {
