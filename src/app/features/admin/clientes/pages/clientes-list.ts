@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Location } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -180,6 +180,7 @@ export class ClientesListPage {
   private readonly snackBar = inject(MatSnackBar);
   private readonly location = inject(Location);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly formatWhatsapp = formatWhatsappDisplay;
   protected readonly clientes = signal<Cliente[] | null>(null);
@@ -201,6 +202,7 @@ export class ClientesListPage {
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
+    this.applyQueryParams();
     void this.carregar();
   }
 
@@ -220,17 +222,20 @@ export class ClientesListPage {
     this.searchTimer = null;
     this.searchTerm.set('');
     this.pageIndex.set(0);
+    void this.syncQueryParams();
     void this.carregar();
   }
 
   onTabChange(index: number): void {
     this.tabIndex.set(index);
     this.pageIndex.set(0);
+    void this.syncQueryParams();
     void this.carregar();
   }
 
   onPage(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);
+    void this.syncQueryParams();
     void this.carregar();
   }
 
@@ -289,6 +294,33 @@ export class ClientesListPage {
 
   private scheduleCarregar(): void {
     if (this.searchTimer) clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => void this.carregar(), 250);
+    this.searchTimer = setTimeout(() => {
+      void this.syncQueryParams();
+      void this.carregar();
+    }, 250);
+  }
+
+  private applyQueryParams(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const termo = params.get('q')?.trim() ?? '';
+    const tab = params.get('tab');
+    const page = Number(params.get('page') ?? '1');
+    this.searchTerm.set(termo);
+    this.tabIndex.set(tab === 'inativos' ? 1 : 0);
+    this.pageIndex.set(Number.isInteger(page) && page > 1 ? page - 1 : 0);
+  }
+
+  private syncQueryParams(): Promise<boolean> {
+    const termo = this.searchTerm().trim();
+    return this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: {
+        q: termo || null,
+        tab: this.tabIndex() === 1 ? 'inativos' : null,
+        page: this.pageIndex() > 0 ? this.pageIndex() + 1 : null,
+      },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
   }
 }
