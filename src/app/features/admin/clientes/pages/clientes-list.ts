@@ -72,7 +72,7 @@ import { AuthService } from '../../../../core/auth/auth.service';
             <input
               matInput
               type="search"
-              placeholder="Ex.: Arquitetura, engenheiro, AutoCAD"
+              placeholder="Ex.: nome, email, WhatsApp ou observação"
               [value]="searchTerm()"
               (input)="onSearch($event)"
               autocomplete="off"

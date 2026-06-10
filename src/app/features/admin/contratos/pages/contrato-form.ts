@@ -60,9 +60,7 @@ type ContratoCampo = 'objeto' | 'condicoes' | 'observacoes';
         <mat-card appearance="filled" class="panel">
           <mat-card-header>
             <mat-card-title>Cliente</mat-card-title>
-            <mat-card-subtitle
-              >Busque por nome, email, WhatsApp ou padrão de compra</mat-card-subtitle
-            >
+            <mat-card-subtitle>Busque por nome, email, WhatsApp ou observação</mat-card-subtitle>
           </mat-card-header>
           <mat-card-content>
             <mat-form-field appearance="outline" class="search-field">

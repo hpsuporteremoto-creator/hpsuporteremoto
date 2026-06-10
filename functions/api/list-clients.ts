@@ -29,33 +29,8 @@ type UserRef = {
   full_name: string | null;
 };
 
-type AtendimentoPurchaseRow = {
-  cliente_id: string;
-  servico_id: string | null;
-  servico_ids: string[] | null;
-  descricao_solicitacao: string | null;
-};
-
-type ServicoSearchRow = {
-  id: string;
-  nome: string;
-  descricao: string | null;
-};
-
 const FETCH_PAGE_SIZE = 1000;
-const CLIENT_ID_CHUNK_SIZE = 200;
-const SEARCH_STOP_WORDS = new Set([
-  'cliente',
-  'clientes',
-  'compra',
-  'compras',
-  'comprado',
-  'comprados',
-  'compraram',
-  'comprou',
-  'todos',
-  'todas',
-]);
+const SEARCH_STOP_WORDS = new Set(['cliente', 'clientes', 'todos', 'todas']);
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -89,22 +64,16 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
 
   if (termo) {
     try {
-      const isEmailSearch = looksLikeEmailSearch(termo);
-      const [clientesPorTexto, clientesPorCompraIds, ativos, inativos] = await Promise.all([
+      const [clientes, ativos, inativos] = await Promise.all([
         listClientesBySearch(admin, ativo, termo),
-        isEmailSearch ? Promise.resolve(new Set<string>()) : findPurchaseClientIds(admin, termo),
         countByAtivo(admin, true),
         countByAtivo(admin, false),
       ]);
-      const clientesPorCompra = await listClientesByIds(admin, ativo, clientesPorCompraIds);
-      const clientes = await hydrateClientesUsers(
-        admin,
-        mergeClientes([...clientesPorTexto, ...clientesPorCompra]),
-      );
+      const hydrated = await hydrateClientesUsers(admin, clientes);
       return json(
         {
-          clientes: clientes.slice(from, to + 1),
-          total: clientes.length,
+          clientes: hydrated.slice(from, to + 1),
+          total: hydrated.length,
           counts: { ativos, inativos },
         },
         200,
@@ -165,102 +134,6 @@ async function listClientesBySearch(
     if (page.length < FETCH_PAGE_SIZE) break;
   }
   return rows.filter((cliente) => matchesClienteSearch(cliente, termo));
-}
-
-async function listClientesByIds(
-  admin: SupabaseClient,
-  ativo: boolean,
-  ids: ReadonlySet<string>,
-): Promise<ClienteRow[]> {
-  const rows: ClienteRow[] = [];
-  const allIds = [...ids];
-  for (let index = 0; index < allIds.length; index += CLIENT_ID_CHUNK_SIZE) {
-    const chunk = allIds.slice(index, index + CLIENT_ID_CHUNK_SIZE);
-    if (chunk.length === 0) continue;
-    const { data, error } = await admin
-      .from('clientes')
-      .select('*')
-      .eq('ativo', ativo)
-      .in('id', chunk);
-    if (error) throw new Error(error.message);
-    rows.push(...((data ?? []) as ClienteRow[]));
-  }
-  return rows;
-}
-
-async function findPurchaseClientIds(
-  admin: SupabaseClient,
-  termo: string,
-): Promise<ReadonlySet<string>> {
-  const searchTerms = expandSearchTerms(termo);
-  const [servicos, atendimentos] = await Promise.all([
-    listAllServicos(admin),
-    listAllAtendimentos(admin),
-  ]);
-  const matchingServiceIds = new Set(
-    servicos
-      .filter((servico) =>
-        matchesSearchTerms(`${servico.nome} ${servico.descricao ?? ''}`, searchTerms),
-      )
-      .map((servico) => servico.id),
-  );
-
-  const clienteIds = new Set<string>();
-  for (const atendimento of atendimentos) {
-    const servicoIds = [
-      ...(atendimento.servico_id ? [atendimento.servico_id] : []),
-      ...(atendimento.servico_ids ?? []),
-    ];
-    const matchByService = servicoIds.some((id) => matchingServiceIds.has(id));
-    const matchByDescription = matchesSearchTerms(
-      atendimento.descricao_solicitacao ?? '',
-      searchTerms,
-    );
-    if (matchByService || matchByDescription) {
-      clienteIds.add(atendimento.cliente_id);
-    }
-  }
-  return clienteIds;
-}
-
-async function listAllServicos(admin: SupabaseClient): Promise<ServicoSearchRow[]> {
-  const rows: ServicoSearchRow[] = [];
-  for (let from = 0; ; from += FETCH_PAGE_SIZE) {
-    const { data, error } = await admin
-      .from('servicos')
-      .select('id, nome, descricao')
-      .order('id', { ascending: true })
-      .range(from, from + FETCH_PAGE_SIZE - 1);
-    if (error) throw new Error(error.message);
-    const page = (data ?? []) as ServicoSearchRow[];
-    rows.push(...page);
-    if (page.length < FETCH_PAGE_SIZE) break;
-  }
-  return rows;
-}
-
-async function listAllAtendimentos(admin: SupabaseClient): Promise<AtendimentoPurchaseRow[]> {
-  const rows: AtendimentoPurchaseRow[] = [];
-  for (let from = 0; ; from += FETCH_PAGE_SIZE) {
-    const { data, error } = await admin
-      .from('atendimentos')
-      .select('cliente_id, servico_id, servico_ids, descricao_solicitacao')
-      .order('id', { ascending: true })
-      .range(from, from + FETCH_PAGE_SIZE - 1);
-    if (error) throw new Error(error.message);
-    const page = (data ?? []) as AtendimentoPurchaseRow[];
-    rows.push(...page);
-    if (page.length < FETCH_PAGE_SIZE) break;
-  }
-  return rows;
-}
-
-function mergeClientes(clientes: ClienteRow[]): ClienteRow[] {
-  const byId = new Map<string, ClienteRow>();
-  for (const cliente of clientes) byId.set(cliente.id, cliente);
-  return [...byId.values()].sort((a, b) =>
-    a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }),
-  );
 }
 
 async function hydrateClientesUsers(
