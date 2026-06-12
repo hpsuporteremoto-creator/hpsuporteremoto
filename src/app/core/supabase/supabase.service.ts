@@ -12,8 +12,8 @@ export class SupabaseService {
     environment.supabaseAnonKey,
     {
       auth: {
-        persistSession: this.isBrowser,
-        autoRefreshToken: this.isBrowser,
+        persistSession: false,
+        autoRefreshToken: false,
         detectSessionInUrl: this.isBrowser,
       },
     },

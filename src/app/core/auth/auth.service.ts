@@ -55,7 +55,13 @@ export class AuthService {
     }
     return this.supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo },
+      options: {
+        redirectTo,
+        queryParams: {
+          prompt: 'login',
+          max_age: '0',
+        },
+      },
     });
   }
 
