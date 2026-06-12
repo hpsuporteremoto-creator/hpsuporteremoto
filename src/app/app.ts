@@ -47,13 +47,13 @@ export class App {
 
   private syncJivoWidget(url: string): void {
     if (!this.isStorefrontRoute(url)) {
-      this.document.body.classList.add(JIVO_BLOCKED_ROUTE_CLASS);
+      this.setJivoBlockedRouteClass(true);
       this.startJivoBlocker();
       this.removeJivoWidget();
       return;
     }
 
-    this.document.body.classList.remove(JIVO_BLOCKED_ROUTE_CLASS);
+    this.setJivoBlockedRouteClass(false);
     this.stopJivoBlocker();
     this.loadJivoWidget();
   }
@@ -74,12 +74,14 @@ export class App {
 
   private loadJivoWidget(): void {
     if (this.document.getElementById(JIVO_SCRIPT_ID)) return;
+    const body = this.document.body;
+    if (!body) return;
 
     const script = this.document.createElement('script');
     script.id = JIVO_SCRIPT_ID;
     script.src = JIVO_SCRIPT_SRC;
     script.async = true;
-    this.document.body.append(script);
+    body.append(script);
   }
 
   private removeJivoWidget(): void {
@@ -103,6 +105,12 @@ export class App {
   private stopJivoBlocker(): void {
     this.jivoBlockerObserver?.disconnect();
     this.jivoBlockerObserver = null;
+  }
+
+  private setJivoBlockedRouteClass(blocked: boolean): void {
+    const body = this.document.body;
+    if (!body) return;
+    body.classList.toggle(JIVO_BLOCKED_ROUTE_CLASS, blocked);
   }
 
   private callJivoMethod(methodName: 'close' | 'hideWidget'): void {
