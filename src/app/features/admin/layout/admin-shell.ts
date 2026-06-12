@@ -1,18 +1,7 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import {
-  Router,
-  RouterLink,
-  RouterLinkActive,
-  RouterOutlet,
-} from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSidenavModule } from '@angular/material/sidenav';
@@ -144,9 +133,7 @@ export class AdminShell {
   protected readonly drawerMode = computed<'over' | 'side'>(() =>
     this.isMobile() ? 'over' : 'side',
   );
-  protected readonly drawerOpened = computed(() =>
-    this.isMobile() ? this.drawerOpen() : true,
-  );
+  protected readonly drawerOpened = computed(() => (this.isMobile() ? this.drawerOpen() : true));
 
   private readonly adminNavItems: ReadonlyArray<AdminNavItem> = [
     { label: 'Início', icon: 'space_dashboard', route: ['./'], exact: true },
@@ -157,12 +144,6 @@ export class AdminShell {
       exact: false,
     },
     { label: 'Clientes', icon: 'groups', route: ['./clientes'], exact: false },
-    {
-      label: 'Contratos',
-      icon: 'description',
-      route: ['./contratos'],
-      exact: false,
-    },
     {
       label: 'Serviços',
       icon: 'design_services',
@@ -199,12 +180,6 @@ export class AdminShell {
       label: 'Clientes',
       icon: 'groups',
       route: ['./clientes'],
-      exact: false,
-    },
-    {
-      label: 'Contratos',
-      icon: 'description',
-      route: ['./contratos'],
       exact: false,
     },
     {

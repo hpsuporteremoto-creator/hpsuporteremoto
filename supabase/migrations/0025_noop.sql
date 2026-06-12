@@ -1,0 +1,1 @@
+-- Reservado para manter a sequência de migrations.

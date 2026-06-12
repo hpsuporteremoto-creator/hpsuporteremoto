@@ -2,7 +2,7 @@
 -- (ex: 558185207465). Antes desta migration o campo era texto livre, o que
 -- inutilizava o UNIQUE na prática (o mesmo número entrava em formatos
 -- diferentes). Esta migration:
---   1. cria public.canonicalizar_whatsapp(text) com o mesmo contrato do TS
+--   1. cria public.canonicalizar_whatsapp(text) com a mesma assinatura do TS
 --      em src/app/shared/whatsapp.util.ts;
 --   2. aborta se houver duplicados após canonicalização (admin resolve manualmente);
 --   3. faz backfill das linhas existentes;
