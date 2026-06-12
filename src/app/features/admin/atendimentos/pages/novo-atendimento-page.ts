@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CurrencyPipe, Location } from '@angular/common';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -87,19 +87,12 @@ interface SelectedServicoItem extends Servico {
           </mat-card-header>
           <mat-card-content>
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Serviços</mat-label>
+              <mat-label>Adicionar serviço</mat-label>
               <mat-select
-                formControlName="servico_ids"
-                multiple
-                required
-                (selectionChange)="onServicosChange($event.value)"
+                formControlName="servico_id"
+                (selectionChange)="adicionarServico($event.value)"
                 (openedChange)="onPanelToggle($event)"
               >
-                <mat-select-trigger>
-                  {{ selectedQuantidadeTotal() }} item(ns) ·
-                  {{ selectedTotal() / 100 | currency }}
-                </mat-select-trigger>
-
                 <div class="servico-busca">
                   <mat-icon>search</mat-icon>
                   <input
@@ -178,11 +171,10 @@ interface SelectedServicoItem extends Servico {
                   <p class="servico-vazio">Nenhum serviço encontrado.</p>
                 }
               </mat-select>
-              @if (form.controls.servico_ids.hasError('required')) {
-                <mat-error>Escolha ao menos um serviço</mat-error>
-              }
               @if (!loading() && servicos().length === 0) {
                 <mat-hint>Cadastre ou ative serviços antes de abrir pedidos.</mat-hint>
+              } @else {
+                <mat-hint>Escolha um serviço por vez. Ajuste a quantidade no resumo.</mat-hint>
               }
             </mat-form-field>
 
@@ -195,39 +187,6 @@ interface SelectedServicoItem extends Servico {
                 placeholder="Descreva o serviço combinado com o cliente"
               ></textarea>
             </mat-form-field>
-
-            <mat-form-field appearance="outline" class="discount-input">
-              <mat-label>Desconto</mat-label>
-              <input
-                matInput
-                type="number"
-                min="0"
-                step="0.01"
-                inputmode="decimal"
-                formControlName="desconto_reais"
-                (input)="onDescontoChange($event)"
-              />
-              <span matTextPrefix>R$&nbsp;</span>
-              @if (form.controls.desconto_reais.hasError('min')) {
-                <mat-error>Informe um desconto válido</mat-error>
-              }
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="discount-input">
-              <mat-label>Acréscimo</mat-label>
-              <input
-                matInput
-                type="number"
-                min="0"
-                step="0.01"
-                inputmode="decimal"
-                formControlName="acrescimo_reais"
-                (input)="onAcrescimoChange($event)"
-              />
-              <span matTextPrefix>R$&nbsp;</span>
-              @if (form.controls.acrescimo_reais.hasError('min')) {
-                <mat-error>Informe um acréscimo válido</mat-error>
-              }
-            </mat-form-field>
           </mat-card-content>
         </mat-card>
 
@@ -238,7 +197,7 @@ interface SelectedServicoItem extends Servico {
             </mat-card-header>
             <mat-card-content>
               @if (selectedServicos().length === 0) {
-                <p class="empty-checkout">Selecione um ou mais serviços.</p>
+                <p class="empty-checkout">Adicione os serviços do pedido.</p>
               } @else {
                 <ul class="checkout-list">
                   @for (servico of selectedServicos(); track servico.id) {
@@ -278,33 +237,8 @@ interface SelectedServicoItem extends Servico {
                   }
                 </ul>
 
-                <div class="checkout-summary">
-                  <div>
-                    <span>Subtotal</span>
-                    <strong>{{ selectedTotal() / 100 | currency }}</strong>
-                  </div>
-                  @if (descontoCentavos() > 0) {
-                    <div class="discount-line">
-                      <span>Desconto</span>
-                      <strong>-{{ descontoCentavos() / 100 | currency }}</strong>
-                    </div>
-                  }
-                  @if (acrescimoCentavos() > 0) {
-                    <div class="surcharge-line">
-                      <span>Acréscimo</span>
-                      <strong>+{{ acrescimoCentavos() / 100 | currency }}</strong>
-                    </div>
-                  }
-                </div>
-
-                @if (ajusteInvalido()) {
-                  <p class="discount-error" role="alert">
-                    Os ajustes precisam deixar o total maior que zero.
-                  </p>
-                }
-
                 <div class="checkout-total">
-                  <span>Total</span>
+                  <span>{{ selectedQuantidadeTotal() }} item(ns)</span>
                   <strong>{{ totalComAjustes() / 100 | currency }}</strong>
                 </div>
               }
@@ -315,7 +249,7 @@ interface SelectedServicoItem extends Servico {
                 mat-flat-button
                 color="primary"
                 type="submit"
-                [disabled]="form.invalid || ajusteInvalido() || saving() || loading() || !cliente()"
+                [disabled]="selectedServicos().length === 0 || saving() || loading() || !cliente()"
               >
                 <mat-icon>add_task</mat-icon>
                 <span>Criar e iniciar</span>
@@ -447,30 +381,6 @@ interface SelectedServicoItem extends Servico {
       padding: 0.875rem 1rem
       border-radius: 0.5rem
       background: var(--mat-sys-surface-container-high)
-    .checkout-summary
-      display: flex
-      flex-direction: column
-      gap: 0.5rem
-      margin-top: 1rem
-      color: var(--mat-sys-on-surface-variant)
-    .checkout-summary div
-      display: flex
-      align-items: center
-      justify-content: space-between
-      gap: 1rem
-    .checkout-summary strong
-      color: var(--mat-sys-on-surface)
-      white-space: nowrap
-    .discount-line strong
-      color: var(--mat-sys-error)
-    .surcharge-line strong
-      color: var(--mat-sys-primary)
-    .discount-error
-      margin: 0.75rem 0 0
-      color: var(--mat-sys-error)
-      font-size: 0.875rem
-    .discount-input
-      max-width: 16rem
     .checkout-total strong
       color: var(--mat-sys-tertiary)
       font-size: 1.25rem
@@ -615,16 +525,7 @@ export class NovoAtendimentoPage {
   protected readonly selectedTotal = computed(() =>
     this.selectedServicos().reduce((total, servico) => total + servico.subtotal_centavos, 0),
   );
-  protected readonly descontoCentavos = signal(0);
-  protected readonly acrescimoCentavos = signal(0);
-  protected readonly totalComAjustes = computed(() =>
-    Math.max(this.selectedTotal() + this.acrescimoCentavos() - this.descontoCentavos(), 0),
-  );
-  protected readonly ajusteInvalido = computed(
-    () =>
-      this.selectedServicos().length > 0 &&
-      this.selectedTotal() + this.acrescimoCentavos() - this.descontoCentavos() <= 0,
-  );
+  protected readonly totalComAjustes = computed(() => this.selectedTotal());
   protected readonly categoriasServico = computed(() => {
     const byId = new Map<string, { id: string; nome: string }>();
     for (const servico of this.servicos()) {
@@ -644,9 +545,7 @@ export class NovoAtendimentoPage {
     const categoriaId = this.servicoCategoriaFiltro();
     const todos = this.servicos();
     if (!termo && !categoriaId) return todos;
-    const selecionados = new Set(this.selectedServicoIds());
     return todos.filter((servico) => {
-      if (selecionados.has(servico.id)) return true;
       const matchesCategoria =
         !categoriaId ||
         (categoriaId === SEM_CATEGORIA_ID
@@ -662,9 +561,7 @@ export class NovoAtendimentoPage {
   });
 
   protected readonly form = this.fb.group({
-    servico_ids: this.fb.control<string[]>([], [Validators.required]),
-    desconto_reais: [0, [Validators.min(0)]],
-    acrescimo_reais: [0, [Validators.min(0)]],
+    servico_id: [''],
     descricao_solicitacao: [''],
   });
 
@@ -692,34 +589,28 @@ export class NovoAtendimentoPage {
     });
   }
 
-  onServicosChange(ids: string[]): void {
-    this.selectedServicoIds.set(ids);
+  adicionarServico(id: string | null): void {
+    if (!id) return;
+    this.selectedServicoIds.update((ids) => (ids.includes(id) ? ids : [...ids, id]));
     this.selectedServicoQuantidades.update((current) => {
-      const next: Record<string, number> = {};
-      for (const id of ids) {
-        next[id] = current[id] ?? 1;
+      if (current[id]) {
+        return {
+          ...current,
+          [id]: normalizeQuantidade(current[id] + 1),
+        };
       }
-      return next;
+      return {
+        ...current,
+        [id]: 1,
+      };
     });
+    this.form.controls.servico_id.setValue('');
+    this.servicoFiltro.set('');
   }
 
   onFiltroChange(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     this.servicoFiltro.set(input?.value ?? '');
-  }
-
-  onDescontoChange(event: Event): void {
-    const input = event.target as HTMLInputElement | null;
-    const value = Number(input?.value ?? 0);
-    const desconto = Number.isFinite(value) ? Math.max(0, value) : 0;
-    this.descontoCentavos.set(Math.round(desconto * 100));
-  }
-
-  onAcrescimoChange(event: Event): void {
-    const input = event.target as HTMLInputElement | null;
-    const value = Number(input?.value ?? 0);
-    const acrescimo = Number.isFinite(value) ? Math.max(0, value) : 0;
-    this.acrescimoCentavos.set(Math.round(acrescimo * 100));
   }
 
   limparFiltro(event: Event): void {
@@ -739,8 +630,6 @@ export class NovoAtendimentoPage {
       const { [id]: _removed, ...next } = current;
       return next;
     });
-    this.form.controls.servico_ids.setValue(ids);
-    this.form.controls.servico_ids.markAsTouched();
   }
 
   onQuantidadeChange(id: string, event: Event): void {
@@ -758,7 +647,7 @@ export class NovoAtendimentoPage {
 
   async onSubmit(): Promise<void> {
     const clienteId = this.clienteId();
-    if (this.form.invalid || this.ajusteInvalido() || !clienteId || !this.cliente()) return;
+    if (this.selectedServicos().length === 0 || !clienteId || !this.cliente()) return;
     this.saving.set(true);
     this.error.set(null);
 
@@ -769,8 +658,8 @@ export class NovoAtendimentoPage {
           servico_id: servico.id,
           quantidade: servico.quantidade,
         })),
-        desconto_centavos: this.descontoCentavos(),
-        acrescimo_centavos: this.acrescimoCentavos(),
+        desconto_centavos: 0,
+        acrescimo_centavos: 0,
         descricao_solicitacao: value.descricao_solicitacao.trim() || null,
       });
       this.snackBar.open('Pedido criado e iniciado.', 'OK', { duration: 2500 });
