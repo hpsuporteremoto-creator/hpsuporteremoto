@@ -12,9 +12,10 @@ export class SupabaseService {
     environment.supabaseAnonKey,
     {
       auth: {
-        persistSession: false,
-        autoRefreshToken: false,
+        persistSession: this.isBrowser,
+        autoRefreshToken: this.isBrowser,
         detectSessionInUrl: this.isBrowser,
+        storage: this.isBrowser ? window.sessionStorage : undefined,
       },
     },
   );

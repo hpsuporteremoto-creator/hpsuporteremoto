@@ -25,11 +25,15 @@ body
   min-height: 100dvh
   font-family: Roboto, system-ui, -apple-system, BlinkMacSystemFont, sans-serif
 
-body.is-admin-route
+body.is-jivo-blocked-route
   [id*='jivo'],
   [class*='jivo'],
   [id*='Jivo'],
   [class*='Jivo'],
+  [data-jivo],
+  script[src*='jivo'],
+  script[src*='jivosite.com'],
+  iframe[src*='jivo'],
   iframe[src*='jivosite.com']
     display: none !important
     visibility: hidden !important

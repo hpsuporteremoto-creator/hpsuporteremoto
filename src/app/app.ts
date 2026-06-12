@@ -7,15 +7,18 @@ import { VersionBadge } from './shared/version-badge';
 
 const JIVO_SCRIPT_ID = 'jivo-chat-widget';
 const JIVO_SCRIPT_SRC = 'https://code.jivosite.com/widget/QblmcAIALk';
-const ADMIN_ROUTE_CLASS = 'is-admin-route';
+const JIVO_BLOCKED_ROUTE_CLASS = 'is-jivo-blocked-route';
 const JIVO_SELECTOR = [
   `#${JIVO_SCRIPT_ID}`,
   'script[src*="jivosite.com"]',
+  'script[src*="jivo"]',
   'iframe[src*="jivosite.com"]',
+  'iframe[src*="jivo"]',
   '[id*="jivo"]',
   '[class*="jivo"]',
   '[id*="Jivo"]',
   '[class*="Jivo"]',
+  '[data-jivo]',
 ].join(',');
 
 @Component({
@@ -36,28 +39,37 @@ export class App {
     // Faz <mat-icon> usar Material Symbols Outlined (MD3) por padrão.
     inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-outlined');
 
-    this.syncJivoWidget(this.router.url);
+    this.syncJivoWidget(this.currentPathname());
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event) => this.syncJivoWidget(event.urlAfterRedirects));
   }
 
   private syncJivoWidget(url: string): void {
-    if (this.isAdminRoute(url)) {
-      this.document.body.classList.add(ADMIN_ROUTE_CLASS);
+    if (!this.isStorefrontRoute(url)) {
+      this.document.body.classList.add(JIVO_BLOCKED_ROUTE_CLASS);
       this.startJivoBlocker();
       this.removeJivoWidget();
       return;
     }
 
-    this.document.body.classList.remove(ADMIN_ROUTE_CLASS);
+    this.document.body.classList.remove(JIVO_BLOCKED_ROUTE_CLASS);
     this.stopJivoBlocker();
     this.loadJivoWidget();
   }
 
-  private isAdminRoute(url: string): boolean {
+  private isStorefrontRoute(url: string): boolean {
     const pathname = url.split('?')[0]?.split('#')[0] ?? '';
-    return pathname === '/admin' || pathname.startsWith('/admin/');
+    return (
+      pathname === '/' ||
+      pathname === '/meus-pedidos' ||
+      pathname.startsWith('/catalogo/') ||
+      pathname.startsWith('/servicos/')
+    );
+  }
+
+  private currentPathname(): string {
+    return this.document.defaultView?.location.pathname ?? this.router.url;
   }
 
   private loadJivoWidget(): void {
@@ -75,6 +87,7 @@ export class App {
     this.callJivoMethod('hideWidget');
 
     this.document.querySelectorAll(JIVO_SELECTOR).forEach((element) => element.remove());
+    this.clearJivoGlobals();
   }
 
   private startJivoBlocker(): void {
@@ -105,5 +118,20 @@ export class App {
     } catch {
       // O widget é externo; se a API estiver em transição, a remoção do DOM ainda resolve.
     }
+  }
+
+  private clearJivoGlobals(): void {
+    const windowRef = this.document.defaultView as
+      | (Window & {
+          jivo_api?: unknown;
+          jivo_config?: unknown;
+          jivo_init?: unknown;
+        })
+      | null;
+    if (!windowRef) return;
+
+    delete windowRef.jivo_api;
+    delete windowRef.jivo_config;
+    delete windowRef.jivo_init;
   }
 }
