@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { DatePipe, Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -105,6 +99,29 @@ import { UserProfile } from '../usuarios.types';
               <span>Atualizado em</span>
               <strong>{{ u.updated_at | date: 'short' }}</strong>
             </p>
+            <p>
+              <mat-icon>schedule</mat-icon>
+              <span>Último acesso</span>
+              <strong>
+                @if (u.last_access_at) {
+                  {{ u.last_access_at | date: 'short' }}
+                } @else {
+                  Nunca registrado
+                }
+              </strong>
+            </p>
+            <p>
+              <mat-icon>devices</mat-icon>
+              <span>Máquina</span>
+              <strong>{{ machineLabel(u) }}</strong>
+            </p>
+            @if (u.last_access_ip) {
+              <p>
+                <mat-icon>public</mat-icon>
+                <span>IP</span>
+                <strong>{{ u.last_access_ip }}</strong>
+              </p>
+            }
           </mat-card-content>
         </mat-card>
       }
@@ -257,6 +274,14 @@ export class UsuarioDetailPage {
     if (this.isAdmin()) return 'workspace_premium';
     if (usuario?.role === 'vendedor') return 'point_of_sale';
     return 'person_off';
+  }
+
+  machineLabel(u: UserProfile): string {
+    const parts = [
+      u.last_access_device,
+      u.last_access_country ? `País ${u.last_access_country}` : null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : 'Máquina não registrada';
   }
 
   private async carregar(id: string): Promise<void> {

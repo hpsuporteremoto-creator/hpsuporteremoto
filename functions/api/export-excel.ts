@@ -6,6 +6,7 @@ import {
   hydrateServicosSolicitados,
   type AtendimentoComRelacoes,
 } from './atendimentos-shared';
+import { latestAccessByUserIds, type UserAccessRef } from './user-access';
 
 type Env = {
   SUPABASE_URL: string;
@@ -102,6 +103,7 @@ type PixRecebedorConfigRow = {
 type ExportData = {
   readonly generatedAt: string;
   readonly users: readonly User[];
+  readonly latestAccessByUserId: ReadonlyMap<string, UserAccessRef>;
   readonly profiles: readonly ProfileRow[];
   readonly clientes: readonly ClienteRow[];
   readonly categorias: readonly ServicoCategoriaRow[];
@@ -234,10 +236,15 @@ async function loadExportData(admin: SupabaseClient, generatedAt: string): Promi
     admin,
     atendimentosRaw as AtendimentoComRelacoes[],
   );
+  const latestAccessByUserId = await latestAccessByUserIds(
+    admin,
+    users.map((user) => user.id),
+  );
 
   return {
     generatedAt,
     users,
+    latestAccessByUserId,
     profiles,
     clientes,
     categorias,
@@ -287,7 +294,7 @@ function buildSheets(data: ExportData): ExcelSheet[] {
     buildServicosSheet(data.servicos),
     buildCategoriasSheet(data.categorias),
     buildFinanceiroSheet(data.transacoes, atendimentosById),
-    buildUsuariosSheet(data.users, profilesById),
+    buildUsuariosSheet(data.users, profilesById, data.latestAccessByUserId),
     buildComentariosSheet(data.comentarios, servicosById),
     buildPixSheet(data.pixConfigs),
   ];
@@ -515,6 +522,7 @@ function buildFinanceiroSheet(
 function buildUsuariosSheet(
   users: readonly User[],
   profilesById: ReadonlyMap<string, ProfileRow>,
+  latestAccessByUserId: ReadonlyMap<string, UserAccessRef>,
 ): ExcelSheet {
   return {
     name: 'Usuários',
@@ -527,11 +535,16 @@ function buildUsuariosSheet(
         'Admin',
         'Criado em',
         'Último login',
+        'Último acesso registrado',
+        'Máquina',
+        'IP',
+        'País',
         'Profile criado em',
         'Profile atualizado em',
       ],
       ...users.map((user) => {
         const profile = profilesById.get(user.id);
+        const access = latestAccessByUserId.get(user.id);
         return [
           user.id,
           user.email ?? profile?.email ?? '',
@@ -542,6 +555,10 @@ function buildUsuariosSheet(
           isAdminUser(user),
           user.created_at,
           user.last_sign_in_at ?? '',
+          access?.last_access_at ?? '',
+          access?.last_access_device ?? '',
+          access?.last_access_ip ?? '',
+          access?.last_access_country ?? '',
           profile?.created_at ?? '',
           profile?.updated_at ?? '',
         ];

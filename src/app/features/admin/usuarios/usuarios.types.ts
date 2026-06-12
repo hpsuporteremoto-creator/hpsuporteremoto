@@ -9,6 +9,10 @@ export interface UserProfile {
   is_admin: boolean;
   created_at: string;
   updated_at: string;
+  last_access_at: string | null;
+  last_access_device: string | null;
+  last_access_ip: string | null;
+  last_access_country: string | null;
 }
 
 export interface UserCreateInput {

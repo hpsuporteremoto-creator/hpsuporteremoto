@@ -14,6 +14,7 @@ export class AuthService {
   // Fonte única de autorização: auth.users.app_metadata.role/is_admin.
   private readonly _role = signal<AuthRole>(null);
   private _profileFetch: Promise<void> = Promise.resolve();
+  private lastAccessRecordKey: string | null = null;
   readonly session = this._session.asReadonly();
   readonly user = computed<User | null>(() => this._session()?.user ?? null);
   readonly isAuthenticated = computed(() => this.user() !== null);
@@ -33,12 +34,14 @@ export class AuthService {
 
       this.supabase.auth.getSession().then(async ({ data }) => {
         this._session.set(data.session);
+        this.recordAccess(data.session);
         await this.refreshProfileFlag();
         resolve();
       });
 
       this.supabase.auth.onAuthStateChange((_event, session) => {
         this._session.set(session);
+        this.recordAccess(session);
         void this.refreshProfileFlag();
       });
     });
@@ -104,6 +107,23 @@ export class AuthService {
   /** Aguarda o fetch mais recente do role — use após login pra evitar race. */
   profileFlagReady(): Promise<void> {
     return this._profileFetch;
+  }
+
+  private recordAccess(session: Session | null): void {
+    if (!this.isBrowser || !session?.access_token || !session.user?.id) return;
+    const fiveMinuteBucket = Math.floor(Date.now() / 300000);
+    const recordKey = `${session.user.id}:${fiveMinuteBucket}`;
+    if (this.lastAccessRecordKey === recordKey) return;
+    this.lastAccessRecordKey = recordKey;
+
+    void fetch('/api/record-login', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).catch(() => {
+      if (this.lastAccessRecordKey === recordKey) {
+        this.lastAccessRecordKey = null;
+      }
+    });
   }
 }
 

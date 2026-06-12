@@ -1,10 +1,5 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  inject,
-  signal,
-} from '@angular/core';
-import { Location } from '@angular/common';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { DatePipe, Location } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -19,6 +14,7 @@ import { UserProfile } from '../usuarios.types';
 @Component({
   selector: 'hp-usuarios-list',
   imports: [
+    DatePipe,
     RouterLink,
     MatButtonModule,
     MatCardModule,
@@ -65,11 +61,7 @@ import { UserProfile } from '../usuarios.types';
                 <mat-card-content class="row">
                   <div class="avatar">
                     @if (u.avatar_url) {
-                      <img
-                        [src]="u.avatar_url"
-                        alt=""
-                        referrerpolicy="no-referrer"
-                      />
+                      <img [src]="u.avatar_url" alt="" referrerpolicy="no-referrer" />
                     } @else {
                       <span class="initials">{{ initials(u) }}</span>
                     }
@@ -86,6 +78,21 @@ import { UserProfile } from '../usuarios.types';
                       <mat-icon aria-hidden="true">{{ roleIcon(u) }}</mat-icon>
                       <span>{{ roleLabel(u) }}</span>
                     </span>
+                    <small class="access-line">
+                      <mat-icon aria-hidden="true">schedule</mat-icon>
+                      <span>
+                        Último acesso:
+                        @if (u.last_access_at) {
+                          {{ u.last_access_at | date: 'short' }}
+                        } @else {
+                          nunca registrado
+                        }
+                      </span>
+                    </small>
+                    <small class="access-line">
+                      <mat-icon aria-hidden="true">devices</mat-icon>
+                      <span>{{ machineLabel(u) }}</span>
+                    </small>
                   </div>
                   <div class="actions">
                     <a
@@ -101,9 +108,7 @@ import { UserProfile } from '../usuarios.types';
                       type="button"
                       (click)="apagar(u); $event.stopPropagation()"
                       [disabled]="!canDelete(u) || updating()"
-                      [attr.aria-label]="
-                        canDelete(u) ? 'Apagar' : 'Não pode apagar admin'
-                      "
+                      [attr.aria-label]="canDelete(u) ? 'Apagar' : 'Não pode apagar admin'"
                     >
                       <mat-icon>delete_outline</mat-icon>
                     </button>
@@ -159,6 +164,14 @@ export class UsuariosListPage {
     return 'person_off';
   }
 
+  machineLabel(u: UserProfile): string {
+    const parts = [
+      u.last_access_device,
+      u.last_access_country ? `País ${u.last_access_country}` : null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(' · ') : 'Máquina não registrada';
+  }
+
   initials(u: UserProfile): string {
     const source = u.full_name ?? u.email;
     return source.trim().charAt(0).toUpperCase() || '?';
@@ -171,9 +184,7 @@ export class UsuariosListPage {
       const data = await this.svc.list();
       this.usuarios.set(data);
     } catch (err) {
-      this.error.set(
-        err instanceof Error ? err.message : 'Erro ao carregar usuários',
-      );
+      this.error.set(err instanceof Error ? err.message : 'Erro ao carregar usuários');
     } finally {
       this.loading.set(false);
     }
@@ -181,17 +192,13 @@ export class UsuariosListPage {
 
   async apagar(u: UserProfile): Promise<void> {
     if (!this.canDelete(u)) return;
-    const ok = confirm(
-      `Apagar ${u.full_name || u.email}? Esta ação não pode ser desfeita.`,
-    );
+    const ok = confirm(`Apagar ${u.full_name || u.email}? Esta ação não pode ser desfeita.`);
     if (!ok) return;
 
     this.updating.set(true);
     try {
       await this.svc.remove(u.id);
-      this.usuarios.update(
-        (list) => list?.filter((x) => x.id !== u.id) ?? null,
-      );
+      this.usuarios.update((list) => list?.filter((x) => x.id !== u.id) ?? null);
       this.snackBar.open('Usuário apagado', 'OK', { duration: 2500 });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro';

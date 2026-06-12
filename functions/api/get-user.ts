@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getUserRole, isAdminUser, metadataText, requireAdmin } from './admin-auth';
+import { emptyUserAccess, latestAccessByUserIds } from './user-access';
 
 type Env = {
   SUPABASE_URL: string;
@@ -42,8 +43,7 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   const userId = url.searchParams.get('id')?.trim() ?? '';
   if (!userId) return json({ error: 'id obrigatório' }, 400);
 
-  const { data: target, error: targetError } =
-    await admin.auth.admin.getUserById(userId);
+  const { data: target, error: targetError } = await admin.auth.admin.getUserById(userId);
   if (targetError || !target?.user) {
     return json({ error: 'Usuário não encontrado no Auth' }, 404);
   }
@@ -58,6 +58,8 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   const user = target.user;
   const email = user.email?.toLowerCase() ?? profile?.email ?? '';
   if (!email) return json({ error: 'Usuário sem email cadastrado' }, 404);
+  const accessById = await latestAccessByUserIds(admin, [user.id]);
+  const access = accessById.get(user.id) ?? emptyUserAccess();
 
   return json(
     {
@@ -68,12 +70,15 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
           profile?.full_name ??
           metadataText(user.user_metadata, 'full_name') ??
           metadataText(user.user_metadata, 'name'),
-        avatar_url:
-          profile?.avatar_url ?? metadataText(user.user_metadata, 'avatar_url'),
+        avatar_url: profile?.avatar_url ?? metadataText(user.user_metadata, 'avatar_url'),
         role: getUserRole(user),
         is_admin: isAdminUser(user),
         created_at: profile?.created_at ?? user.created_at,
         updated_at: profile?.updated_at ?? user.updated_at ?? user.created_at,
+        last_access_at: access.last_access_at ?? user.last_sign_in_at ?? null,
+        last_access_device: access.last_access_device,
+        last_access_ip: access.last_access_ip,
+        last_access_country: access.last_access_country,
       },
     },
     200,
