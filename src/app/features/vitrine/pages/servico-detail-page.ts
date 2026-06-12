@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { DatePipe, Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -9,6 +16,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '../../../core/auth/auth.service';
+import { JivoChatService } from '../jivo-chat.service';
 import { VitrineService } from '../vitrine.service';
 import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
 
@@ -76,8 +84,12 @@ import { ServicoComentarioThread, VitrineServico } from '../vitrine.types';
         <nav class="breadcrumbs" aria-label="Caminho do catálogo">
           <ol>
             <li><a routerLink="/">Catálogo</a></li>
-            <li><span>{{ item.categoria?.nome ?? 'Sem categoria' }}</span></li>
-            <li><span aria-current="page">{{ item.nome }}</span></li>
+            <li>
+              <span>{{ item.categoria?.nome ?? 'Sem categoria' }}</span>
+            </li>
+            <li>
+              <span aria-current="page">{{ item.nome }}</span>
+            </li>
           </ol>
         </nav>
 
@@ -260,6 +272,8 @@ export class ServicoDetailPage {
   private readonly location = inject(Location);
   private readonly vitrine = inject(VitrineService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly jivo = inject(JivoChatService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly servico = signal<VitrineServico | null>(null);
   protected readonly comentarios = signal<ServicoComentarioThread[]>([]);
@@ -271,6 +285,8 @@ export class ServicoDetailPage {
   protected readonly title = computed(() => this.servico()?.nome ?? 'Conteúdo');
 
   constructor() {
+    this.jivo.activate();
+    this.destroyRef.onDestroy(() => this.jivo.deactivate());
     void this.carregar();
   }
 

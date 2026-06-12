@@ -1,11 +1,12 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { AuthService } from '../../../core/auth/auth.service';
+import { JivoChatService } from '../jivo-chat.service';
 import { VitrineService } from '../vitrine.service';
 import { MeuPedido, MeuPedidoState } from '../vitrine.types';
 
@@ -146,12 +147,16 @@ const PEDIDO_STATE_LABEL: Readonly<Record<MeuPedidoState, string>> = {
 export class MeusPedidosPage {
   protected readonly auth = inject(AuthService);
   private readonly vitrine = inject(VitrineService);
+  private readonly jivo = inject(JivoChatService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly pedidos = signal<MeuPedido[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
   constructor() {
+    this.jivo.activate();
+    this.destroyRef.onDestroy(() => this.jivo.deactivate());
     void this.carregar();
   }
 

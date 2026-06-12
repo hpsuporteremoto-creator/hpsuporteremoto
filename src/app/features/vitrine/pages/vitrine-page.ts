@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -9,6 +16,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../../core/auth/auth.service';
 import { catalogItemRoute } from '../catalogo-url';
+import { JivoChatService } from '../jivo-chat.service';
 import { VitrineService } from '../vitrine.service';
 import { VitrineServico } from '../vitrine.types';
 
@@ -66,9 +74,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'recentes';
         <div class="hero-copy">
           <p class="eyebrow">Catálogo</p>
           <h1 id="vitrine-title">Softwares e conteúdo técnico</h1>
-          <p>
-            Produtos organizados por categoria, com imagem, descrição e detalhes.
-          </p>
+          <p>Produtos organizados por categoria, com imagem, descrição e detalhes.</p>
         </div>
 
         <div class="hero-summary" aria-label="Resumo do catálogo">
@@ -168,11 +174,7 @@ type OrdenacaoCatalogo = 'relevancia' | 'recentes';
       <section class="product-grid" aria-label="Itens do catálogo">
         @for (servico of servicosFiltrados(); track servico.id) {
           <mat-card class="product-card" appearance="outlined">
-            <a
-              class="media"
-              [routerLink]="itemRoute(servico)"
-              [attr.aria-label]="servico.nome"
-            >
+            <a class="media" [routerLink]="itemRoute(servico)" [attr.aria-label]="servico.nome">
               @if (servico.imagem_url) {
                 <img [src]="servico.imagem_url" [alt]="servico.nome" loading="lazy" />
               } @else {
@@ -214,6 +216,8 @@ type OrdenacaoCatalogo = 'relevancia' | 'recentes';
 export class VitrinePage {
   protected readonly auth = inject(AuthService);
   private readonly vitrine = inject(VitrineService);
+  private readonly jivo = inject(JivoChatService);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly semCategoriaId = SEM_CATEGORIA_ID;
   protected readonly servicos = signal<VitrineServico[]>([]);
@@ -271,6 +275,8 @@ export class VitrinePage {
   });
 
   constructor() {
+    this.jivo.activate();
+    this.destroyRef.onDestroy(() => this.jivo.deactivate());
     void this.carregar();
   }
 
