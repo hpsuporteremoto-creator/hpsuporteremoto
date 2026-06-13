@@ -6,7 +6,7 @@ import {
   hydrateServicosSolicitados,
   type AtendimentoComRelacoes,
 } from './atendimentos-shared';
-import { latestAccessByUserIds, type UserAccessRef } from './user-access';
+import { accessFromMetadata, latestAccessByUserIds, type UserAccessRef } from './user-access';
 
 type Env = {
   SUPABASE_URL: string;
@@ -545,6 +545,7 @@ function buildUsuariosSheet(
       ...users.map((user) => {
         const profile = profilesById.get(user.id);
         const access = latestAccessByUserId.get(user.id);
+        const metadataAccess = accessFromMetadata(user.app_metadata);
         return [
           user.id,
           user.email ?? profile?.email ?? '',
@@ -555,10 +556,10 @@ function buildUsuariosSheet(
           isAdminUser(user),
           user.created_at,
           user.last_sign_in_at ?? '',
-          access?.last_access_at ?? '',
-          access?.last_access_device ?? '',
-          access?.last_access_ip ?? '',
-          access?.last_access_country ?? '',
+          access?.last_access_at ?? metadataAccess.last_access_at ?? '',
+          access?.last_access_device ?? metadataAccess.last_access_device ?? '',
+          access?.last_access_ip ?? metadataAccess.last_access_ip ?? '',
+          access?.last_access_country ?? metadataAccess.last_access_country ?? '',
           profile?.created_at ?? '',
           profile?.updated_at ?? '',
         ];

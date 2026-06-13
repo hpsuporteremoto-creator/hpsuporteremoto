@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getUserRole, isAdminUser, listAllUsers, metadataText, requireAdmin } from './admin-auth';
-import { emptyUserAccess, latestAccessByUserIds } from './user-access';
+import { accessFromMetadata, emptyUserAccess, latestAccessByUserIds } from './user-access';
 
 type Env = {
   SUPABASE_URL: string;
@@ -60,6 +60,7 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
           const profile = profilesById.get(user.id);
           const email = user.email?.toLowerCase() ?? profile?.email ?? '';
           const access = latestAccessById.get(user.id) ?? emptyUserAccess();
+          const metadataAccess = accessFromMetadata(user.app_metadata);
           return {
             id: user.id,
             email,
@@ -72,10 +73,14 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
             is_admin: isAdminUser(user),
             created_at: profile?.created_at ?? user.created_at,
             updated_at: profile?.updated_at ?? user.updated_at ?? user.created_at,
-            last_access_at: access.last_access_at ?? user.last_sign_in_at ?? null,
-            last_access_device: access.last_access_device,
-            last_access_ip: access.last_access_ip,
-            last_access_country: access.last_access_country,
+            last_access_at:
+              access.last_access_at ??
+              metadataAccess.last_access_at ??
+              user.last_sign_in_at ??
+              null,
+            last_access_device: access.last_access_device ?? metadataAccess.last_access_device,
+            last_access_ip: access.last_access_ip ?? metadataAccess.last_access_ip,
+            last_access_country: access.last_access_country ?? metadataAccess.last_access_country,
           };
         })
         .filter((user) => user.email.length > 0),

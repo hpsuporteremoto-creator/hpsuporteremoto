@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { mergeAppMetadata } from './admin-auth';
 import { isMissingUserLoginDevicesTable } from './user-access';
 
 type Env = {
@@ -43,6 +44,19 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   const country = normalizeHeader(request.headers.get('cf-ipcountry'), 8);
   const now = new Date().toISOString();
 
+  const { error: metadataError } = await admin.auth.admin.updateUserById(user.id, {
+    app_metadata: mergeAppMetadata(user.app_metadata, {
+      last_access_at: now,
+      last_access_device: deviceLabel,
+      last_access_ip: ipAddress,
+      last_access_country: country,
+    }),
+  });
+
+  if (metadataError) {
+    return json({ error: metadataError.message }, 500);
+  }
+
   const { error } = await admin.from('user_login_devices').upsert(
     {
       user_id: user.id,
@@ -60,7 +74,14 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
 
   if (error) {
     if (isMissingUserLoginDevicesTable(error)) {
-      return json({ ok: true, skipped: 'Tabela de acessos ainda não existe' }, 200);
+      return json(
+        {
+          ok: true,
+          fallback: 'Dados de acesso salvos no app_metadata',
+          skipped: 'Tabela de acessos ainda não existe',
+        },
+        200,
+      );
     }
     return json({ error: error.message }, 500);
   }

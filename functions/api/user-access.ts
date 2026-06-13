@@ -31,6 +31,16 @@ export function emptyUserAccess(): UserAccessRef {
   };
 }
 
+export function accessFromMetadata(metadata: unknown): UserAccessRef {
+  const record = toRecord(metadata);
+  return {
+    last_access_at: metadataString(record, 'last_access_at'),
+    last_access_device: metadataString(record, 'last_access_device'),
+    last_access_ip: metadataString(record, 'last_access_ip'),
+    last_access_country: metadataString(record, 'last_access_country'),
+  };
+}
+
 export function isMissingUserLoginDevicesTable(error: DatabaseErrorLike): boolean {
   const code = error.code ?? '';
   const text = [error.message, error.details, error.hint].filter(Boolean).join(' ').toLowerCase();
@@ -75,4 +85,13 @@ export async function latestAccessByUserIds(
     });
   }
   return latestByUserId;
+}
+
+function metadataString(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
