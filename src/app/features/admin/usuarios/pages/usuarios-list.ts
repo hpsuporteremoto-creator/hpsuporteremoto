@@ -78,21 +78,36 @@ import { UserProfile } from '../usuarios.types';
                       <mat-icon aria-hidden="true">{{ roleIcon(u) }}</mat-icon>
                       <span>{{ roleLabel(u) }}</span>
                     </span>
-                    <small class="access-line">
-                      <mat-icon aria-hidden="true">schedule</mat-icon>
-                      <span>
-                        Último acesso:
-                        @if (u.last_access_at) {
-                          {{ u.last_access_at | date: 'short' }}
-                        } @else {
-                          nunca registrado
-                        }
+                    <div
+                      class="access-panel"
+                      [class.access-panel-empty]="!hasAccessDevice(u)"
+                      aria-label="Dados de acesso"
+                    >
+                      <span class="access-title">
+                        <mat-icon aria-hidden="true">devices</mat-icon>
+                        <span>Acesso</span>
                       </span>
-                    </small>
-                    <small class="access-line">
-                      <mat-icon aria-hidden="true">devices</mat-icon>
-                      <span>{{ machineLabel(u) }}</span>
-                    </small>
+                      <span class="access-line">
+                        <mat-icon aria-hidden="true">schedule</mat-icon>
+                        <span>
+                          @if (u.last_access_at) {
+                            {{ u.last_access_at | date: 'short' }}
+                          } @else {
+                            Nunca registrado
+                          }
+                        </span>
+                      </span>
+                      <span class="access-line">
+                        <mat-icon aria-hidden="true">desktop_windows</mat-icon>
+                        <span>{{ machineLabel(u) }}</span>
+                      </span>
+                      @if (u.last_access_ip) {
+                        <span class="access-line">
+                          <mat-icon aria-hidden="true">public</mat-icon>
+                          <span>{{ u.last_access_ip }}</span>
+                        </span>
+                      }
+                    </div>
                   </div>
                   <div class="actions">
                     <a
@@ -164,12 +179,16 @@ export class UsuariosListPage {
     return 'person_off';
   }
 
+  hasAccessDevice(u: UserProfile): boolean {
+    return Boolean(u.last_access_device || u.last_access_ip || u.last_access_country);
+  }
+
   machineLabel(u: UserProfile): string {
     const parts = [
       u.last_access_device,
       u.last_access_country ? `País ${u.last_access_country}` : null,
     ].filter(Boolean);
-    return parts.length > 0 ? parts.join(' · ') : 'Máquina não registrada';
+    return parts.length > 0 ? parts.join(' · ') : 'Máquina aguardando registro';
   }
 
   initials(u: UserProfile): string {

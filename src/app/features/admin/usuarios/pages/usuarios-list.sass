@@ -30,7 +30,7 @@
 
 .row
   display: flex
-  align-items: center
+  align-items: flex-start
   gap: 0.75rem
   padding: 0.75rem 1rem !important
 
@@ -76,6 +76,20 @@
   overflow: hidden
   text-overflow: ellipsis
 
+.access-panel
+  display: grid
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr)
+  gap: 0.35rem 0.75rem
+  margin-top: 0.5rem
+  padding: 0.55rem 0.65rem
+  border: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 70%, transparent)
+  border-radius: 0.5rem
+  background: color-mix(in srgb, var(--mat-sys-surface-container-high) 72%, transparent)
+
+.access-panel-empty
+  border-style: dashed
+
+.access-title,
 .access-line
   display: inline-flex
   align-items: center
@@ -96,6 +110,10 @@
     overflow: hidden
     text-overflow: ellipsis
     white-space: nowrap
+
+.access-title
+  color: var(--mat-sys-on-surface)
+  font-weight: 700
 
 .role-chip
   display: inline-flex
@@ -134,3 +152,18 @@
   align-items: center
   gap: 0.25rem
   flex-shrink: 0
+
+@media (max-width: 720px)
+  .access-panel
+    grid-template-columns: 1fr
+
+@media (max-width: 560px)
+  mat-toolbar a span
+    display: none
+
+  .row
+    display: grid
+    grid-template-columns: auto minmax(0, 1fr) auto
+
+  .access-panel
+    grid-column: 1 / -1
