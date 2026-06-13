@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { isMissingUserLoginDevicesTable } from './user-access';
 
 type Env = {
   SUPABASE_URL: string;
@@ -58,7 +59,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   );
 
   if (error) {
-    if (error.code === '42P01' || error.message.toLowerCase().includes('does not exist')) {
+    if (isMissingUserLoginDevicesTable(error)) {
       return json({ ok: true, skipped: 'Tabela de acessos ainda não existe' }, 200);
     }
     return json({ error: error.message }, 500);

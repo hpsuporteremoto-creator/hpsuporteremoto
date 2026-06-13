@@ -15,6 +15,13 @@ export type UserAccessRef = {
   last_access_country: string | null;
 };
 
+type DatabaseErrorLike = {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+};
+
 export function emptyUserAccess(): UserAccessRef {
   return {
     last_access_at: null,
@@ -22,6 +29,20 @@ export function emptyUserAccess(): UserAccessRef {
     last_access_ip: null,
     last_access_country: null,
   };
+}
+
+export function isMissingUserLoginDevicesTable(error: DatabaseErrorLike): boolean {
+  const code = error.code ?? '';
+  const text = [error.message, error.details, error.hint].filter(Boolean).join(' ').toLowerCase();
+  const isMissingTableCode = code === '42P01' || code === 'PGRST205';
+  const mentionsAccessTable = text.includes('user_login_devices');
+  const isMissingTableMessage =
+    text.includes('does not exist') ||
+    text.includes('schema cache') ||
+    text.includes('could not find') ||
+    text.includes('not found');
+
+  return isMissingTableCode || (mentionsAccessTable && isMissingTableMessage);
 }
 
 export async function latestAccessByUserIds(
@@ -37,7 +58,7 @@ export async function latestAccessByUserIds(
     .order('last_seen_at', { ascending: false });
 
   if (error) {
-    if (error.code === '42P01' || error.message.toLowerCase().includes('does not exist')) {
+    if (isMissingUserLoginDevicesTable(error)) {
       return new Map();
     }
     throw new Error(error.message);
