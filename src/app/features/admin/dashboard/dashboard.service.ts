@@ -14,6 +14,10 @@ interface AtendimentoDiaRow {
   readonly created_at: string;
 }
 
+interface AtendimentoTransacaoRow {
+  readonly id: string;
+}
+
 interface AtendimentoHojeRow {
   readonly id: string;
   readonly servico_id: string | null;
@@ -27,6 +31,7 @@ interface AtendimentoHojeRow {
   readonly cliente: {
     readonly nome: string;
   } | null;
+  readonly transacoes: readonly AtendimentoTransacaoRow[] | AtendimentoTransacaoRow | null;
 }
 
 const STATES: readonly AtendimentoState[] = ['em_andamento', 'pagamento', 'concluido', 'recusado'];
@@ -151,7 +156,8 @@ export class DashboardService {
         `
           id, servico_id, servico_ids, desconto_centavos, acrescimo_centavos, valor_centavos,
           descricao_solicitacao, state, created_at,
-          cliente:clientes ( nome )
+          cliente:clientes ( nome ),
+          transacoes ( id )
         `,
       )
       .gte('created_at', from.toISOString())
@@ -165,9 +171,12 @@ export class DashboardService {
   private async hydrateAtendimentosHoje(
     rows: readonly AtendimentoHojeRow[],
   ): Promise<DashboardTodayAtendimento[]> {
+    const visibleRows = rows.filter((row) => {
+      return row.state !== 'concluido' || this.hasTransacao(row.transacoes);
+    });
     const servicoIds = Array.from(
       new Set(
-        rows.flatMap((row) => {
+        visibleRows.flatMap((row) => {
           const ids = row.servico_ids ?? [];
           return ids.length > 0 ? ids : row.servico_id ? [row.servico_id] : [];
         }),
@@ -175,7 +184,7 @@ export class DashboardService {
     );
     const servicosById = await this.getServicosById(servicoIds);
 
-    return rows.map((row) => {
+    return visibleRows.map((row) => {
       const rowServicoIds =
         row.servico_ids && row.servico_ids.length > 0
           ? row.servico_ids
@@ -219,6 +228,12 @@ export class DashboardService {
         createdAt: row.created_at,
       };
     });
+  }
+
+  private hasTransacao(
+    transacoes: readonly AtendimentoTransacaoRow[] | AtendimentoTransacaoRow | null,
+  ): boolean {
+    return Array.isArray(transacoes) ? transacoes.length > 0 : Boolean(transacoes);
   }
 
   private async getServicosById(
