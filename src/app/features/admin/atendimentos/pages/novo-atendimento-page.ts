@@ -94,7 +94,7 @@ interface SelectedServicoItem extends Servico {
             <mat-card-title>Serviços e solicitação</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <mat-form-field appearance="outline" class="full-width">
+            <mat-form-field appearance="outline" class="full-width add-service-field">
               <mat-label>Adicionar serviço</mat-label>
               <mat-select
                 formControlName="servico_id"
@@ -333,6 +333,14 @@ interface SelectedServicoItem extends Servico {
       padding: 1rem !important
     .full-width
       width: 100%
+    .add-service-field ::ng-deep .mat-mdc-text-field-wrapper
+      min-height: 4.25rem
+    .add-service-field ::ng-deep .mat-mdc-form-field-infix
+      min-height: 4.25rem
+      padding-top: 1.45rem
+      padding-bottom: 0.85rem
+    .add-service-field ::ng-deep .mat-mdc-select-trigger
+      min-height: 2.25rem
     .checkout-column
       position: sticky
       top: 1rem
