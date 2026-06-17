@@ -169,7 +169,6 @@ interface SelectedServicoItem extends Servico {
                     <thead>
                       <tr>
                         <th scope="col">Serviço</th>
-                        <th scope="col">Categoria</th>
                         <th scope="col">Valor</th>
                         <th scope="col">Ação</th>
                       </tr>
@@ -179,12 +178,12 @@ interface SelectedServicoItem extends Servico {
                         <tr [class.selected-row]="quantidadeSelecionada(s.id) > 0">
                           <td data-label="Serviço">
                             <strong>{{ s.nome }}</strong>
+                            <span class="service-category">
+                              {{ s.categoria?.nome ?? 'Sem categoria' }}
+                            </span>
                             @if (s.descricao) {
                               <small>{{ s.descricao }}</small>
                             }
-                          </td>
-                          <td data-label="Categoria">
-                            {{ s.categoria?.nome ?? 'Sem categoria' }}
                           </td>
                           <td data-label="Valor">{{ s.valor_centavos / 100 | currency }}</td>
                           <td data-label="Ação">
@@ -490,18 +489,28 @@ interface SelectedServicoItem extends Servico {
     .services-table tr:last-child td
       border-bottom: none
     .services-table th:nth-child(1)
-      width: 48%
+      width: 66%
     .services-table th:nth-child(2)
-      width: 22%
+      width: 16%
     .services-table th:nth-child(3)
-      width: 15%
-    .services-table th:nth-child(4)
-      width: 15%
+      width: 18%
     .services-table td:first-child
       display: grid
       gap: 0.2rem
     .services-table strong
       color: var(--mat-sys-on-surface)
+    .service-category
+      width: fit-content
+      max-width: 100%
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+      padding: 0.125rem 0.45rem
+      border-radius: 999px
+      background: var(--mat-sys-surface-container-high)
+      color: var(--mat-sys-on-surface-variant)
+      font-size: 0.75rem
+      font-weight: 800
     .services-table small
       color: var(--mat-sys-on-surface-variant)
       overflow: hidden
