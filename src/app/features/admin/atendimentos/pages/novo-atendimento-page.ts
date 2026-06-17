@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { CurrencyPipe, Location } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -96,6 +104,7 @@ interface SelectedServicoItem extends Servico {
                 <div class="servico-busca">
                   <mat-icon>search</mat-icon>
                   <input
+                    #servicoBuscaInput
                     type="text"
                     placeholder="Buscar serviço"
                     autocomplete="off"
@@ -488,6 +497,7 @@ export class NovoAtendimentoPage {
   private readonly location = inject(Location);
   private readonly snackBar = inject(MatSnackBar);
   private readonly fb = inject(FormBuilder).nonNullable;
+  private readonly servicoBuscaInput = viewChild<ElementRef<HTMLInputElement>>('servicoBuscaInput');
 
   protected readonly semCategoriaId = SEM_CATEGORIA_ID;
   protected readonly cliente = signal<Cliente | null>(null);
@@ -642,7 +652,14 @@ export class NovoAtendimentoPage {
   }
 
   onPanelToggle(opened: boolean): void {
-    if (!opened) this.servicoFiltro.set('');
+    if (!opened) {
+      this.servicoFiltro.set('');
+      return;
+    }
+
+    setTimeout(() => {
+      this.servicoBuscaInput()?.nativeElement.focus({ preventScroll: true });
+    });
   }
 
   async onSubmit(): Promise<void> {
