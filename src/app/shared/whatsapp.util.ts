@@ -13,7 +13,7 @@
  *  - links wa.me → `https://wa.me/${cliente.whatsapp}` direto, já é digits-only.
  */
 
-const DDI_CONHECIDOS = ['351', '55', '49', '44', '34', '1'] as const;
+const DDI_CONHECIDOS = ['351', '244', '55', '49', '44', '34', '1'] as const;
 
 /** Remove tudo que não for dígito. Usado em input e busca. */
 export function onlyDigits(value: string): string {
@@ -117,5 +117,5 @@ export function formatWhatsappDisplay(
   }
 
   const parsed = parseWhatsappCanonical(d);
-  return `+${parsed.ddi} ${parsed.local}`;
+  return `+${parsed.ddi} ${formatWhatsappLocal(parsed.local, parsed.ddi)}`;
 }
