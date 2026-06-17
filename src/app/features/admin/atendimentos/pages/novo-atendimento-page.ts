@@ -1,11 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  ElementRef,
+  DestroyRef,
   computed,
   inject,
   signal,
-  viewChild,
 } from '@angular/core';
 import { CurrencyPipe, Location } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
@@ -16,7 +15,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ClientesService } from '../../clientes/clientes.service';
@@ -45,7 +43,6 @@ interface SelectedServicoItem extends Servico {
     MatIconModule,
     MatInputModule,
     MatProgressBarModule,
-    MatSelectModule,
     MatToolbarModule,
   ],
   template: `
@@ -94,98 +91,130 @@ interface SelectedServicoItem extends Servico {
             <mat-card-title>Serviços e solicitação</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <mat-form-field appearance="outline" class="full-width add-service-field">
-              <mat-label>Adicionar serviço</mat-label>
-              <mat-select
-                formControlName="servico_id"
-                (selectionChange)="adicionarServico($event.value)"
-                (openedChange)="onPanelToggle($event)"
-              >
-                <div class="servico-busca">
-                  <mat-icon>search</mat-icon>
-                  <input
-                    #servicoBuscaInput
-                    type="text"
-                    placeholder="Buscar serviço"
-                    autocomplete="off"
-                    aria-label="Buscar serviço"
-                    [value]="servicoFiltro()"
-                    (input)="onFiltroChange($event)"
-                    (keydown)="$event.stopPropagation()"
-                    (click)="$event.stopPropagation()"
-                  />
-                  @if (servicoFiltro()) {
+            <section class="service-picker" aria-labelledby="servicos-table-title">
+              <div class="service-picker-header">
+                <h2 id="servicos-table-title">Serviços</h2>
+                <span>{{ filteredServicos().length }} de {{ servicos().length }}</span>
+              </div>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Buscar serviço</mat-label>
+                <mat-icon matPrefix>search</mat-icon>
+                <input
+                  matInput
+                  type="search"
+                  autocomplete="off"
+                  [value]="servicoBusca()"
+                  (input)="onFiltroChange($event)"
+                  (keydown.enter)="$event.preventDefault()"
+                />
+                @if (servicoBusca()) {
+                  <button
+                    mat-icon-button
+                    matSuffix
+                    type="button"
+                    aria-label="Limpar busca"
+                    (click)="limparFiltro()"
+                  >
+                    <mat-icon>close</mat-icon>
+                  </button>
+                }
+                <mat-hint>A busca filtra nome, descrição e categoria.</mat-hint>
+              </mat-form-field>
+
+              @if (categoriasServico().length > 0 || hasServicosSemCategoria()) {
+                <div
+                  class="servico-categorias"
+                  role="group"
+                  aria-label="Filtrar serviços por categoria"
+                >
+                  <button
+                    type="button"
+                    [class.active]="servicoCategoriaFiltro() === null"
+                    [attr.aria-pressed]="servicoCategoriaFiltro() === null"
+                    (click)="selecionarCategoriaServico(null)"
+                  >
+                    Todos
+                  </button>
+                  @for (categoria of categoriasServico(); track categoria.id) {
                     <button
                       type="button"
-                      class="limpar-busca"
-                      aria-label="Limpar busca"
-                      (click)="limparFiltro($event)"
-                      (keydown)="$event.stopPropagation()"
+                      [class.active]="servicoCategoriaFiltro() === categoria.id"
+                      [attr.aria-pressed]="servicoCategoriaFiltro() === categoria.id"
+                      (click)="selecionarCategoriaServico(categoria.id)"
                     >
-                      <mat-icon>close</mat-icon>
+                      {{ categoria.nome }}
+                    </button>
+                  }
+                  @if (hasServicosSemCategoria()) {
+                    <button
+                      type="button"
+                      [class.active]="servicoCategoriaFiltro() === semCategoriaId"
+                      [attr.aria-pressed]="servicoCategoriaFiltro() === semCategoriaId"
+                      (click)="selecionarCategoriaServico(semCategoriaId)"
+                    >
+                      Sem categoria
                     </button>
                   }
                 </div>
-
-                @if (categoriasServico().length > 0 || hasServicosSemCategoria()) {
-                  <div
-                    class="servico-categorias"
-                    role="group"
-                    aria-label="Filtrar serviços por categoria"
-                  >
-                    <button
-                      type="button"
-                      [class.active]="servicoCategoriaFiltro() === null"
-                      [attr.aria-pressed]="servicoCategoriaFiltro() === null"
-                      (click)="selecionarCategoriaServico(null, $event)"
-                      (keydown)="$event.stopPropagation()"
-                    >
-                      Todos
-                    </button>
-                    @for (categoria of categoriasServico(); track categoria.id) {
-                      <button
-                        type="button"
-                        [class.active]="servicoCategoriaFiltro() === categoria.id"
-                        [attr.aria-pressed]="servicoCategoriaFiltro() === categoria.id"
-                        (click)="selecionarCategoriaServico(categoria.id, $event)"
-                        (keydown)="$event.stopPropagation()"
-                      >
-                        {{ categoria.nome }}
-                      </button>
-                    }
-                    @if (hasServicosSemCategoria()) {
-                      <button
-                        type="button"
-                        [class.active]="servicoCategoriaFiltro() === semCategoriaId"
-                        [attr.aria-pressed]="servicoCategoriaFiltro() === semCategoriaId"
-                        (click)="selecionarCategoriaServico(semCategoriaId, $event)"
-                        (keydown)="$event.stopPropagation()"
-                      >
-                        Sem categoria
-                      </button>
-                    }
-                  </div>
-                }
-
-                @for (s of filteredServicos(); track s.id) {
-                  <mat-option [value]="s.id">
-                    {{ s.nome }}
-                    @if (s.categoria; as categoria) {
-                      · {{ categoria.nome }}
-                    }
-                    — {{ s.valor_centavos / 100 | currency }}
-                  </mat-option>
-                }
-                @if (servicos().length > 0 && filteredServicos().length === 0) {
-                  <p class="servico-vazio">Nenhum serviço encontrado.</p>
-                }
-              </mat-select>
-              @if (!loading() && servicos().length === 0) {
-                <mat-hint>Cadastre ou ative serviços antes de abrir pedidos.</mat-hint>
-              } @else {
-                <mat-hint>Escolha um serviço por vez. Ajuste a quantidade no resumo.</mat-hint>
               }
-            </mat-form-field>
+
+              @if (!loading() && servicos().length === 0) {
+                <p class="servico-vazio">Cadastre ou ative serviços antes de abrir pedidos.</p>
+              } @else if (filteredServicos().length === 0) {
+                <p class="servico-vazio">Nenhum serviço encontrado.</p>
+              } @else {
+                <div class="services-table-wrap">
+                  <table class="services-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Serviço</th>
+                        <th scope="col">Categoria</th>
+                        <th scope="col">Valor</th>
+                        <th scope="col">Pedido</th>
+                        <th scope="col">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (s of filteredServicos(); track s.id) {
+                        <tr [class.selected-row]="quantidadeSelecionada(s.id) > 0">
+                          <td data-label="Serviço">
+                            <strong>{{ s.nome }}</strong>
+                            @if (s.descricao) {
+                              <small>{{ s.descricao }}</small>
+                            }
+                          </td>
+                          <td data-label="Categoria">
+                            {{ s.categoria?.nome ?? 'Sem categoria' }}
+                          </td>
+                          <td data-label="Valor">{{ s.valor_centavos / 100 | currency }}</td>
+                          <td data-label="Pedido">
+                            @if (quantidadeSelecionada(s.id) > 0) {
+                              <span class="table-chip">{{ quantidadeSelecionada(s.id) }}x</span>
+                            } @else {
+                              <span class="muted">Não adicionado</span>
+                            }
+                          </td>
+                          <td data-label="Ação">
+                            <button
+                              mat-stroked-button
+                              type="button"
+                              (click)="adicionarServico(s.id)"
+                              [attr.aria-label]="'Adicionar ' + s.nome"
+                            >
+                              <mat-icon>add</mat-icon>
+                              <span>
+                                {{ quantidadeSelecionada(s.id) > 0 ? '+1' : 'Adicionar' }}
+                              </span>
+                            </button>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </section>
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Descrição da solicitação</mat-label>
@@ -333,14 +362,26 @@ interface SelectedServicoItem extends Servico {
       padding: 1rem !important
     .full-width
       width: 100%
-    .add-service-field ::ng-deep .mat-mdc-text-field-wrapper
-      min-height: 4.25rem
-    .add-service-field ::ng-deep .mat-mdc-form-field-infix
-      min-height: 4.25rem
-      padding-top: 1.45rem
-      padding-bottom: 0.85rem
-    .add-service-field ::ng-deep .mat-mdc-select-trigger
-      min-height: 2.25rem
+    .service-picker
+      display: grid
+      gap: 0.75rem
+      padding: 0.875rem
+      border: 1px solid var(--mat-sys-outline-variant)
+      border-radius: 0.5rem
+      background: var(--mat-sys-surface-container-low)
+    .service-picker-header
+      display: flex
+      align-items: center
+      justify-content: space-between
+      gap: 1rem
+    .service-picker-header h2
+      margin: 0
+      font-size: 1rem
+      line-height: 1.2
+    .service-picker-header span
+      color: var(--mat-sys-on-surface-variant)
+      font-size: 0.8125rem
+      white-space: nowrap
     .checkout-column
       position: sticky
       top: 1rem
@@ -404,36 +445,10 @@ interface SelectedServicoItem extends Servico {
     mat-card-actions
       padding: 0 1rem 1rem !important
       gap: 0.5rem
-    .servico-busca
-      position: sticky
-      top: 0
-      z-index: 1
-      display: flex
-      align-items: center
-      gap: 0.5rem
-      padding: 0.5rem 0.75rem
-      background: var(--mat-sys-surface-container)
-      border-bottom: 1px solid var(--mat-sys-outline-variant)
-    .servico-busca mat-icon
-      flex-shrink: 0
-      color: var(--mat-sys-on-surface-variant)
-    .servico-busca input
-      flex: 1
-      min-width: 0
-      border: none
-      background: transparent
-      color: var(--mat-sys-on-surface)
-      font: inherit
-      outline: none
-    .servico-busca input::placeholder
-      color: var(--mat-sys-on-surface-variant)
     .servico-categorias
       display: flex
       gap: 0.5rem
-      padding: 0.5rem 0.75rem
       overflow-x: auto
-      background: var(--mat-sys-surface-container)
-      border-bottom: 1px solid var(--mat-sys-outline-variant)
     .servico-categorias button
       min-height: 2rem
       padding: 0 0.75rem
@@ -453,18 +468,71 @@ interface SelectedServicoItem extends Servico {
       border-color: var(--mat-sys-primary)
       background: var(--mat-sys-primary)
       color: var(--mat-sys-on-primary)
-    .limpar-busca
+    .services-table-wrap
+      max-height: 26rem
+      overflow: auto
+      border: 1px solid var(--mat-sys-outline-variant)
+      border-radius: 0.5rem
+      background: var(--mat-sys-surface-container)
+    .services-table
+      width: 100%
+      border-collapse: collapse
+      table-layout: fixed
+    .services-table th,
+    .services-table td
+      padding: 0.75rem
+      border-bottom: 1px solid var(--mat-sys-outline-variant)
+      text-align: left
+      vertical-align: middle
+    .services-table th
+      position: sticky
+      top: 0
+      z-index: 1
+      background: var(--mat-sys-surface-container-high)
+      color: var(--mat-sys-on-surface-variant)
+      font-size: 0.75rem
+      font-weight: 800
+      text-transform: uppercase
+    .services-table tr:last-child td
+      border-bottom: none
+    .services-table th:nth-child(1)
+      width: 38%
+    .services-table th:nth-child(2)
+      width: 20%
+    .services-table th:nth-child(3),
+    .services-table th:nth-child(4)
+      width: 14%
+    .services-table th:nth-child(5)
+      width: 14%
+    .services-table td:first-child
+      display: grid
+      gap: 0.2rem
+    .services-table strong
+      color: var(--mat-sys-on-surface)
+    .services-table small
+      color: var(--mat-sys-on-surface-variant)
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+    .selected-row
+      background: color-mix(in srgb, var(--mat-sys-primary) 9%, transparent)
+    .table-chip
       display: inline-flex
       align-items: center
       justify-content: center
-      padding: 0
-      border: none
-      background: transparent
+      min-width: 2rem
+      min-height: 1.6rem
+      padding: 0 0.45rem
+      border-radius: 999px
+      background: var(--mat-sys-primary)
+      color: var(--mat-sys-on-primary)
+      font-weight: 800
+    .muted
       color: var(--mat-sys-on-surface-variant)
-      cursor: pointer
+      font-size: 0.8125rem
     .servico-vazio
       margin: 0
-      padding: 0.75rem
+      padding: 1rem
       text-align: center
       color: var(--mat-sys-on-surface-variant)
     @media (max-width: 780px)
@@ -479,6 +547,46 @@ interface SelectedServicoItem extends Servico {
       mat-toolbar a span
         display: none
     @media (max-width: 520px)
+      .service-picker
+        padding: 0.75rem
+      .services-table-wrap
+        max-height: none
+      .services-table,
+      .services-table thead,
+      .services-table tbody,
+      .services-table tr,
+      .services-table td
+        display: block
+      .services-table thead
+        display: none
+      .services-table tr
+        padding: 0.75rem
+        border-bottom: 1px solid var(--mat-sys-outline-variant)
+      .services-table tr:last-child
+        border-bottom: none
+      .services-table td
+        display: flex
+        justify-content: space-between
+        gap: 1rem
+        padding: 0.35rem 0
+        border-bottom: none
+      .services-table td::before
+        content: attr(data-label)
+        color: var(--mat-sys-on-surface-variant)
+        font-size: 0.75rem
+        font-weight: 800
+        text-transform: uppercase
+      .services-table td:first-child
+        display: grid
+        gap: 0.25rem
+      .services-table td:first-child::before
+        content: none
+      .services-table td:last-child
+        justify-content: stretch
+      .services-table td:last-child::before
+        content: none
+      .services-table td:last-child button
+        width: 100%
       .checkout-list li
         grid-template-columns: minmax(0, 1fr) auto
       .quantity-field
@@ -505,7 +613,8 @@ export class NovoAtendimentoPage {
   private readonly location = inject(Location);
   private readonly snackBar = inject(MatSnackBar);
   private readonly fb = inject(FormBuilder).nonNullable;
-  private readonly servicoBuscaInput = viewChild<ElementRef<HTMLInputElement>>('servicoBuscaInput');
+  private readonly destroyRef = inject(DestroyRef);
+  private filtroDebounceId: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly semCategoriaId = SEM_CATEGORIA_ID;
   protected readonly cliente = signal<Cliente | null>(null);
@@ -514,6 +623,7 @@ export class NovoAtendimentoPage {
   protected readonly servicos = signal<Servico[]>([]);
   protected readonly selectedServicoIds = signal<string[]>([]);
   protected readonly selectedServicoQuantidades = signal<Record<string, number>>({});
+  protected readonly servicoBusca = signal('');
   protected readonly servicoFiltro = signal('');
   protected readonly servicoCategoriaFiltro = signal<string | null>(null);
   protected readonly loading = signal(false);
@@ -573,17 +683,19 @@ export class NovoAtendimentoPage {
       return (
         !termo ||
         normalizarBusca(servico.nome).includes(termo) ||
+        normalizarBusca(servico.descricao ?? '').includes(termo) ||
         normalizarBusca(servico.categoria?.nome ?? '').includes(termo)
       );
     });
   });
 
   protected readonly form = this.fb.group({
-    servico_id: [''],
     descricao_solicitacao: [''],
   });
 
   constructor() {
+    this.destroyRef.onDestroy(() => this.clearFiltroDebounce());
+
     const params = this.route.snapshot.queryParamMap;
     const clienteId = params.get('clienteId');
     this.clienteId.set(clienteId);
@@ -622,22 +734,26 @@ export class NovoAtendimentoPage {
         [id]: 1,
       };
     });
-    this.form.controls.servico_id.setValue('');
-    this.servicoFiltro.set('');
   }
 
   onFiltroChange(event: Event): void {
     const input = event.target as HTMLInputElement | null;
-    this.servicoFiltro.set(input?.value ?? '');
+    const value = input?.value ?? '';
+    this.servicoBusca.set(value);
+    this.clearFiltroDebounce();
+    this.filtroDebounceId = setTimeout(() => {
+      this.servicoFiltro.set(value);
+      this.filtroDebounceId = null;
+    }, 250);
   }
 
-  limparFiltro(event: Event): void {
-    event.stopPropagation();
+  limparFiltro(): void {
+    this.clearFiltroDebounce();
+    this.servicoBusca.set('');
     this.servicoFiltro.set('');
   }
 
-  selecionarCategoriaServico(categoriaId: string | null, event: Event): void {
-    event.stopPropagation();
+  selecionarCategoriaServico(categoriaId: string | null): void {
     this.servicoCategoriaFiltro.set(categoriaId);
   }
 
@@ -659,15 +775,8 @@ export class NovoAtendimentoPage {
     }));
   }
 
-  onPanelToggle(opened: boolean): void {
-    if (!opened) {
-      this.servicoFiltro.set('');
-      return;
-    }
-
-    setTimeout(() => {
-      this.servicoBuscaInput()?.nativeElement.focus({ preventScroll: true });
-    });
+  quantidadeSelecionada(id: string): number {
+    return this.selectedServicoQuantidades()[id] ?? 0;
   }
 
   async onSubmit(): Promise<void> {
@@ -735,6 +844,12 @@ export class NovoAtendimentoPage {
         ? servicos.some((servico) => !servico.categoria)
         : servicos.some((servico) => servico.categoria?.id === categoriaId);
     if (!hasCategoria) this.servicoCategoriaFiltro.set(null);
+  }
+
+  private clearFiltroDebounce(): void {
+    if (!this.filtroDebounceId) return;
+    clearTimeout(this.filtroDebounceId);
+    this.filtroDebounceId = null;
   }
 }
 
