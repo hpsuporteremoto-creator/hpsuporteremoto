@@ -71,7 +71,11 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
       admin,
       (data ?? []) as unknown as AtendimentoComRelacoes[],
     );
-    return json({ atendimentos }, 200);
+    const visibleAtendimentos =
+      !todosOsStatus && filter === 'concluido'
+        ? atendimentos.filter((atendimento) => atendimento.financeiro_contabilizado)
+        : atendimentos;
+    return json({ atendimentos: visibleAtendimentos }, 200);
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : 'Erro ao carregar serviços' }, 500);
   }
