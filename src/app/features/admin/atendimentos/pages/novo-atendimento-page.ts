@@ -171,7 +171,6 @@ interface SelectedServicoItem extends Servico {
                         <th scope="col">Serviço</th>
                         <th scope="col">Categoria</th>
                         <th scope="col">Valor</th>
-                        <th scope="col">Pedido</th>
                         <th scope="col">Ação</th>
                       </tr>
                     </thead>
@@ -188,13 +187,6 @@ interface SelectedServicoItem extends Servico {
                             {{ s.categoria?.nome ?? 'Sem categoria' }}
                           </td>
                           <td data-label="Valor">{{ s.valor_centavos / 100 | currency }}</td>
-                          <td data-label="Pedido">
-                            @if (quantidadeSelecionada(s.id) > 0) {
-                              <span class="table-chip">{{ quantidadeSelecionada(s.id) }}x</span>
-                            } @else {
-                              <span class="muted">Não adicionado</span>
-                            }
-                          </td>
                           <td data-label="Ação">
                             <button
                               mat-stroked-button
@@ -215,16 +207,6 @@ interface SelectedServicoItem extends Servico {
                 </div>
               }
             </section>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Descrição da solicitação</mat-label>
-              <textarea
-                matInput
-                formControlName="descricao_solicitacao"
-                rows="7"
-                placeholder="Descreva o serviço combinado com o cliente"
-              ></textarea>
-            </mat-form-field>
           </mat-card-content>
         </mat-card>
 
@@ -280,6 +262,16 @@ interface SelectedServicoItem extends Servico {
                   <strong>{{ totalComAjustes() / 100 | currency }}</strong>
                 </div>
               }
+
+              <mat-form-field appearance="outline" class="full-width solicitacao-field">
+                <mat-label>Descrição da solicitação</mat-label>
+                <textarea
+                  matInput
+                  formControlName="descricao_solicitacao"
+                  rows="7"
+                  placeholder="Descreva o serviço combinado com o cliente"
+                ></textarea>
+              </mat-form-field>
             </mat-card-content>
             <mat-card-actions align="end">
               <button mat-button type="button" (click)="cancelar()">Cancelar</button>
@@ -442,6 +434,8 @@ interface SelectedServicoItem extends Servico {
     .checkout-total strong
       color: var(--mat-sys-tertiary)
       font-size: 1.25rem
+    .solicitacao-field
+      margin-top: 1rem
     mat-card-actions
       padding: 0 1rem 1rem !important
       gap: 0.5rem
@@ -496,14 +490,13 @@ interface SelectedServicoItem extends Servico {
     .services-table tr:last-child td
       border-bottom: none
     .services-table th:nth-child(1)
-      width: 38%
+      width: 48%
     .services-table th:nth-child(2)
-      width: 20%
-    .services-table th:nth-child(3),
+      width: 22%
+    .services-table th:nth-child(3)
+      width: 15%
     .services-table th:nth-child(4)
-      width: 14%
-    .services-table th:nth-child(5)
-      width: 14%
+      width: 15%
     .services-table td:first-child
       display: grid
       gap: 0.2rem
@@ -516,20 +509,6 @@ interface SelectedServicoItem extends Servico {
       white-space: nowrap
     .selected-row
       background: color-mix(in srgb, var(--mat-sys-primary) 9%, transparent)
-    .table-chip
-      display: inline-flex
-      align-items: center
-      justify-content: center
-      min-width: 2rem
-      min-height: 1.6rem
-      padding: 0 0.45rem
-      border-radius: 999px
-      background: var(--mat-sys-primary)
-      color: var(--mat-sys-on-primary)
-      font-weight: 800
-    .muted
-      color: var(--mat-sys-on-surface-variant)
-      font-size: 0.8125rem
     .servico-vazio
       margin: 0
       padding: 1rem
