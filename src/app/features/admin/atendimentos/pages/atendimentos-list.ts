@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { DatePipe, Location } from '@angular/common';
+import { CurrencyPipe, DatePipe, Location } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -27,6 +27,7 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
 @Component({
   selector: 'hp-atendimentos-list',
   imports: [
+    CurrencyPipe,
     DatePipe,
     RouterLink,
     MatButtonModule,
@@ -174,8 +175,13 @@ const TAB_TO_FILTER: ReadonlyArray<AtendimentoListFilter> = [
                         {{ a.created_at | date: 'short' }}
                       </small>
                     </div>
-                    <span class="state-badge state-{{ a.state }}">
-                      {{ stateLabel(a.state) }}
+                    <span class="status-column">
+                      <strong class="atendimento-value">
+                        {{ valorAtendimento(a) / 100 | currency }}
+                      </strong>
+                      <span class="state-badge state-{{ a.state }}">
+                        {{ stateLabel(a.state) }}
+                      </span>
                     </span>
                   </mat-card-content>
                 </mat-card>
@@ -286,6 +292,18 @@ export class AtendimentosListPage {
 
   operadorLabel(operador: AtendimentoComRelacoes['criado_por']): string {
     return operador?.full_name?.trim() || operador?.email || 'usuário';
+  }
+
+  valorAtendimento(atendimento: AtendimentoComRelacoes): number {
+    if (typeof atendimento.valor_centavos === 'number') {
+      return atendimento.valor_centavos;
+    }
+
+    const subtotal = atendimento.servicos_solicitados.reduce(
+      (total, servico) => total + servico.subtotal_centavos,
+      0,
+    );
+    return Math.max(subtotal + atendimento.acrescimo_centavos - atendimento.desconto_centavos, 0);
   }
 
   async carregar(): Promise<void> {
