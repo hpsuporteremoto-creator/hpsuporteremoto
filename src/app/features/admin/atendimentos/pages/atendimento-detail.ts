@@ -51,6 +51,15 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
       <span class="title">Atendimento</span>
       <span class="spacer"></span>
       @if (atendimento(); as a) {
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="novoAtendimentoMesmoCliente(a)"
+          [attr.aria-label]="'Novo pedido para ' + a.cliente.nome"
+        >
+          <mat-icon>add</mat-icon>
+          <span>Novo pedido</span>
+        </button>
         <span class="state-badge state-{{ a.state }}">
           {{ stateLabel(a.state) }}
         </span>
@@ -791,6 +800,15 @@ export class AtendimentoDetailPage {
 
   voltar(): void {
     this.location.back();
+  }
+
+  novoAtendimentoMesmoCliente(atendimento: AtendimentoComRelacoes): void {
+    void this.router.navigate(['/admin/atendimentos/novo'], {
+      queryParams: {
+        clienteId: atendimento.cliente.id,
+        clienteNome: atendimento.cliente.nome,
+      },
+    });
   }
 
   stateLabel(state: AtendimentoState): string {
