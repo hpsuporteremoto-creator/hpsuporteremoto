@@ -21,6 +21,7 @@ import {
   AtendimentoState,
 } from '../atendimentos.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
+import { normalizarBuscaServico, servicoMatchesBusca } from '../../../../shared/service-search.util';
 
 type CobrancaServicoBase = Pick<Servico, 'id' | 'nome' | 'valor_centavos' | 'categoria'>;
 
@@ -728,13 +729,10 @@ export class AtendimentoDetailPage {
     return this.servicosDisponiveis().filter((servico) => !selected.has(servico.id));
   });
   protected readonly filteredServicosParaAdicionar = computed(() => {
-    const termo = normalizeSearchKey(this.servicoFiltro());
+    const termo = normalizarBuscaServico(this.servicoFiltro());
     if (!termo) return this.servicosParaAdicionar();
     return this.servicosParaAdicionar().filter((servico) => {
-      return (
-        normalizeSearchKey(servico.nome).includes(termo) ||
-        normalizeSearchKey(servico.categoria?.nome ?? '').includes(termo)
-      );
+      return servicoMatchesBusca(servico, termo);
     });
   });
   protected readonly quantidadeTotalParaCobranca = computed(() => {
@@ -1185,12 +1183,4 @@ function normalizeQuantidade(value: unknown): number {
   const quantidade = typeof value === 'number' ? value : Number(value);
   if (!Number.isInteger(quantidade) || quantidade < 1) return 1;
   return Math.min(quantidade, 99);
-}
-
-function normalizeSearchKey(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
 }

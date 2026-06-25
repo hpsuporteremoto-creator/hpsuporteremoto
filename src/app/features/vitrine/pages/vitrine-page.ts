@@ -19,6 +19,7 @@ import { catalogItemRoute } from '../catalogo-url';
 import { JivoChatService } from '../jivo-chat.service';
 import { VitrineService } from '../vitrine.service';
 import { VitrineServico } from '../vitrine.types';
+import { normalizarBuscaServico, servicoMatchesBusca } from '../../../shared/service-search.util';
 
 const SEM_CATEGORIA_ID = '__sem_categoria__';
 type OrdenacaoCatalogo = 'relevancia' | 'recentes';
@@ -254,7 +255,7 @@ export class VitrinePage {
   });
   protected readonly servicosFiltrados = computed(() => {
     const categoriaId = this.categoriaSelecionada();
-    const termo = normalizarBusca(this.termoBusca());
+    const termo = normalizarBuscaServico(this.termoBusca());
     const filtered = this.servicos().filter((servico) => {
       const matchesCategoria =
         !categoriaId ||
@@ -263,7 +264,7 @@ export class VitrinePage {
           : servico.categoria?.id === categoriaId);
       if (!matchesCategoria) return false;
       if (!termo) return true;
-      return textoBuscaServico(servico).includes(termo);
+      return servicoMatchesBusca(servico, termo);
     });
     return ordenarServicos(filtered, this.ordenacao());
   });
@@ -347,18 +348,4 @@ function ordenarServicos(
 
 function isOrdenacaoCatalogo(value: unknown): value is OrdenacaoCatalogo {
   return value === 'relevancia' || value === 'recentes';
-}
-
-function textoBuscaServico(servico: VitrineServico): string {
-  return normalizarBusca(
-    [servico.nome, servico.descricao, servico.categoria?.nome].filter(Boolean).join(' '),
-  );
-}
-
-function normalizarBusca(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
 }

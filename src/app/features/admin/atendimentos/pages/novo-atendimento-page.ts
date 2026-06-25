@@ -22,6 +22,7 @@ import { Cliente } from '../../clientes/clientes.types';
 import { ServicosService } from '../../servicos/servicos.service';
 import { Servico } from '../../servicos/servicos.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
+import { normalizarBuscaServico, servicoMatchesBusca } from '../../../../shared/service-search.util';
 import { AtendimentosService } from '../atendimentos.service';
 
 const SEM_CATEGORIA_ID = '__sem_categoria__';
@@ -657,7 +658,7 @@ export class NovoAtendimentoPage {
     this.servicos().some((servico) => !servico.categoria),
   );
   protected readonly filteredServicos = computed(() => {
-    const termo = normalizarBusca(this.servicoFiltro());
+    const termo = normalizarBuscaServico(this.servicoFiltro());
     const categoriaId = this.servicoCategoriaFiltro();
     const todos = this.servicos();
     if (!termo && !categoriaId) return todos;
@@ -668,12 +669,7 @@ export class NovoAtendimentoPage {
           ? !servico.categoria
           : servico.categoria?.id === categoriaId);
       if (!matchesCategoria) return false;
-      return (
-        !termo ||
-        normalizarBusca(servico.nome).includes(termo) ||
-        normalizarBusca(servico.descricao ?? '').includes(termo) ||
-        normalizarBusca(servico.categoria?.nome ?? '').includes(termo)
-      );
+      return !termo || servicoMatchesBusca(servico, termo);
     });
   });
 
@@ -839,15 +835,6 @@ export class NovoAtendimentoPage {
     clearTimeout(this.filtroDebounceId);
     this.filtroDebounceId = null;
   }
-}
-
-function normalizarBusca(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function normalizeQuantidade(value: unknown): number {

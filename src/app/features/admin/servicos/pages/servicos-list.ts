@@ -13,6 +13,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ServicosService } from '../servicos.service';
 import { Servico } from '../servicos.types';
+import { normalizarBuscaServico, servicoMatchesBusca } from '../../../../shared/service-search.util';
 
 const SEM_CATEGORIA_ID = '__sem_categoria__';
 
@@ -212,7 +213,7 @@ export class ServicosListPage {
     const list = this.servicos();
     if (!list) return null;
     const categoriaId = this.categoriaSelecionada();
-    const termo = normalizarBusca(this.termoBusca());
+    const termo = normalizarBuscaServico(this.termoBusca());
     return list.filter((servico) => {
       const matchesCategoria =
         !categoriaId ||
@@ -221,7 +222,13 @@ export class ServicosListPage {
           : servico.categoria?.id === categoriaId);
       if (!matchesCategoria) return false;
       if (!termo) return true;
-      return textoBuscaServico(servico).includes(termo);
+      return servicoMatchesBusca(
+        {
+          ...servico,
+          extras: [servico.vitrine ? 'vitrine' : '', String(servico.valor_centavos / 100)],
+        },
+        termo,
+      );
     });
   });
   protected readonly emptyMessage = computed(() => {
@@ -300,26 +307,4 @@ export class ServicosListPage {
         : servicos.some((servico) => servico.categoria?.id === categoriaId);
     if (!hasCategoria) this.categoriaSelecionada.set(null);
   }
-}
-
-function textoBuscaServico(servico: Servico): string {
-  return normalizarBusca(
-    [
-      servico.nome,
-      servico.descricao,
-      servico.categoria?.nome,
-      servico.vitrine ? 'vitrine' : '',
-      String(servico.valor_centavos / 100),
-    ]
-      .filter(Boolean)
-      .join(' '),
-  );
-}
-
-function normalizarBusca(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
 }
