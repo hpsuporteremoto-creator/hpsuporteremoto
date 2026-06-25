@@ -13,7 +13,13 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { ServicosService } from '../servicos.service';
 import { Servico } from '../servicos.types';
-import { normalizarBuscaServico, servicoMatchesBusca } from '../../../../shared/service-search.util';
+import {
+  destacarBuscaServico,
+  normalizarBuscaServico,
+  servicoMatchesBusca,
+  servicoSearchScore,
+  type SearchHighlightSegment,
+} from '../../../../shared/service-search.util';
 
 const SEM_CATEGORIA_ID = '__sem_categoria__';
 
@@ -148,15 +154,39 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
                     }
                   </div>
                   <div class="info">
-                    <strong class="nome">{{ servico.nome }}</strong>
+                    <strong class="nome">
+                      @for (part of highlightServicoTexto(servico.nome); track $index) {
+                        @if (part.highlighted) {
+                          <mark class="search-highlight">{{ part.text }}</mark>
+                        } @else {
+                          {{ part.text }}
+                        }
+                      }
+                    </strong>
                     @if (servico.categoria; as categoria) {
-                      <small class="categoria">{{ categoria.nome }}</small>
+                      <small class="categoria">
+                        @for (part of highlightServicoTexto(categoria.nome); track $index) {
+                          @if (part.highlighted) {
+                            <mark class="search-highlight">{{ part.text }}</mark>
+                          } @else {
+                            {{ part.text }}
+                          }
+                        }
+                      </small>
                     }
                     @if (servico.vitrine) {
                       <small class="vitrine">No site</small>
                     }
                     @if (servico.descricao) {
-                      <span class="descricao">{{ servico.descricao }}</span>
+                      <span class="descricao">
+                        @for (part of highlightServicoTexto(servico.descricao); track $index) {
+                          @if (part.highlighted) {
+                            <mark class="search-highlight">{{ part.text }}</mark>
+                          } @else {
+                            {{ part.text }}
+                          }
+                        }
+                      </span>
                     }
                     <span class="valor">{{ servico.valor_centavos / 100 | currency }}</span>
                   </div>
@@ -214,7 +244,7 @@ export class ServicosListPage {
     if (!list) return null;
     const categoriaId = this.categoriaSelecionada();
     const termo = normalizarBuscaServico(this.termoBusca());
-    return list.filter((servico) => {
+    const filtered = list.filter((servico) => {
       const matchesCategoria =
         !categoriaId ||
         (categoriaId === SEM_CATEGORIA_ID
@@ -230,6 +260,9 @@ export class ServicosListPage {
         termo,
       );
     });
+    return termo
+      ? filtered.sort((a, b) => scoreServico(b, termo) - scoreServico(a, termo))
+      : filtered;
   });
   protected readonly emptyMessage = computed(() => {
     if (this.termoBusca() && this.categoriaSelecionada()) {
@@ -266,6 +299,10 @@ export class ServicosListPage {
 
   limparBusca(): void {
     this.termoBusca.set('');
+  }
+
+  highlightServicoTexto(value: string): readonly SearchHighlightSegment[] {
+    return destacarBuscaServico(value, this.termoBusca());
   }
 
   async carregar(): Promise<void> {
@@ -307,4 +344,14 @@ export class ServicosListPage {
         : servicos.some((servico) => servico.categoria?.id === categoriaId);
     if (!hasCategoria) this.categoriaSelecionada.set(null);
   }
+}
+
+function scoreServico(servico: Servico, termo: string): number {
+  return servicoSearchScore(
+    {
+      ...servico,
+      extras: [servico.vitrine ? 'vitrine' : '', String(servico.valor_centavos / 100)],
+    },
+    termo,
+  );
 }

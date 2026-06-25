@@ -19,7 +19,13 @@ import { catalogItemRoute } from '../catalogo-url';
 import { JivoChatService } from '../jivo-chat.service';
 import { VitrineService } from '../vitrine.service';
 import { VitrineServico } from '../vitrine.types';
-import { normalizarBuscaServico, servicoMatchesBusca } from '../../../shared/service-search.util';
+import {
+  destacarBuscaServico,
+  normalizarBuscaServico,
+  servicoMatchesBusca,
+  servicoSearchScore,
+  type SearchHighlightSegment,
+} from '../../../shared/service-search.util';
 
 const SEM_CATEGORIA_ID = '__sem_categoria__';
 type OrdenacaoCatalogo = 'relevancia' | 'recentes';
@@ -186,17 +192,41 @@ type OrdenacaoCatalogo = 'relevancia' | 'recentes';
             <mat-card-content class="product-content">
               <div class="product-tags">
                 @if (servico.categoria; as categoria) {
-                  <span class="category">{{ categoria.nome }}</span>
+                  <span class="category">
+                    @for (part of highlightServicoTexto(categoria.nome); track $index) {
+                      @if (part.highlighted) {
+                        <mark class="search-highlight">{{ part.text }}</mark>
+                      } @else {
+                        {{ part.text }}
+                      }
+                    }
+                  </span>
                 }
                 <span class="availability">No catálogo</span>
               </div>
 
               <h2>
-                <a [routerLink]="itemRoute(servico)">{{ servico.nome }}</a>
+                <a [routerLink]="itemRoute(servico)">
+                  @for (part of highlightServicoTexto(servico.nome); track $index) {
+                    @if (part.highlighted) {
+                      <mark class="search-highlight">{{ part.text }}</mark>
+                    } @else {
+                      {{ part.text }}
+                    }
+                  }
+                </a>
               </h2>
 
               @if (servico.descricao) {
-                <p class="description">{{ servico.descricao }}</p>
+                <p class="description">
+                  @for (part of highlightServicoTexto(servico.descricao); track $index) {
+                    @if (part.highlighted) {
+                      <mark class="search-highlight">{{ part.text }}</mark>
+                    } @else {
+                      {{ part.text }}
+                    }
+                  }
+                </p>
               }
 
               <div class="product-actions">
@@ -266,7 +296,7 @@ export class VitrinePage {
       if (!termo) return true;
       return servicoMatchesBusca(servico, termo);
     });
-    return ordenarServicos(filtered, this.ordenacao());
+    return ordenarServicos(filtered, this.ordenacao(), termo);
   });
   protected readonly emptyMessage = computed(() => {
     if (this.termoBusca()) return 'Nada encontrado para esta busca';
@@ -320,6 +350,10 @@ export class VitrinePage {
     return catalogItemRoute(servico);
   }
 
+  protected highlightServicoTexto(value: string): readonly SearchHighlightSegment[] {
+    return destacarBuscaServico(value, this.termoBusca());
+  }
+
   selecionarOrdenacao(value: unknown): void {
     if (isOrdenacaoCatalogo(value)) this.ordenacao.set(value);
   }
@@ -336,8 +370,17 @@ export class VitrinePage {
 function ordenarServicos(
   servicos: readonly VitrineServico[],
   ordenacao: OrdenacaoCatalogo,
+  termo: string,
 ): VitrineServico[] {
   const list = [...servicos];
+  if (termo) {
+    return list.sort((a, b) => {
+      const score = servicoSearchScore(b, termo) - servicoSearchScore(a, termo);
+      if (score !== 0) return score;
+      if (ordenacao === 'recentes') return Date.parse(b.created_at) - Date.parse(a.created_at);
+      return a.nome.localeCompare(b.nome);
+    });
+  }
   switch (ordenacao) {
     case 'recentes':
       return list.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));

@@ -21,7 +21,13 @@ import {
   AtendimentoState,
 } from '../atendimentos.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
-import { normalizarBuscaServico, servicoMatchesBusca } from '../../../../shared/service-search.util';
+import {
+  destacarBuscaServico,
+  normalizarBuscaServico,
+  servicoMatchesBusca,
+  servicoSearchScore,
+  type SearchHighlightSegment,
+} from '../../../../shared/service-search.util';
 
 type CobrancaServicoBase = Pick<Servico, 'id' | 'nome' | 'valor_centavos' | 'categoria'>;
 
@@ -221,9 +227,22 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
 
                         @for (servico of filteredServicosParaAdicionar(); track servico.id) {
                           <mat-option [value]="servico.id">
-                            {{ servico.nome }}
+                            @for (part of highlightServicoTexto(servico.nome); track $index) {
+                              @if (part.highlighted) {
+                                <mark class="search-highlight">{{ part.text }}</mark>
+                              } @else {
+                                {{ part.text }}
+                              }
+                            }
                             @if (servico.categoria; as categoria) {
-                              · {{ categoria.nome }}
+                              ·
+                              @for (part of highlightServicoTexto(categoria.nome); track $index) {
+                                @if (part.highlighted) {
+                                  <mark class="search-highlight">{{ part.text }}</mark>
+                                } @else {
+                                  {{ part.text }}
+                                }
+                              }
                             }
                             — {{ servico.valor_centavos / 100 | currency }}
                           </mat-option>
@@ -467,9 +486,22 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
 
                         @for (servico of filteredServicosParaAdicionar(); track servico.id) {
                           <mat-option [value]="servico.id">
-                            {{ servico.nome }}
+                            @for (part of highlightServicoTexto(servico.nome); track $index) {
+                              @if (part.highlighted) {
+                                <mark class="search-highlight">{{ part.text }}</mark>
+                              } @else {
+                                {{ part.text }}
+                              }
+                            }
                             @if (servico.categoria; as categoria) {
-                              · {{ categoria.nome }}
+                              ·
+                              @for (part of highlightServicoTexto(categoria.nome); track $index) {
+                                @if (part.highlighted) {
+                                  <mark class="search-highlight">{{ part.text }}</mark>
+                                } @else {
+                                  {{ part.text }}
+                                }
+                              }
                             }
                             — {{ servico.valor_centavos / 100 | currency }}
                           </mat-option>
@@ -731,9 +763,9 @@ export class AtendimentoDetailPage {
   protected readonly filteredServicosParaAdicionar = computed(() => {
     const termo = normalizarBuscaServico(this.servicoFiltro());
     if (!termo) return this.servicosParaAdicionar();
-    return this.servicosParaAdicionar().filter((servico) => {
-      return servicoMatchesBusca(servico, termo);
-    });
+    return this.servicosParaAdicionar()
+      .filter((servico) => servicoMatchesBusca(servico, termo))
+      .sort((a, b) => servicoSearchScore(b, termo) - servicoSearchScore(a, termo));
   });
   protected readonly quantidadeTotalParaCobranca = computed(() => {
     return this.servicosParaCobranca().reduce(
@@ -817,6 +849,10 @@ export class AtendimentoDetailPage {
 
   protected operadorLabel(operador: AtendimentoComRelacoes['criado_por']): string {
     return operador?.full_name?.trim() || operador?.email || 'usuário';
+  }
+
+  protected highlightServicoTexto(value: string): readonly SearchHighlightSegment[] {
+    return destacarBuscaServico(value, this.servicoFiltro());
   }
 
   async copiar(text: string, msg: string): Promise<void> {

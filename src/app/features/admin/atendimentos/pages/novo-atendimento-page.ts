@@ -22,7 +22,13 @@ import { Cliente } from '../../clientes/clientes.types';
 import { ServicosService } from '../../servicos/servicos.service';
 import { Servico } from '../../servicos/servicos.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
-import { normalizarBuscaServico, servicoMatchesBusca } from '../../../../shared/service-search.util';
+import {
+  destacarBuscaServico,
+  normalizarBuscaServico,
+  servicoMatchesBusca,
+  servicoSearchScore,
+  type SearchHighlightSegment,
+} from '../../../../shared/service-search.util';
 import { AtendimentosService } from '../atendimentos.service';
 
 const SEM_CATEGORIA_ID = '__sem_categoria__';
@@ -178,12 +184,37 @@ interface SelectedServicoItem extends Servico {
                       @for (s of filteredServicos(); track s.id) {
                         <tr [class.selected-row]="quantidadeSelecionada(s.id) > 0">
                           <td data-label="Serviço">
-                            <strong>{{ s.nome }}</strong>
+                            <strong>
+                              @for (part of highlightServicoTexto(s.nome); track $index) {
+                                @if (part.highlighted) {
+                                  <mark class="search-highlight">{{ part.text }}</mark>
+                                } @else {
+                                  {{ part.text }}
+                                }
+                              }
+                            </strong>
                             <span class="service-category">
-                              {{ s.categoria?.nome ?? 'Sem categoria' }}
+                              @for (
+                                part of highlightServicoTexto(s.categoria?.nome ?? 'Sem categoria');
+                                track $index
+                              ) {
+                                @if (part.highlighted) {
+                                  <mark class="search-highlight">{{ part.text }}</mark>
+                                } @else {
+                                  {{ part.text }}
+                                }
+                              }
                             </span>
                             @if (s.descricao) {
-                              <small>{{ s.descricao }}</small>
+                              <small>
+                                @for (part of highlightServicoTexto(s.descricao); track $index) {
+                                  @if (part.highlighted) {
+                                    <mark class="search-highlight">{{ part.text }}</mark>
+                                  } @else {
+                                    {{ part.text }}
+                                  }
+                                }
+                              </small>
                             }
                           </td>
                           <td data-label="Valor">{{ s.valor_centavos / 100 | currency }}</td>
@@ -662,7 +693,7 @@ export class NovoAtendimentoPage {
     const categoriaId = this.servicoCategoriaFiltro();
     const todos = this.servicos();
     if (!termo && !categoriaId) return todos;
-    return todos.filter((servico) => {
+    const filtered = todos.filter((servico) => {
       const matchesCategoria =
         !categoriaId ||
         (categoriaId === SEM_CATEGORIA_ID
@@ -671,6 +702,9 @@ export class NovoAtendimentoPage {
       if (!matchesCategoria) return false;
       return !termo || servicoMatchesBusca(servico, termo);
     });
+    return termo
+      ? filtered.sort((a, b) => servicoSearchScore(b, termo) - servicoSearchScore(a, termo))
+      : filtered;
   });
 
   protected readonly form = this.fb.group({
@@ -761,6 +795,10 @@ export class NovoAtendimentoPage {
 
   quantidadeSelecionada(id: string): number {
     return this.selectedServicoQuantidades()[id] ?? 0;
+  }
+
+  highlightServicoTexto(value: string): readonly SearchHighlightSegment[] {
+    return destacarBuscaServico(value, this.servicoBusca());
   }
 
   async onSubmit(): Promise<void> {
