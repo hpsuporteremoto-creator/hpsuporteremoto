@@ -16,6 +16,10 @@ import { ClientesService } from '../clientes.service';
 import { Cliente } from '../clientes.types';
 import { formatWhatsappDisplay } from '../../../../shared/whatsapp.util';
 import { AuthService } from '../../../../core/auth/auth.service';
+import {
+  destacarBuscaTexto,
+  type SearchHighlightSegment,
+} from '../../../../shared/service-search.util';
 
 @Component({
   selector: 'hp-clientes-list',
@@ -111,13 +115,45 @@ import { AuthService } from '../../../../core/auth/auth.service';
               >
                 <mat-card-content class="row">
                   <div class="info">
-                    <strong class="nome">{{ cliente.nome }}</strong>
-                    <small class="whatsapp">{{ formatWhatsapp(cliente.whatsapp) }}</small>
+                    <strong class="nome">
+                      @for (part of highlightClienteTexto(cliente.nome); track $index) {
+                        @if (part.highlighted) {
+                          <mark class="search-highlight">{{ part.text }}</mark>
+                        } @else {
+                          {{ part.text }}
+                        }
+                      }
+                    </strong>
+                    <small class="whatsapp">
+                      @for (part of highlightClienteTexto(formatWhatsapp(cliente.whatsapp)); track $index) {
+                        @if (part.highlighted) {
+                          <mark class="search-highlight">{{ part.text }}</mark>
+                        } @else {
+                          {{ part.text }}
+                        }
+                      }
+                    </small>
                     @if (cliente.email) {
-                      <small class="email">{{ cliente.email }}</small>
+                      <small class="email">
+                        @for (part of highlightClienteTexto(cliente.email); track $index) {
+                          @if (part.highlighted) {
+                            <mark class="search-highlight">{{ part.text }}</mark>
+                          } @else {
+                            {{ part.text }}
+                          }
+                        }
+                      </small>
                     }
                     @if (cliente.observacao) {
-                      <small class="observacao">{{ cliente.observacao }}</small>
+                      <small class="observacao">
+                        @for (part of highlightClienteTexto(cliente.observacao); track $index) {
+                          @if (part.highlighted) {
+                            <mark class="search-highlight">{{ part.text }}</mark>
+                          } @else {
+                            {{ part.text }}
+                          }
+                        }
+                      </small>
                     }
                     @if (cliente.cadastrado_por) {
                       <small class="operator-line">
@@ -243,6 +279,10 @@ export class ClientesListPage {
 
   operadorLabel(operador: Cliente['cadastrado_por']): string {
     return operador?.full_name?.trim() || operador?.email || 'usuário';
+  }
+
+  highlightClienteTexto(value: string): readonly SearchHighlightSegment[] {
+    return destacarBuscaTexto(value, this.searchTerm());
   }
 
   async carregar(): Promise<void> {

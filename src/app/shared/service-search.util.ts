@@ -88,6 +88,10 @@ export function destacarBuscaServico(value: string, termo: string): SearchHighli
     });
 }
 
+export function destacarBuscaTexto(value: string, termo: string): SearchHighlightSegment[] {
+  return destacarBuscaServico(value, termo);
+}
+
 function searchTokens(value: string): string[] {
   return normalizarBuscaServico(value)
     .split(' ')

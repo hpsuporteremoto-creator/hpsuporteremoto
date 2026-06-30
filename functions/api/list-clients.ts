@@ -133,7 +133,10 @@ async function listClientesBySearch(
     rows.push(...page);
     if (page.length < FETCH_PAGE_SIZE) break;
   }
-  return rows.filter((cliente) => matchesClienteSearch(cliente, termo));
+  return sortClientesBySearch(
+    rows.filter((cliente) => matchesClienteSearch(cliente, termo)),
+    termo,
+  );
 }
 
 async function hydrateClientesUsers(
@@ -226,6 +229,103 @@ function matchesClienteSearch(cliente: ClienteRow, termo: string): boolean {
     matchesSearchTerms(searchableText, searchTerms) ||
     phoneCandidates.some((digits) => whatsappDigits.includes(digits))
   );
+}
+
+function sortClientesBySearch(clientes: readonly ClienteRow[], termo: string): ClienteRow[] {
+  return [...clientes].sort((a, b) => {
+    const score = clienteSearchScore(b, termo) - clienteSearchScore(a, termo);
+    return score || a.nome.localeCompare(b.nome);
+  });
+}
+
+function clienteSearchScore(cliente: ClienteRow, termo: string): number {
+  const phrase = normalizeSearchKey(termo).replace(/\s+/g, ' ').trim();
+  const terms = expandSearchTerms(termo);
+  let score = 0;
+
+  score += scoreTextField(cliente.nome, phrase, terms, {
+    exactPhrase: 1200,
+    prefixPhrase: 900,
+    containsPhrase: 700,
+    exactToken: 260,
+    prefixToken: 190,
+    containsToken: 110,
+  });
+  score += scoreTextField(cliente.email ?? '', phrase, terms, {
+    exactPhrase: looksLikeEmailSearch(termo) ? 1000 : 120,
+    prefixPhrase: looksLikeEmailSearch(termo) ? 760 : 90,
+    containsPhrase: looksLikeEmailSearch(termo) ? 620 : 70,
+    exactToken: 60,
+    prefixToken: 45,
+    containsToken: 28,
+  });
+  score += scoreTextField(cliente.instagram ?? '', phrase, terms, {
+    exactPhrase: 95,
+    prefixPhrase: 72,
+    containsPhrase: 52,
+    exactToken: 38,
+    prefixToken: 28,
+    containsToken: 18,
+  });
+  score += scoreTextField(cliente.observacao ?? '', phrase, terms, {
+    exactPhrase: 55,
+    prefixPhrase: 36,
+    containsPhrase: 24,
+    exactToken: 18,
+    prefixToken: 12,
+    containsToken: 8,
+  });
+
+  const whatsappDigits = cliente.whatsapp.replace(/\D/g, '');
+  for (const digits of normalizePhoneCandidates(termo)) {
+    if (whatsappDigits === digits) score += 420;
+    else if (whatsappDigits.endsWith(digits)) score += 280;
+    else if (whatsappDigits.includes(digits)) score += 160;
+  }
+
+  return score;
+}
+
+function scoreTextField(
+  value: string,
+  phrase: string,
+  terms: readonly string[],
+  weights: {
+    exactPhrase: number;
+    prefixPhrase: number;
+    containsPhrase: number;
+    exactToken: number;
+    prefixToken: number;
+    containsToken: number;
+  },
+): number {
+  const normalized = normalizeSearchKey(value).replace(/\s+/g, ' ').trim();
+  if (!normalized) return 0;
+
+  let score = 0;
+  if (phrase) {
+    if (normalized === phrase) score += weights.exactPhrase;
+    else if (normalized.startsWith(phrase)) score += weights.prefixPhrase;
+    else if (phrase.length >= 3 && normalized.includes(phrase)) score += weights.containsPhrase;
+  }
+
+  const tokens = tokenizeSearchValue(normalized);
+  for (const term of terms.map(normalizeSearchKey)) {
+    if (tokens.includes(term)) score += weights.exactToken;
+    else if (tokens.some((token) => token.startsWith(term))) score += weights.prefixToken;
+    else if (term.length >= 3 && tokens.some((token) => token.includes(term))) {
+      score += weights.containsToken;
+    }
+  }
+
+  return score;
+}
+
+function tokenizeSearchValue(value: string): string[] {
+  return value
+    .replace(/[^\p{Letter}\p{Number}@.]+/gu, ' ')
+    .split(' ')
+    .filter(isSearchToken);
 }
 
 function looksLikeEmailSearch(value: string): boolean {
