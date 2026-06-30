@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireStaff } from './admin-auth';
+import { canStaffAccessAtendimento } from './atendimentos-shared';
+import type { AtendimentoOwnership } from './atendimentos-shared';
 
 type Env = {
   SUPABASE_URL: string;
@@ -7,6 +9,11 @@ type Env = {
 };
 
 type Context = { request: Request; env: Env };
+
+type AtendimentoObservacaoRow = AtendimentoOwnership & {
+  id: string;
+  state: string;
+};
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -49,11 +56,14 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
 
   const { data: atendimento, error: atendimentoError } = await admin
     .from('atendimentos')
-    .select('id, state')
+    .select('id, state, criado_por_user_id, vendido_por_user_id, atendido_por_user_id')
     .eq('id', id)
-    .maybeSingle<{ id: string; state: string }>();
+    .maybeSingle<AtendimentoObservacaoRow>();
   if (atendimentoError) return json({ error: atendimentoError.message }, 500);
   if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
+  if (!canStaffAccessAtendimento(atendimento, staffCheck.role, staffCheck.user.id)) {
+    return json({ error: 'Acesso restrito aos seus atendimentos' }, 403);
+  }
   if (atendimento.state !== 'pagamento') {
     return json({ error: 'Observação só pode ser editada em pagamento' }, 409);
   }

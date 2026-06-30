@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireStaff } from './admin-auth';
+import { canStaffAccessAtendimento } from './atendimentos-shared';
+import type { AtendimentoOwnership } from './atendimentos-shared';
 
 type Env = {
   SUPABASE_URL: string;
@@ -17,6 +19,11 @@ type ServicoRow = {
   id: string;
   valor_centavos: number;
   ativo: boolean;
+};
+
+type AtendimentoEditRow = AtendimentoOwnership & {
+  id: string;
+  state: string;
 };
 
 const EDITABLE_STATES = new Set(['aguardando_confirmacao', 'em_andamento']);
@@ -86,11 +93,14 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
 
   const { data: atendimento, error: atendimentoError } = await admin
     .from('atendimentos')
-    .select('id, state, atendido_por_user_id')
+    .select('id, state, criado_por_user_id, vendido_por_user_id, atendido_por_user_id')
     .eq('id', id)
-    .maybeSingle<{ id: string; state: string; atendido_por_user_id: string | null }>();
+    .maybeSingle<AtendimentoEditRow>();
   if (atendimentoError) return json({ error: atendimentoError.message }, 500);
   if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
+  if (!canStaffAccessAtendimento(atendimento, staffCheck.role, staffCheck.user.id)) {
+    return json({ error: 'Acesso restrito aos seus atendimentos' }, 403);
+  }
   if (!EDITABLE_STATES.has(atendimento.state)) {
     return json({ error: 'Somente pedidos em andamento podem ser editados' }, 409);
   }

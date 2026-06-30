@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { requireStaff } from './admin-auth';
 import {
   ATENDIMENTO_SELECT,
+  canStaffAccessAtendimento,
   hydrateServicosSolicitados,
 } from './atendimentos-shared';
 import type { AtendimentoComRelacoes } from './atendimentos-shared';
@@ -45,6 +46,15 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
     .maybeSingle();
   if (error) return json({ error: error.message }, 500);
   if (!data) return json({ atendimento: null }, 200);
+  if (
+    !canStaffAccessAtendimento(
+      data as unknown as AtendimentoComRelacoes,
+      staffCheck.role,
+      staffCheck.user.id,
+    )
+  ) {
+    return json({ atendimento: null }, 200);
+  }
 
   try {
     const [atendimento] = await hydrateServicosSolicitados(admin, [

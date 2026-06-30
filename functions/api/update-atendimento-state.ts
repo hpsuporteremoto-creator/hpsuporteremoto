@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireStaff } from './admin-auth';
-import type { AtendimentoState } from './atendimentos-shared';
+import {
+  ATENDIMENTO_OWNERSHIP_SELECT,
+  canStaffAccessAtendimento,
+} from './atendimentos-shared';
+import type { AtendimentoOwnership, AtendimentoState } from './atendimentos-shared';
 
 type Env = {
   SUPABASE_URL: string;
@@ -51,6 +55,20 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   }
   if (typeof state !== 'string' || !ALLOWED_STATES.has(state as AtendimentoState)) {
     return json({ error: 'state inválido' }, 400);
+  }
+  if (state === 'recusado' && staffCheck.role !== 'admin') {
+    return json({ error: 'Apenas administradores podem cancelar atendimentos' }, 403);
+  }
+
+  const { data: atendimento, error: atendimentoError } = await admin
+    .from('atendimentos')
+    .select(ATENDIMENTO_OWNERSHIP_SELECT)
+    .eq('id', id)
+    .maybeSingle<AtendimentoOwnership>();
+  if (atendimentoError) return json({ error: atendimentoError.message }, 500);
+  if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
+  if (!canStaffAccessAtendimento(atendimento, staffCheck.role, staffCheck.user.id)) {
+    return json({ error: 'Acesso restrito aos seus atendimentos' }, 403);
   }
 
   const patch: Record<string, unknown> = { state };

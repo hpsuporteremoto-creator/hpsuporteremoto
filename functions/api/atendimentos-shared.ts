@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { UserRole } from './admin-auth';
 
 export type AtendimentoState =
   | 'aguardando_confirmacao'
@@ -67,6 +68,36 @@ export const ATENDIMENTO_SELECT = `
   servico:servicos ( id, nome, valor_centavos ),
   transacoes ( id )
 `;
+
+export type AtendimentoOwnership = Pick<
+  AtendimentoComRelacoes,
+  'criado_por_user_id' | 'vendido_por_user_id' | 'atendido_por_user_id'
+>;
+
+export const ATENDIMENTO_OWNERSHIP_SELECT =
+  'id, criado_por_user_id, vendido_por_user_id, atendido_por_user_id';
+
+export function atendimentoOwnershipFilter(userId: string): string {
+  return [
+    `criado_por_user_id.eq.${userId}`,
+    `vendido_por_user_id.eq.${userId}`,
+    `atendido_por_user_id.eq.${userId}`,
+  ].join(',');
+}
+
+export function canStaffAccessAtendimento(
+  atendimento: AtendimentoOwnership | null | undefined,
+  role: UserRole,
+  userId: string,
+): boolean {
+  if (role === 'admin') return true;
+  if (!atendimento) return false;
+  return (
+    atendimento.criado_por_user_id === userId ||
+    atendimento.vendido_por_user_id === userId ||
+    atendimento.atendido_por_user_id === userId
+  );
+}
 
 export async function hydrateServicosSolicitados(
   admin: SupabaseClient,

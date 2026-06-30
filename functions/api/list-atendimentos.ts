@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { requireStaff } from './admin-auth';
-import { ATENDIMENTO_SELECT, hydrateServicosSolicitados } from './atendimentos-shared';
+import {
+  ATENDIMENTO_SELECT,
+  atendimentoOwnershipFilter,
+  hydrateServicosSolicitados,
+} from './atendimentos-shared';
 import type { AtendimentoComRelacoes, AtendimentoState } from './atendimentos-shared';
 
 type Env = {
@@ -61,6 +65,10 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
 
   if (clienteId) {
     query = query.eq('cliente_id', clienteId);
+  }
+
+  if (staffCheck.role === 'vendedor') {
+    query = query.or(atendimentoOwnershipFilter(staffCheck.user.id));
   }
 
   const { data, error } = await query;
