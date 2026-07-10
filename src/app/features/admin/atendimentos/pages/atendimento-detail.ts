@@ -10,6 +10,8 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { isValidBrCode } from '@thiagoprazeres/pix-static-brcode';
+import { toDataURL } from 'qrcode';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ServicosService } from '../../servicos/servicos.service';
 import { Servico } from '../../servicos/servicos.types';
@@ -635,6 +637,16 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                 }
                 @if (a.pix_brcode; as brcode) {
                   <div class="brcode-block">
+                    @if (pixQrCode(); as qrCode) {
+                      <figure class="pix-qrcode">
+                        <img
+                          [src]="qrCode"
+                          width="256"
+                          height="256"
+                          alt="QR Code PIX para pagamento deste atendimento"
+                        />
+                      </figure>
+                    }
                     <small>BR Code</small>
                     <code class="brcode">{{ brcode }}</code>
                     <button
@@ -725,6 +737,7 @@ export class AtendimentoDetailPage {
   protected readonly selectedServicoQuantidades = signal<Record<string, number>>({});
   protected readonly servicoFiltro = signal('');
   protected readonly servicoParaAdicionarId = signal<string | null>(null);
+  protected readonly pixQrCode = signal<string | null>(null);
 
   protected readonly servicosParaCobranca = computed<CobrancaServicoItem[]>(() => {
     const atendimento = this.atendimento();
@@ -870,6 +883,7 @@ export class AtendimentoDetailPage {
     try {
       const [a, servicos] = await Promise.all([this.svc.get(id), this.servicosSvc.listAtivos()]);
       this.atendimento.set(a);
+      await this.atualizarQrCode(a?.pix_brcode ?? null);
       this.descontoCentavos.set(Math.max(a?.desconto_centavos ?? 0, 0));
       this.acrescimoCentavos.set(Math.max(a?.acrescimo_centavos ?? 0, 0));
       this.descricaoEdicao.set(a?.descricao_solicitacao ?? '');
@@ -1056,6 +1070,22 @@ export class AtendimentoDetailPage {
       this.snackBar.open(msg, 'OK', { duration: 4000 });
     } finally {
       this.updating.set(false);
+    }
+  }
+
+  private async atualizarQrCode(brcode: string | null): Promise<void> {
+    this.pixQrCode.set(null);
+    if (!brcode || !isValidBrCode(brcode)) return;
+    try {
+      const qrCode = await toDataURL(brcode, {
+        width: 512,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#111111', light: '#ffffffff' },
+      });
+      if (this.atendimento()?.pix_brcode === brcode) this.pixQrCode.set(qrCode);
+    } catch {
+      this.pixQrCode.set(null);
     }
   }
 
