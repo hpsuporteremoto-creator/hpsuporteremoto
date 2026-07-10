@@ -11,6 +11,9 @@ export interface Cliente {
   instagram: string | null;
   email: string | null;
   observacao: string | null;
+  marketing_opt_in: boolean;
+  marketing_opt_in_at: string | null;
+  marketing_opt_out_at: string | null;
   cadastrado_por_user_id: string | null;
   cadastrado_por: OperadorRef | null;
   ativo: boolean;
@@ -24,5 +27,6 @@ export interface ClienteFormData {
   instagram: string | null;
   email: string | null;
   observacao: string | null;
+  marketing_opt_in: boolean;
   ativo: boolean;
 }

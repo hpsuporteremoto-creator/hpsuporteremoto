@@ -1,0 +1,230 @@
+.spacer
+  flex: 1
+
+.marketing
+  max-width: 76rem
+  margin: 0 auto
+  padding: 1.5rem
+  display: flex
+  flex-direction: column
+  gap: 1.25rem
+
+.hero,
+.section-head
+  display: flex
+  align-items: center
+  justify-content: space-between
+  gap: 1rem
+
+  h1,
+  h2,
+  p
+    margin: 0
+
+  h1
+    font-size: 2rem
+
+  h2
+    font-size: 1.125rem
+
+  p
+    margin-top: 0.4rem
+    color: var(--mat-sys-on-surface-variant)
+
+.sender,
+.warning
+  display: inline-flex
+  align-items: center
+  gap: 0.5rem
+  color: var(--mat-sys-on-surface-variant)
+  overflow-wrap: anywhere
+
+.warning
+  margin: 0
+  padding: 0.875rem 1rem
+  border: 1px solid rgba(255, 181, 17, 0.38)
+  border-radius: 0.5rem
+  background: rgba(255, 181, 17, 0.1)
+  color: #ffd47a
+
+.metrics
+  display: grid
+  grid-template-columns: repeat(3, minmax(0, 1fr))
+  gap: 0.75rem
+
+.metric-card,
+.campaign-card
+  background: var(--mat-sys-surface-container)
+  border: 1px solid rgba(255, 255, 255, 0.07)
+
+.metric-card mat-card-content
+  min-height: 7rem
+  padding: 1rem !important
+  display: flex
+  align-items: center
+  gap: 1rem
+
+  mat-icon
+    width: 2.75rem
+    height: 2.75rem
+    display: grid
+    place-items: center
+    border-radius: 0.5rem
+    background: rgba(33, 150, 243, 0.17)
+    color: #8ecbff
+
+  span
+    display: grid
+    gap: 0.125rem
+
+  strong
+    color: var(--mat-sys-on-surface)
+    font-size: 1.5rem
+
+  small
+    color: var(--mat-sys-on-surface-variant)
+
+.section-actions
+  display: flex
+  flex-wrap: wrap
+  justify-content: flex-end
+  gap: 0.5rem
+
+.contacts
+  border: 1px solid var(--mat-sys-outline-variant)
+  border-radius: 0.5rem
+  overflow: hidden
+
+.contact-row
+  display: grid
+  grid-template-columns: minmax(12rem, 1fr) minmax(16rem, 1.3fr) minmax(10rem, 0.8fr)
+  gap: 1rem
+  align-items: center
+  padding: 0.875rem 1rem
+  border-top: 1px solid rgba(255, 255, 255, 0.07)
+  color: var(--mat-sys-on-surface-variant)
+
+  strong
+    color: var(--mat-sys-on-surface)
+
+  a
+    color: var(--mat-sys-primary)
+    overflow-wrap: anywhere
+
+.contact-head
+  border-top: 0
+  background: var(--mat-sys-surface-container)
+  color: var(--mat-sys-on-surface)
+  font-size: 0.8125rem
+  font-weight: 700
+  text-transform: uppercase
+
+.campaigns
+  display: grid
+  gap: 0.75rem
+
+.campaigns-head
+  margin-top: 0.5rem
+
+.campaign-card mat-card-content
+  display: flex
+  align-items: flex-start
+  justify-content: space-between
+  gap: 1rem
+  padding: 1rem !important
+
+.campaign-main,
+.campaign-meta
+  display: flex
+  flex-direction: column
+  gap: 0.25rem
+
+.campaign-main
+  min-width: 0
+
+  strong
+    color: var(--mat-sys-on-surface)
+
+  span,
+  small
+    color: var(--mat-sys-on-surface-variant)
+    overflow-wrap: anywhere
+
+.campaign-error
+  color: #ffb3b3 !important
+
+.campaign-meta
+  align-items: flex-end
+  white-space: nowrap
+
+  small
+    color: var(--mat-sys-on-surface-variant)
+
+.status
+  padding: 0.25rem 0.625rem
+  border-radius: 999px
+  font-size: 0.75rem
+  font-weight: 800
+  text-transform: uppercase
+
+.status-enviada
+  background: rgba(94, 203, 139, 0.18)
+  color: #8ff0b8
+
+.status-agendada
+  background: rgba(100, 181, 246, 0.2)
+  color: #9bd0ff
+
+.status-falhou,
+.status-cancelada
+  background: rgba(255, 138, 138, 0.18)
+  color: #ffb3b3
+
+.status-rascunho
+  background: rgba(255, 255, 255, 0.1)
+  color: var(--mat-sys-on-surface-variant)
+
+.error,
+.empty
+  margin: 0
+  color: var(--mat-sys-on-surface-variant)
+
+.error
+  color: #ffb3b3
+
+@media (max-width: 760px)
+  .marketing
+    padding: 1rem
+
+  .hero,
+  .section-head
+    align-items: stretch
+    flex-direction: column
+
+  .sender
+    font-size: 0.875rem
+
+  .metrics
+    grid-template-columns: 1fr
+
+  .section-actions
+    justify-content: stretch
+
+    button
+      flex: 1
+
+  .contact-head
+    display: none
+
+  .contact-row
+    grid-template-columns: 1fr
+    gap: 0.35rem
+
+  .contact-row + .contact-row
+    border-top: 1px solid rgba(255, 255, 255, 0.1)
+
+  .campaign-card mat-card-content
+    flex-direction: column
+
+  .campaign-meta
+    align-items: flex-start

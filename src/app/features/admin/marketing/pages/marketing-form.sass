@@ -1,0 +1,132 @@
+.campaign-page
+  max-width: 60rem
+  margin: 0 auto
+  padding: 1.5rem
+
+.campaign-form
+  display: flex
+  flex-direction: column
+  gap: 1rem
+
+.form-section
+  display: flex
+  flex-direction: column
+  gap: 1rem
+  padding: 1.25rem
+  border: 1px solid rgba(255, 255, 255, 0.08)
+  border-radius: 0.5rem
+  background: var(--mat-sys-surface-container)
+
+.section-title
+  display: flex
+  align-items: flex-start
+  gap: 0.75rem
+
+  h1,
+  h2,
+  p
+    margin: 0
+
+  h1,
+  h2
+    color: var(--mat-sys-on-surface)
+    font-size: 1.25rem
+
+  p
+    margin-top: 0.25rem
+    color: var(--mat-sys-on-surface-variant)
+
+.section-index
+  width: 2rem
+  height: 2rem
+  flex: 0 0 2rem
+  display: grid
+  place-items: center
+  border-radius: 50%
+  background: rgba(33, 150, 243, 0.18)
+  color: #8ecbff
+  font-weight: 800
+
+.form-grid,
+.send-grid
+  display: grid
+  grid-template-columns: repeat(2, minmax(0, 1fr))
+  gap: 1rem
+
+mat-form-field
+  width: 100%
+
+.audience-summary
+  display: inline-flex
+  align-items: center
+  gap: 0.75rem
+  padding: 0.875rem 1rem
+  border-radius: 0.5rem
+  background: rgba(33, 150, 243, 0.1)
+
+  mat-icon
+    color: #8ecbff
+
+  div
+    display: grid
+    gap: 0.125rem
+
+  strong
+    color: var(--mat-sys-on-surface)
+
+  span
+    color: var(--mat-sys-on-surface-variant)
+    font-size: 0.875rem
+
+.audience-preview
+  display: grid
+  gap: 0.5rem
+  padding: 0.875rem 1rem
+  border: 1px solid var(--mat-sys-outline-variant)
+  border-radius: 0.5rem
+
+  div
+    display: flex
+    align-items: baseline
+    justify-content: space-between
+    gap: 1rem
+
+  strong
+    color: var(--mat-sys-on-surface)
+
+  span,
+  small
+    color: var(--mat-sys-on-surface-variant)
+    overflow-wrap: anywhere
+
+.actions
+  display: flex
+  justify-content: flex-end
+  flex-wrap: wrap
+  gap: 0.75rem
+
+.error
+  margin: 0 0 1rem
+  color: #ffb3b3
+
+@media (max-width: 680px)
+  .campaign-page
+    padding: 1rem
+
+  .form-section
+    padding: 1rem
+
+  .form-grid,
+  .send-grid
+    grid-template-columns: 1fr
+
+  .audience-preview div
+    align-items: flex-start
+    flex-direction: column
+    gap: 0.15rem
+
+  .actions
+    flex-direction: column
+
+    button
+      width: 100%

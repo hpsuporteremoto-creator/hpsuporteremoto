@@ -38,6 +38,11 @@ export const adminRoutes: Routes = [
           import('./financeiro/financeiro.routes').then((m) => m.financeiroRoutes),
       },
       {
+        path: 'marketing',
+        canActivate: [adminOnlyGuard],
+        loadChildren: () => import('./marketing/marketing.routes').then((m) => m.marketingRoutes),
+      },
+      {
         path: 'perfil',
         loadComponent: () => import('./perfil/perfil-page').then((m) => m.PerfilPage),
       },

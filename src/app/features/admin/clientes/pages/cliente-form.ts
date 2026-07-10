@@ -134,6 +134,9 @@ import {
             </mat-form-field>
 
             <mat-slide-toggle formControlName="ativo">Cliente ativo</mat-slide-toggle>
+            <mat-slide-toggle formControlName="marketing_opt_in">
+              Autoriza comunicações comerciais por email
+            </mat-slide-toggle>
 
             <div class="actions">
               <button
@@ -166,6 +169,7 @@ export class ClienteFormPage {
   protected readonly isNew = computed(() => this.id() === null);
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
+  private readonly returnUrl = signal<string | null>(null);
 
   protected readonly ddiMask: MaskitoOptions = { mask: /^\d{0,3}$/ };
   protected readonly whatsappMask: MaskitoOptions = {
@@ -186,10 +190,12 @@ export class ClienteFormPage {
     instagram: [''],
     email: ['', [Validators.email]],
     observacao: [''],
+    marketing_opt_in: [true],
     ativo: [true],
   });
 
   constructor() {
+    this.returnUrl.set(normalizeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl')));
     const idParam = this.route.snapshot.paramMap.get('id');
     if (idParam) {
       this.id.set(idParam);
@@ -198,6 +204,11 @@ export class ClienteFormPage {
   }
 
   voltar(): void {
+    const returnUrl = this.returnUrl();
+    if (returnUrl) {
+      void this.router.navigateByUrl(returnUrl);
+      return;
+    }
     this.location.back();
   }
 
@@ -218,6 +229,7 @@ export class ClienteFormPage {
         instagram: cliente.instagram ?? '',
         email: cliente.email ?? '',
         observacao: cliente.observacao ?? '',
+        marketing_opt_in: cliente.marketing_opt_in,
         ativo: cliente.ativo,
       });
     } catch (err) {
@@ -249,6 +261,7 @@ export class ClienteFormPage {
       instagram: value.instagram.trim() || null,
       email: value.email.trim() || null,
       observacao: value.observacao.trim() || null,
+      marketing_opt_in: value.marketing_opt_in,
       ativo: value.ativo,
     };
 
@@ -257,7 +270,12 @@ export class ClienteFormPage {
       if (id) {
         await this.svc.update(id, data);
         this.snackBar.open('Cliente atualizado', 'OK', { duration: 3000 });
-        this.router.navigate(['/admin/clientes']);
+        const returnUrl = this.returnUrl();
+        if (returnUrl) {
+          await this.router.navigateByUrl(returnUrl);
+        } else {
+          await this.router.navigate(['/admin/clientes']);
+        }
       } else {
         const novo = await this.svc.create(data);
         this.snackBar.open('Cliente criado', 'OK', { duration: 3000 });
@@ -306,4 +324,8 @@ export class ClienteFormPage {
       formControl.setValue(value, { emitEvent: false });
     }
   }
+}
+
+function normalizeReturnUrl(value: string | null): string | null {
+  return value?.startsWith('/admin/') ? value : null;
 }

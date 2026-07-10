@@ -86,7 +86,15 @@ Secrets de runtime das Pages Functions:
 ```txt
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
+RESEND_API_KEY
+RESEND_WEBHOOK_SECRET
 ```
+
+`RESEND_API_KEY` é usada somente pelas Functions do módulo de Marketing e deve
+ser criada como secret no projeto Pages `hpsuporteremoto`; nunca a inclua em
+arquivos versionados. O remetente padrão é `HP Suporte
+<contato@hpsuporteremoto.com.br>` e o domínio precisa estar verificado no
+Resend.
 
 Os dados do recebedor do PIX são configurados no próprio sistema em
 `/admin/financeiro/recebedor-pix`. A tela grava a chave PIX, nome do recebedor
@@ -95,6 +103,31 @@ e cidade na tabela `pix_recebedor_config`, usada pela função
 
 `PIX_KEY`, `PIX_RECEIVER_NAME` e `PIX_RECEIVER_CITY` ainda podem existir como
 fallback legado de runtime, mas não são a forma principal de configuração.
+
+## Marketing por email
+
+O módulo `/admin/marketing` é exclusivo de administradores e permite:
+
+- listar a base comercial com email e WhatsApp;
+- exportar emails e celulares em CSV;
+- segmentar uma campanha pelos clientes que compraram determinado serviço;
+- enviar um teste, enviar imediatamente ou agendar uma campanha;
+- registrar campanhas, destinatários e eventos de entrega.
+
+O envio usa Resend Broadcasts. Os clientes existentes recebem consentimento
+comercial inicial pela migration `0028_email_marketing.sql`; o consentimento
+pode ser alterado na edição do cliente. Campanhas só usam clientes ativos,
+com email válido e consentimento ativo.
+
+Para atualizar automaticamente aberturas, entregas, falhas e descadastros,
+crie um webhook no Resend apontando para:
+
+```txt
+https://hpsuporteremoto.com.br/api/resend-webhook
+```
+
+Selecione eventos `email.*` e `contact.updated`, copie o signing secret para
+`RESEND_WEBHOOK_SECRET` e mantenha-o como secret de Pages.
 
 Secrets do GitHub Actions:
 

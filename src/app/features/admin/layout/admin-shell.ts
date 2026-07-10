@@ -151,6 +151,12 @@ export class AdminShell {
       exact: false,
     },
     {
+      label: 'Marketing',
+      icon: 'campaign',
+      route: ['./marketing'],
+      exact: false,
+    },
+    {
       label: 'Financeiro',
       icon: 'payments',
       route: ['./financeiro'],

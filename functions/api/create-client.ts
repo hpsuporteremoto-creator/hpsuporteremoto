@@ -15,6 +15,7 @@ type ClienteInput = {
   email?: unknown;
   observacao?: unknown;
   ativo?: unknown;
+  marketing_opt_in?: unknown;
 };
 
 function json(body: unknown, status: number): Response {
@@ -67,6 +68,9 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       email,
       observacao,
       ativo: input.ativo === false ? false : true,
+      marketing_opt_in: input.marketing_opt_in !== false,
+      marketing_opt_in_at: input.marketing_opt_in === false ? null : new Date().toISOString(),
+      marketing_opt_out_at: input.marketing_opt_in === false ? new Date().toISOString() : null,
       cadastrado_por_user_id: staffCheck.user.id,
     })
     .select('*')

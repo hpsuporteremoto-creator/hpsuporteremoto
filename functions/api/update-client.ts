@@ -16,6 +16,7 @@ type ClienteInput = {
   email?: unknown;
   observacao?: unknown;
   ativo?: unknown;
+  marketing_opt_in?: unknown;
 };
 
 function json(body: unknown, status: number): Response {
@@ -90,6 +91,12 @@ function buildPatch(input: ClienteInput): Record<string, unknown> | { error: str
   }
   if (input.ativo !== undefined) {
     patch['ativo'] = input.ativo === true;
+  }
+  if (input.marketing_opt_in !== undefined) {
+    const marketingOptIn = input.marketing_opt_in === true;
+    patch['marketing_opt_in'] = marketingOptIn;
+    patch['marketing_opt_in_at'] = marketingOptIn ? new Date().toISOString() : null;
+    patch['marketing_opt_out_at'] = marketingOptIn ? null : new Date().toISOString();
   }
   return patch;
 }
