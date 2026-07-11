@@ -6,6 +6,7 @@ import {
   mergeAppMetadata,
   requireAdmin,
 } from './admin-auth';
+import { readJson, uuidSchema, z } from '../lib/validation';
 
 type Env = {
   SUPABASE_URL: string;
@@ -13,6 +14,11 @@ type Env = {
 };
 
 type Context = { request: Request; env: Env };
+
+const updateUserAdminSchema = z.object({
+  user_id: uuidSchema,
+  is_admin: z.boolean(),
+});
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -35,23 +41,9 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   const adminCheck = await requireAdmin(admin, request);
   if (!adminCheck.ok) return json({ error: adminCheck.error }, adminCheck.status);
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: 'Corpo JSON inválido' }, 400);
-  }
-
-  const { user_id, is_admin } = (body ?? {}) as {
-    user_id?: unknown;
-    is_admin?: unknown;
-  };
-  if (typeof user_id !== 'string' || user_id.length === 0) {
-    return json({ error: 'user_id obrigatório' }, 400);
-  }
-  if (typeof is_admin !== 'boolean') {
-    return json({ error: 'is_admin obrigatório' }, 400);
-  }
+  const parsed = await readJson(request, updateUserAdminSchema);
+  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const { user_id, is_admin } = parsed.data;
   if (user_id === adminCheck.user.id) {
     return json({ error: 'Você não pode alterar seu próprio acesso admin' }, 400);
   }

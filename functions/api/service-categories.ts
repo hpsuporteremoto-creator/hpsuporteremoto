@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { servicoCategorias } from '../../drizzle/schema';
 import { requireStaff } from './admin-auth';
 import { type DatabaseEnv, withDatabase } from '../lib/db';
+import { readJson, uuidSchema, z } from '../lib/validation';
 
 type Env = DatabaseEnv & {
   SUPABASE_URL: string;
@@ -10,6 +11,19 @@ type Env = DatabaseEnv & {
 };
 
 type Context = { request: Request; env: Env };
+
+const categoriaDataSchema = z.object({
+  nome: z.string().trim().min(2, 'Nome deve ter ao menos 2 caracteres'),
+  descricao: z.string().trim().max(5_000).nullable().optional().transform((value) => value || null),
+  ativo: z.boolean().optional().default(true),
+});
+
+const categoriaMutationSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('create'), ...categoriaDataSchema.shape }),
+  z.object({ action: z.literal('update'), id: uuidSchema, ...categoriaDataSchema.shape }),
+  z.object({ action: z.literal('toggle'), id: uuidSchema, ativo: z.boolean() }),
+  z.object({ action: z.literal('delete'), id: uuidSchema }),
+]);
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -58,49 +72,36 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   const staffCheck = await requireStaff(admin, request);
   if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
 
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return json({ error: 'Corpo JSON inválido' }, 400);
-  }
-
-  const action = body['action'];
-  const id = typeof body['id'] === 'string' ? body['id'] : null;
-  if ((action === 'update' || action === 'toggle' || action === 'delete') && !id) {
-    return json({ error: 'id obrigatório' }, 400);
-  }
+  const parsed = await readJson(request, categoriaMutationSchema);
+  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const body = parsed.data;
 
   try {
-    if (action === 'delete') {
-      if (!id) return json({ error: 'id obrigatório' }, 400);
+    if (body.action === 'delete') {
       await withDatabase(env, (db) =>
-        db.delete(servicoCategorias).where(eq(servicoCategorias.id, id)),
+        db.delete(servicoCategorias).where(eq(servicoCategorias.id, body.id)),
       );
       return json({ ok: true }, 200);
     }
 
-    if (action === 'toggle') {
-      if (!id) return json({ error: 'id obrigatório' }, 400);
+    if (body.action === 'toggle') {
       await withDatabase(env, (db) =>
         db
           .update(servicoCategorias)
-          .set({ ativo: body['ativo'] === true })
-          .where(eq(servicoCategorias.id, id)),
+          .set({ ativo: body.ativo })
+          .where(eq(servicoCategorias.id, body.id)),
       );
       return json({ ok: true }, 200);
     }
 
-    const input = buildInput(body);
-    if ('error' in input) return json({ error: input.error }, 400);
+    const input = categoriaDataSchema.parse(body);
 
     const categoria = await withDatabase(env, async (db) => {
-      if (action === 'update') {
-        if (!id) return null;
+      if (body.action === 'update') {
         const [updated] = await db
           .update(servicoCategorias)
           .set(input)
-          .where(eq(servicoCategorias.id, id))
+          .where(eq(servicoCategorias.id, body.id))
           .returning();
         return updated ?? null;
       }
@@ -108,27 +109,11 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       return created ?? null;
     });
     if (!categoria) return json({ error: 'Categoria não encontrada' }, 404);
-    return json({ categoria }, action === 'update' ? 200 : 201);
+    return json({ categoria }, body.action === 'update' ? 200 : 201);
   } catch (error) {
     return json({ error: databaseErrorMessage(error) }, 400);
   }
 };
-
-function buildInput(body: Record<string, unknown>) {
-  const nome = typeof body['nome'] === 'string' ? body['nome'].trim() : '';
-  if (nome.length < 2) return { error: 'Nome obrigatório' };
-  return {
-    nome,
-    descricao: normalizeOptionalText(body['descricao']),
-    ativo: body['ativo'] !== false,
-  };
-}
-
-function normalizeOptionalText(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const text = value.trim();
-  return text.length > 0 ? text : null;
-}
 
 function databaseErrorMessage(error: unknown): string {
   const candidate = error as { code?: string; message?: string };

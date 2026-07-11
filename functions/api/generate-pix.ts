@@ -11,6 +11,7 @@ import { canStaffAccessAtendimento } from './atendimentos-shared';
 import type { AtendimentoOwnership } from './atendimentos-shared';
 import { atendimentos, pixRecebedorConfig, servicos as servicosTable } from '../../drizzle/schema';
 import { type DatabaseEnv, withDatabase } from '../lib/db';
+import { nonNegativeIntegerSchema, readJson, uuidSchema, z } from '../lib/validation';
 
 type Env = DatabaseEnv & {
   SUPABASE_URL: string;
@@ -40,6 +41,32 @@ type AtendimentoPixRow = AtendimentoOwnership & {
   acrescimo_centavos: number | null;
 };
 
+const servicoItemSchema = z.object({
+  servico_id: uuidSchema,
+  quantidade: z.number().int().min(1).max(99, 'Quantidade máxima é 99'),
+});
+
+const pixGenerationSchema = z
+  .object({
+    atendimento_id: uuidSchema,
+    servico_id: uuidSchema.optional(),
+    servico_ids: z.array(uuidSchema).min(1, 'Escolha ao menos um serviço').optional(),
+    servico_itens: z.array(servicoItemSchema).min(1, 'Escolha ao menos um serviço').optional(),
+    desconto_centavos: nonNegativeIntegerSchema.optional(),
+    acrescimo_centavos: nonNegativeIntegerSchema.optional(),
+    descricao_solicitacao: z
+      .string()
+      .trim()
+      .max(20_000)
+      .nullable()
+      .optional()
+      .transform((value) => value || null),
+  })
+  .refine((value) => Boolean(value.servico_itens ?? value.servico_ids ?? value.servico_id), {
+    message: 'Escolha ao menos um serviço',
+    path: ['servico_itens'],
+  });
+
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -61,41 +88,17 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   const staffCheck = await requireStaff(admin, request);
   if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: 'Corpo JSON inválido' }, 400);
-  }
-
-  const {
-    atendimento_id,
-    servico_id,
-    servico_ids,
-    servico_itens,
-    desconto_centavos,
-    acrescimo_centavos,
-    descricao_solicitacao,
-  } = (body ?? {}) as {
-    atendimento_id?: unknown;
-    servico_id?: unknown;
-    servico_ids?: unknown;
-    servico_itens?: unknown;
-    desconto_centavos?: unknown;
-    acrescimo_centavos?: unknown;
-    descricao_solicitacao?: unknown;
-  };
-
-  if (typeof atendimento_id !== 'string' || atendimento_id.length === 0) {
-    return json({ error: 'atendimento_id obrigatório' }, 400);
-  }
-  const servicoItens = normalizeServicoItens(servico_itens, servico_ids, servico_id);
+  const parsed = await readJson(request, pixGenerationSchema);
+  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const input = parsed.data;
+  const atendimentoId = input.atendimento_id;
+  const servicoItens = mergeServicoItens(
+    input.servico_itens ??
+      input.servico_ids?.map((servico_id) => ({ servico_id, quantidade: 1 })) ??
+      [{ servico_id: input.servico_id!, quantidade: 1 }],
+  );
   const servicoIds = expandServicoIds(servicoItens);
   const uniqueServicoIds = Array.from(new Set(servicoItens.map((item) => item.servico_id)));
-  if (servicoItens.length === 0) {
-    return json({ error: 'servico_ids obrigatório' }, 400);
-  }
-
   const atendimento = await withDatabase(env, async (db) => {
     const [row] = await db
       .select({
@@ -108,7 +111,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
         atendido_por_user_id: atendimentos.atendidoPorUserId,
       })
       .from(atendimentos)
-      .where(eq(atendimentos.id, atendimento_id));
+      .where(eq(atendimentos.id, atendimentoId));
     return row ?? null;
   });
   if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
@@ -158,25 +161,9 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     (total, servico) => total + servico.valor_centavos * servico.quantidade,
     0,
   );
-  const descontoCentavos = normalizeDescontoCentavos(
-    desconto_centavos,
-    typeof atendimento.desconto_centavos === 'number' ? atendimento.desconto_centavos : 0,
-  );
-  const acrescimoCentavos = normalizeAcrescimoCentavos(
-    acrescimo_centavos,
-    typeof atendimento.acrescimo_centavos === 'number' ? atendimento.acrescimo_centavos : 0,
-  );
-  const descricaoSolicitacao =
-    typeof descricao_solicitacao === 'string' && descricao_solicitacao.trim().length > 0
-      ? descricao_solicitacao.trim()
-      : null;
-
-  if (descontoCentavos < 0) {
-    return json({ error: 'Desconto inválido' }, 400);
-  }
-  if (acrescimoCentavos < 0) {
-    return json({ error: 'Acréscimo inválido' }, 400);
-  }
+  const descontoCentavos = input.desconto_centavos ?? Math.max(atendimento.desconto_centavos ?? 0, 0);
+  const acrescimoCentavos = input.acrescimo_centavos ?? Math.max(atendimento.acrescimo_centavos ?? 0, 0);
+  const descricaoSolicitacao = input.descricao_solicitacao;
 
   if (subtotalCentavos + acrescimoCentavos - descontoCentavos <= 0) {
     return json({ error: 'Os ajustes precisam deixar o total maior que zero' }, 400);
@@ -192,7 +179,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       pixKey: receiverConfig.pixKey,
       receiverName: projectReceiverName(receiverConfig.receiverName),
       receiverCity: projectCity(receiverConfig.receiverCity),
-      referenceLabel: buildBrCodeRef(atendimento_id),
+      referenceLabel: buildBrCodeRef(atendimentoId),
       amount: totalCentavos / 100,
     });
   } catch (err) {
@@ -220,7 +207,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
           atendidoPorUserId: staffCheck.user.id,
           state: 'pagamento',
         })
-        .where(eq(atendimentos.id, atendimento_id)),
+        .where(eq(atendimentos.id, atendimentoId)),
     );
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Erro ao salvar PIX' }, 500);
@@ -278,47 +265,6 @@ function isCompleteReceiverConfig(config: PixReceiverConfig): boolean {
   );
 }
 
-function normalizeDescontoCentavos(value: unknown, fallback: number): number {
-  if (typeof value !== 'number') return Math.max(fallback, 0);
-  if (!Number.isInteger(value)) return -1;
-  return value;
-}
-
-function normalizeAcrescimoCentavos(value: unknown, fallback: number): number {
-  if (typeof value !== 'number') return Math.max(fallback, 0);
-  if (!Number.isInteger(value)) return -1;
-  return value;
-}
-
-function normalizeServicoItens(
-  servicoItens: unknown,
-  legacyServicoIds: unknown,
-  legacyServicoId: unknown,
-): ServicoItem[] {
-  if (Array.isArray(servicoItens)) {
-    const normalized = servicoItens.flatMap((item): ServicoItem[] => {
-      if (!item || typeof item !== 'object') return [];
-      const record = item as { servico_id?: unknown; quantidade?: unknown };
-      const servicoId = normalizeServicoId(record.servico_id);
-      if (!servicoId) return [];
-      const quantidade = normalizeQuantidade(record.quantidade);
-      return quantidade > 0 ? [{ servico_id: servicoId, quantidade }] : [];
-    });
-    return mergeServicoItens(normalized);
-  }
-
-  const ids = Array.isArray(legacyServicoIds)
-    ? legacyServicoIds
-    : typeof legacyServicoId === 'string'
-      ? [legacyServicoId]
-      : [];
-  const normalized = ids.flatMap((id): ServicoItem[] => {
-    const servicoId = normalizeServicoId(id);
-    return servicoId ? [{ servico_id: servicoId, quantidade: 1 }] : [];
-  });
-  return mergeServicoItens(normalized);
-}
-
 function mergeServicoItens(items: ServicoItem[]): ServicoItem[] {
   const byId = new Map<string, number>();
   for (const item of items) {
@@ -332,14 +278,4 @@ function mergeServicoItens(items: ServicoItem[]): ServicoItem[] {
 
 function expandServicoIds(items: readonly ServicoItem[]): string[] {
   return items.flatMap((item) => Array.from({ length: item.quantidade }, () => item.servico_id));
-}
-
-function normalizeServicoId(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
-}
-
-function normalizeQuantidade(value: unknown): number {
-  const quantidade = typeof value === 'number' ? value : Number(value);
-  if (!Number.isInteger(quantidade) || quantidade < 1) return 0;
-  return Math.min(quantidade, 99);
 }

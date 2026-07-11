@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { mergeAppMetadata, requireAdmin } from './admin-auth';
 import type { UserRole } from './admin-auth';
+import { emailSchema, readJson, z } from '../lib/validation';
 
 type Env = {
   SUPABASE_URL: string;
@@ -9,7 +10,10 @@ type Env = {
 
 type Context = { request: Request; env: Env };
 
-const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const createUserSchema = z.object({
+  email: emailSchema,
+  role: z.enum(['admin', 'vendedor'], { message: 'Perfil de acesso obrigatório' }),
+});
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -32,25 +36,9 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   const adminCheck = await requireAdmin(admin, request);
   if (!adminCheck.ok) return json({ error: adminCheck.error }, adminCheck.status);
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: 'Corpo JSON inválido' }, 400);
-  }
-
-  const rawEmail = (body as { email?: unknown })?.email;
-  const role = parseUserRole((body as { role?: unknown })?.role);
-  if (typeof rawEmail !== 'string') {
-    return json({ error: 'Campo "email" obrigatório' }, 400);
-  }
-  if (!role) {
-    return json({ error: 'Perfil de acesso obrigatório' }, 400);
-  }
-  const email = rawEmail.trim().toLowerCase();
-  if (!EMAIL_REGEX.test(email)) {
-    return json({ error: 'Email inválido' }, 400);
-  }
+  const parsed = await readJson(request, createUserSchema);
+  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const { email, role } = parsed.data;
 
   const { data, error: createError } = await admin.auth.admin.createUser({
     email,
@@ -77,10 +65,6 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     201,
   );
 };
-
-function parseUserRole(value: unknown): Exclude<UserRole, null> | null {
-  return value === 'admin' || value === 'vendedor' ? value : null;
-}
 
 function translateCreateUserError(message: string): string {
   const normalized = message.toLowerCase();

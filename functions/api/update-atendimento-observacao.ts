@@ -4,10 +4,14 @@ import { atendimentos } from '../../drizzle/schema';
 import { requireStaff } from './admin-auth';
 import { canStaffAccessAtendimento } from './atendimentos-shared';
 import { type DatabaseEnv, withDatabase } from '../lib/db';
+import { readJson, uuidSchema, z } from '../lib/validation';
 
 type Env = DatabaseEnv & { SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string };
 type Context = { request: Request; env: Env };
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const atendimentoObservacaoSchema = z.object({
+  id: uuidSchema,
+  descricao_solicitacao: z.string().trim().max(20_000).nullable().optional().transform((value) => value || null),
+});
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -20,14 +24,9 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   });
   const staffCheck = await requireStaff(admin, request);
   if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
-  let input: { id?: unknown; descricao_solicitacao?: unknown };
-  try {
-    input = (await request.json()) as { id?: unknown; descricao_solicitacao?: unknown };
-  } catch {
-    return json({ error: 'Corpo JSON inválido' }, 400);
-  }
-  const id = typeof input.id === 'string' ? input.id.trim() : '';
-  if (!UUID_REGEX.test(id)) return json({ error: 'id inválido' }, 400);
+  const parsed = await readJson(request, atendimentoObservacaoSchema);
+  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const { id, descricao_solicitacao: descricao } = parsed.data;
   try {
     const result = await withDatabase(env, async (db) => {
       const [atendimento] = await db
@@ -44,7 +43,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       if (atendimento.state !== 'pagamento') return 'locked' as const;
       await db
         .update(atendimentos)
-        .set({ descricaoSolicitacao: normalizeDescription(input.descricao_solicitacao) })
+        .set({ descricaoSolicitacao: descricao })
         .where(eq(atendimentos.id, id));
       return 'ok' as const;
     });
@@ -56,9 +55,3 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: error instanceof Error ? error.message : 'Erro ao salvar observação' }, 500);
   }
 };
-
-function normalizeDescription(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}

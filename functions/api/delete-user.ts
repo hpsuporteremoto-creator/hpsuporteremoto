@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { isAdminUser, requireAdmin } from './admin-auth';
+import { readJson, uuidSchema, z } from '../lib/validation';
 
 type Env = {
   SUPABASE_URL: string;
@@ -7,6 +8,8 @@ type Env = {
 };
 
 type Context = { request: Request; env: Env };
+
+const deleteUserSchema = z.object({ user_id: uuidSchema });
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -29,16 +32,9 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   const adminCheck = await requireAdmin(admin, request);
   if (!adminCheck.ok) return json({ error: adminCheck.error }, adminCheck.status);
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: 'Corpo JSON inválido' }, 400);
-  }
-  const { user_id } = (body ?? {}) as { user_id?: unknown };
-  if (typeof user_id !== 'string' || user_id.length === 0) {
-    return json({ error: 'user_id obrigatório' }, 400);
-  }
+  const parsed = await readJson(request, deleteUserSchema);
+  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const { user_id } = parsed.data;
 
   if (user_id === adminCheck.user.id) {
     return json({ error: 'Você não pode apagar a si mesmo' }, 400);

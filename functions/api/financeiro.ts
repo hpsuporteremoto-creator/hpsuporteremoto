@@ -4,9 +4,28 @@ import { atendimentos, pixRecebedorConfig, transacoes } from '../../drizzle/sche
 import { requireAdmin } from './admin-auth';
 import { listAtendimentosComRelacoes } from './atendimentos-shared';
 import { type DatabaseEnv, withDatabase } from '../lib/db';
+import { isoDateSchema, positiveIntegerSchema, readJson, uuidSchema, z } from '../lib/validation';
 
 type Env = DatabaseEnv & { SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string };
 type Context = { request: Request; env: Env };
+
+const financialMutationSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('delete'), id: uuidSchema }),
+  z.object({
+    action: z.literal('save-pix'),
+    pix_key: z.string().trim().min(1, 'Preencha os dados do recebedor PIX').max(512),
+    receiver_name: z.string().trim().min(2, 'Preencha os dados do recebedor PIX').max(120),
+    receiver_city: z.string().trim().min(2, 'Preencha os dados do recebedor PIX').max(80),
+  }),
+  z.object({
+    action: z.literal('create'),
+    tipo: z.enum(['entrada', 'saida']),
+    valor_centavos: positiveIntegerSchema,
+    descricao: z.string().trim().min(2, 'Dados da transação inválidos').max(1_000),
+    data: isoDateSchema,
+    atendimento_id: uuidSchema.nullable().optional().transform((value) => value ?? null),
+  }),
+]);
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -62,21 +81,16 @@ export const onRequestPost = async ({ request, env }: Context): Promise<Response
   const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const adminCheck = await requireAdmin(admin, request);
   if (!adminCheck.ok) return json({ error: adminCheck.error }, adminCheck.status);
-  let body: Record<string, unknown>;
-  try { body = (await request.json()) as Record<string, unknown>; } catch { return json({ error: 'Corpo JSON inválido' }, 400); }
-  const action = body['action'];
+  const parsed = await readJson(request, financialMutationSchema);
+  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const body = parsed.data;
   try {
-    if (action === 'delete') {
-      const id = typeof body['id'] === 'string' ? body['id'] : '';
-      if (!id) return json({ error: 'id obrigatório' }, 400);
-      await withDatabase(env, (db) => db.delete(transacoes).where(eq(transacoes.id, id)));
+    if (body.action === 'delete') {
+      await withDatabase(env, (db) => db.delete(transacoes).where(eq(transacoes.id, body.id)));
       return json({ ok: true });
     }
-    if (action === 'save-pix') {
-      const pixKey = normalizeText(body['pix_key']);
-      const receiverName = normalizeText(body['receiver_name']);
-      const receiverCity = normalizeText(body['receiver_city']);
-      if (!pixKey || !receiverName || !receiverCity) return json({ error: 'Preencha os dados do recebedor PIX' }, 400);
+    if (body.action === 'save-pix') {
+      const { pix_key: pixKey, receiver_name: receiverName, receiver_city: receiverCity } = body;
       const config = await withDatabase(env, async (db) => {
         const [row] = await db
           .insert(pixRecebedorConfig)
@@ -87,17 +101,10 @@ export const onRequestPost = async ({ request, env }: Context): Promise<Response
       });
       return json({ config });
     }
-    if (action === 'create') {
-      const tipo = body['tipo'];
-      const valorCentavos = body['valor_centavos'];
-      const descricao = normalizeText(body['descricao']);
-      const data = typeof body['data'] === 'string' ? body['data'] : '';
-      const atendimentoId = typeof body['atendimento_id'] === 'string' ? body['atendimento_id'] : null;
-      if ((tipo !== 'entrada' && tipo !== 'saida') || !Number.isInteger(valorCentavos) || (valorCentavos as number) <= 0 || !descricao || !isDate(data)) {
-        return json({ error: 'Dados da transação inválidos' }, 400);
-      }
+    if (body.action === 'create') {
+      const { tipo, valor_centavos: valorCentavos, descricao, data, atendimento_id: atendimentoId } = body;
       const transacao = await withDatabase(env, async (db) => {
-        const [row] = await db.insert(transacoes).values({ tipo, valorCentavos: valorCentavos as number, descricao, data, atendimentoId }).returning();
+        const [row] = await db.insert(transacoes).values({ tipo, valorCentavos, descricao, data, atendimentoId }).returning();
         return row ? toTransacao(row) : null;
       });
       return json({ transacao }, 201);
@@ -116,10 +123,6 @@ function toPixConfig(row: typeof pixRecebedorConfig.$inferSelect) {
   return { id: row.id, pix_key: row.pixKey, receiver_name: row.receiverName, receiver_city: row.receiverCity, created_at: row.createdAt, updated_at: row.updatedAt };
 }
 
-function normalizeText(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
-}
-
 function isDate(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+  return isoDateSchema.safeParse(value).success;
 }

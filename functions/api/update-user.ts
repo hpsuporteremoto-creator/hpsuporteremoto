@@ -9,6 +9,7 @@ import {
 } from './admin-auth';
 import type { UserRole } from './admin-auth';
 import { type DatabaseEnv, withDatabase } from '../lib/db';
+import { readJson, uuidSchema, z } from '../lib/validation';
 
 type Env = DatabaseEnv & {
   SUPABASE_URL: string;
@@ -16,6 +17,12 @@ type Env = DatabaseEnv & {
 };
 
 type Context = { request: Request; env: Env };
+
+const updateUserSchema = z.object({
+  user_id: uuidSchema,
+  full_name: z.string().trim().max(180).nullable().optional(),
+  role: z.enum(['admin', 'vendedor'], { message: 'Perfil de acesso inválido' }).optional(),
+});
 
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
@@ -38,27 +45,9 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   const adminCheck = await requireAdmin(admin, request);
   if (!adminCheck.ok) return json({ error: adminCheck.error }, adminCheck.status);
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: 'Corpo JSON inválido' }, 400);
-  }
-
-  const { user_id, full_name } = (body ?? {}) as {
-    user_id?: unknown;
-    full_name?: unknown;
-  };
-  const role = parseOptionalUserRole((body as { role?: unknown })?.role);
-  if (typeof user_id !== 'string' || user_id.length === 0) {
-    return json({ error: 'user_id obrigatório' }, 400);
-  }
-  if (full_name !== null && typeof full_name !== 'string') {
-    return json({ error: 'full_name inválido' }, 400);
-  }
-  if (role === 'invalid') {
-    return json({ error: 'Perfil de acesso inválido' }, 400);
-  }
+  const parsed = await readJson(request, updateUserSchema);
+  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const { user_id, full_name, role } = parsed.data;
   if (role && user_id === adminCheck.user.id && role !== getUserRole(adminCheck.user)) {
     return json({ error: 'Você não pode alterar seu próprio perfil de acesso' }, 400);
   }
@@ -126,11 +115,3 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     200,
   );
 };
-
-function parseOptionalUserRole(
-  value: unknown,
-): Exclude<UserRole, null> | 'invalid' | null {
-  if (value === undefined) return null;
-  if (value === 'admin' || value === 'vendedor') return value;
-  return 'invalid';
-}

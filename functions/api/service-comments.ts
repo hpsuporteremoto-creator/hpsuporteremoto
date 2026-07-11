@@ -2,6 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { servicoComentarios, servicos } from '../../drizzle/schema';
 import { type DatabaseEnv, withDatabase } from '../lib/db';
+import { readJson, uuidSchema, z } from '../lib/validation';
 
 type Env = DatabaseEnv & {
   SUPABASE_URL: string;
@@ -9,6 +10,12 @@ type Env = DatabaseEnv & {
 };
 
 type Context = { request: Request; env: Env };
+
+const serviceCommentSchema = z.object({
+  servico_id: uuidSchema,
+  parent_id: uuidSchema.nullable().optional().transform((value) => value ?? null),
+  texto: z.string().trim().min(2, 'Comentário muito curto').max(1_200),
+});
 
 type CommentRow = {
   id: string;
@@ -50,17 +57,9 @@ export const onRequestPost = async ({ request, env }: Context): Promise<Response
   if (!admin) return json({ error: 'Servidor mal configurado' }, 500);
   const userResult = await getUser(admin, request);
   if (!userResult.ok) return json({ error: userResult.error }, userResult.status);
-  let body: Record<string, unknown>;
-  try {
-    body = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return json({ error: 'Corpo JSON inválido' }, 400);
-  }
-  const servicoId = typeof body['servico_id'] === 'string' ? body['servico_id'].trim() : '';
-  const parentId = typeof body['parent_id'] === 'string' ? body['parent_id'].trim() : null;
-  const texto = typeof body['texto'] === 'string' ? body['texto'].trim() : '';
-  if (!servicoId) return json({ error: 'Serviço obrigatório' }, 400);
-  if (texto.length < 2 || texto.length > 1200) return json({ error: 'Comentário deve ter entre 2 e 1200 caracteres.' }, 400);
+  const parsed = await readJson(request, serviceCommentSchema);
+  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const { servico_id: servicoId, parent_id: parentId, texto } = parsed.data;
   try {
     const comentario = await withDatabase(env, async (db) => {
       const [servico] = await db

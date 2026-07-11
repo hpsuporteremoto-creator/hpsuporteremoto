@@ -13,6 +13,7 @@ import {
 } from '../../drizzle/schema';
 import { requireAdmin } from './admin-auth';
 import { type AppDatabase, type DatabaseEnv, withDatabase } from '../lib/db';
+import { emailSchema, readJson, uuidSchema, z } from '../lib/validation';
 
 type Env = DatabaseEnv & {
   SUPABASE_URL: string;
@@ -66,19 +67,41 @@ type MarketingCampaignRow = {
 
 type CampaignStatus = 'rascunho' | 'agendada' | 'enviada' | 'falhou' | 'cancelada';
 
-type CampaignInput = {
-  nome: string;
-  assunto: string;
-  mensagem: string;
-  texto_previa: string | null;
-  servico_id: string | null;
-  somente_vendas_contabilizadas: boolean;
-  agendada_para: string | null;
-};
-
 const DEFAULT_SENDER = 'HP Suporte <contato@hpsuporteremoto.com.br>';
-const EMAIL_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const PAGE_SIZE = 1000;
+
+const scheduledAtSchema = z
+  .string()
+  .trim()
+  .nullable()
+  .optional()
+  .transform((value) => value || null)
+  .refine((value) => value === null || (!Number.isNaN(new Date(value).getTime()) && new Date(value).getTime() > Date.now() + 60_000), {
+    message: 'Agendamento deve ser uma data futura',
+  })
+  .transform((value) => (value ? new Date(value).toISOString() : null));
+
+const campaignInputSchema = z.object({
+  nome: z.string().trim().min(3).max(120),
+  assunto: z.string().trim().min(3).max(180),
+  mensagem: z.string().trim().min(3).max(20_000),
+  texto_previa: z.string().trim().max(180).nullable().optional().transform((value) => value || null),
+  servico_id: uuidSchema.nullable().optional().transform((value) => value ?? null),
+  somente_vendas_contabilizadas: z.boolean().optional().default(true),
+  agendada_para: scheduledAtSchema,
+});
+
+const marketingMutationSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('test'),
+    email: emailSchema,
+    assunto: z.string().trim().min(3).max(180),
+    mensagem: z.string().trim().min(3).max(20_000),
+  }),
+  z.object({ action: z.literal('create'), ...campaignInputSchema.shape }),
+]);
+
+type CampaignInput = z.output<typeof campaignInputSchema>;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -97,7 +120,7 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
 
   const url = new URL(request.url);
   const action = url.searchParams.get('action') ?? 'overview';
-  const servicoId = normalizeUuid(url.searchParams.get('servicoId'));
+  const servicoId = parseOptionalUuid(url.searchParams.get('servicoId'));
   const somenteContabilizados = url.searchParams.get('somenteContabilizados') !== 'false';
 
   try {
@@ -147,23 +170,11 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   const adminCheck = await requireAdmin(admin, request);
   if (!adminCheck.ok) return json({ error: adminCheck.error }, adminCheck.status);
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: 'Corpo JSON inválido' }, 400);
-  }
-
-  const record = toRecord(body);
-  const action = typeof record['action'] === 'string' ? record['action'] : '';
-
-  if (action === 'test') {
-    return sendTestEmail(env, record);
-  }
-  if (action === 'create') {
-    return withDatabase(env, (db) => createCampaign(db, env, adminCheck.user.id, record));
-  }
-  return json({ error: 'Ação inválida' }, 400);
+  const parsed = await readJson(request, marketingMutationSchema);
+  if (!parsed.ok) return json({ error: parsed.error }, 400);
+  const body = parsed.data;
+  if (body.action === 'test') return sendTestEmail(env, body);
+  return withDatabase(env, (db) => createCampaign(db, env, adminCheck.user.id, body));
 };
 
 function createAdminClient(env: Env): SupabaseClient | null {
@@ -173,24 +184,20 @@ function createAdminClient(env: Env): SupabaseClient | null {
   });
 }
 
-async function sendTestEmail(env: Env, record: Record<string, unknown>): Promise<Response> {
+async function sendTestEmail(
+  env: Env,
+  input: { email: string; assunto: string; mensagem: string },
+): Promise<Response> {
   if (!env.RESEND_API_KEY) {
     return json({ error: 'RESEND_API_KEY não foi configurada no Cloudflare Pages.' }, 503);
   }
-  const email = normalizeEmail(record['email']);
-  const assunto = normalizeText(record['assunto'], 3, 180);
-  const mensagem = normalizeText(record['mensagem'], 3, 20_000);
-  if (!email || !assunto || !mensagem) {
-    return json({ error: 'Informe email, assunto e mensagem para o teste.' }, 400);
-  }
-
   const resend = new Resend(env.RESEND_API_KEY);
   const { data, error } = await resend.emails.send({
     from: DEFAULT_SENDER,
-    to: [email],
-    subject: `[Teste] ${assunto}`,
-    html: renderCampaignHtml(mensagem, false),
-    text: renderCampaignText(mensagem, false),
+    to: [input.email],
+    subject: `[Teste] ${input.assunto}`,
+    html: renderCampaignHtml(input.mensagem, false),
+    text: renderCampaignText(input.mensagem, false),
   });
   if (error) return json({ error: error.message }, 502);
   return json({ id: data?.id ?? null, message: 'Email de teste enviado.' }, 201);
@@ -200,14 +207,11 @@ async function createCampaign(
   db: AppDatabase,
   env: Env,
   userId: string,
-  record: Record<string, unknown>,
+  input: CampaignInput,
 ): Promise<Response> {
   if (!env.RESEND_API_KEY) {
     return json({ error: 'RESEND_API_KEY não foi configurada no Cloudflare Pages.' }, 503);
   }
-  const input = parseCampaignInput(record);
-  if (!input) return json({ error: 'Dados da campanha inválidos.' }, 400);
-
   try {
     const recipients = await resolveAudience(
       db,
@@ -552,61 +556,14 @@ function csvDownload(audience: readonly AudienceRecipient[], field: 'emails' | '
   });
 }
 
-function parseCampaignInput(record: Record<string, unknown>): CampaignInput | null {
-  const nome = normalizeText(record['nome'], 3, 120);
-  const assunto = normalizeText(record['assunto'], 3, 180);
-  const mensagem = normalizeText(record['mensagem'], 3, 20_000);
-  const textoPrevia = normalizeOptionalText(record['texto_previa'], 180);
-  const servicoId = normalizeUuid(record['servico_id']);
-  const somenteContabilizados = record['somente_vendas_contabilizadas'] !== false;
-  const agendadaPara = normalizeSchedule(record['agendada_para']);
-  if (!nome || !assunto || !mensagem) return null;
-  if (record['agendada_para'] !== null && record['agendada_para'] !== undefined && !agendadaPara) {
-    return null;
-  }
-  return {
-    nome,
-    assunto,
-    mensagem,
-    texto_previa: textoPrevia,
-    servico_id: servicoId,
-    somente_vendas_contabilizadas: somenteContabilizados,
-    agendada_para: agendadaPara,
-  };
-}
-
-function normalizeSchedule(value: unknown): string | null {
-  if (typeof value !== 'string' || value.trim().length === 0) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime()) || date.getTime() <= Date.now() + 60_000) return null;
-  return date.toISOString();
-}
-
-function normalizeText(value: unknown, minLength: number, maxLength: number): string | null {
-  if (typeof value !== 'string') return null;
-  const text = value.trim();
-  return text.length >= minLength && text.length <= maxLength ? text : null;
-}
-
-function normalizeOptionalText(value: unknown, maxLength: number): string | null {
-  if (typeof value !== 'string') return null;
-  const text = value.trim();
-  return text.length > 0 && text.length <= maxLength ? text : null;
-}
-
 function normalizeEmail(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const email = value.trim().toLowerCase();
-  return EMAIL_REGEX.test(email) ? email : null;
+  const parsed = emailSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
-function normalizeUuid(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value.trim(),
-  )
-    ? value.trim()
-    : null;
+function parseOptionalUuid(value: string | null): string | null {
+  const parsed = uuidSchema.safeParse(value?.trim() ?? '');
+  return parsed.success ? parsed.data : null;
 }
 
 function renderCampaignHtml(message: string, includeUnsubscribe: boolean): string {
@@ -647,10 +604,6 @@ function firstName(value: string): string {
 
 function safeSegmentName(value: string): string {
   return value.replace(/\s+/g, ' ').trim().slice(0, 90);
-}
-
-function toRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 }
 
 function errorMessage(error: unknown, fallback: string): string {
