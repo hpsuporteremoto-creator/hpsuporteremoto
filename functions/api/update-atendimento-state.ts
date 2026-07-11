@@ -39,7 +39,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (!ALLOWED_STATES.has(state as AtendimentoState)) return json({ error: 'state inválido' }, 400);
   if (state === 'concluido') {
     return json(
-      { error: 'Confirme o pagamento com EndToEndId ou comprovante antes de finalizar' },
+      { error: 'Use a confirmação de pagamento antes de finalizar' },
       400,
     );
   }

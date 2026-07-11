@@ -120,9 +120,8 @@ uma como padrão e escolher a chave na geração de cada cobrança. Os dados fic
 na tabela `pix_recebedores`; `pix_recebedor_config` permanece apenas como
 fallback legado para instalações anteriores.
 
-Ao finalizar um atendimento em pagamento, é possível registrar opcionalmente
-um EndToEndId validado (com ISPB e instituição de origem) ou comprovante em
-PDF, JPG, PNG ou WebP de até 10 MB. Os comprovantes ficam no bucket privado
+Ao finalizar um atendimento em pagamento, é possível anexar opcionalmente um
+comprovante em PDF, JPG, PNG ou WebP de até 10 MB. Os comprovantes ficam no bucket privado
 `payment-receipts` e são abertos por URLs temporárias autenticadas.
 
 `PIX_KEY`, `PIX_RECEIVER_NAME` e `PIX_RECEIVER_CITY` ainda podem existir como

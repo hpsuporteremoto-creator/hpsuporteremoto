@@ -25,9 +25,6 @@ export interface Atendimento {
   pix_brcode: string | null;
   pix_recebedor_id: string | null;
   pix_recebedor: PixRecebedorResumo | null;
-  pagamento_end_to_end_id: string | null;
-  pagamento_ispb: string | null;
-  pagamento_instituicao: string | null;
   pagamento_comprovante_nome: string | null;
   pagamento_comprovante_tipo: string | null;
   pagamento_confirmado_em: string | null;

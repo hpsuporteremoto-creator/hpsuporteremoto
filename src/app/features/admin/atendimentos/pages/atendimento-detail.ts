@@ -3,7 +3,6 @@ import { CurrencyPipe, DatePipe, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -11,15 +10,12 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { isValidBrCode } from '@thiagoprazeres/pix-static-brcode';
-import { parseE2EId } from '@thiagoprazeres/parse-e2eid';
 import { toDataURL } from 'qrcode';
 import { AuthService } from '../../../../core/auth/auth.service';
 import { ServicosService } from '../../servicos/servicos.service';
 import { Servico } from '../../servicos/servicos.types';
 import { AtendimentosService } from '../atendimentos.service';
-import { EndToEndIdHelpDialog } from '../components/end-to-end-id-help-dialog';
 import {
   ATENDIMENTO_STATE_LABEL,
   AtendimentoComRelacoes,
@@ -56,7 +52,6 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
     MatProgressBarModule,
     MatSelectModule,
     MatToolbarModule,
-    MatTooltipModule,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -702,38 +697,7 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                 }
                 <section class="payment-proof" aria-label="Comprovação de pagamento">
                   <h3>Comprovação de pagamento</h3>
-                  <p>Opcional: informe o EndToEndId do PIX ou anexe o comprovante.</p>
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>EndToEndId</mat-label>
-                    <mat-icon matIconPrefix>receipt_long</mat-icon>
-                    <input
-                      matInput
-                      maxlength="64"
-                      autocomplete="off"
-                      [value]="endToEndId()"
-                      (input)="onEndToEndIdChange($event)"
-                      [disabled]="updating()"
-                    />
-                    <button
-                      mat-icon-button
-                      matIconSuffix
-                      type="button"
-                      aria-label="Entender o EndToEndId"
-                      matTooltip="O que é o EndToEndId?"
-                      (click)="abrirAjudaEndToEndId()"
-                    >
-                      <mat-icon>help_outline</mat-icon>
-                    </button>
-                    @if (endToEndIdInvalido()) {
-                      <mat-error>EndToEndId inválido</mat-error>
-                    }
-                  </mat-form-field>
-                  @if (endToEndPreview(); as payment) {
-                    <p class="e2e-valid">
-                      <mat-icon>verified</mat-icon>
-                      EndToEndId válido · ISPB {{ payment.ispb }}
-                    </p>
-                  }
+                  <p>Opcional: anexe o comprovante de pagamento.</p>
                   <label class="receipt-upload" [class.disabled]="updating()">
                     <input
                       type="file"
@@ -764,16 +728,9 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                 @if (a.valor_centavos !== null) {
                   <p class="valor">{{ a.valor_centavos / 100 | currency }}</p>
                 }
-                @if (a.pagamento_end_to_end_id || a.pagamento_comprovante_nome) {
+                @if (a.pagamento_comprovante_nome) {
                   <section class="payment-proof completed-proof" aria-label="Comprovação registrada">
                     <h3>Pagamento confirmado</h3>
-                    @if (a.pagamento_end_to_end_id) {
-                      <p><strong>EndToEndId:</strong> <code>{{ a.pagamento_end_to_end_id }}</code></p>
-                      <p>
-                        {{ a.pagamento_instituicao ?? 'Instituição não identificada no catálogo' }}
-                        @if (a.pagamento_ispb) { · ISPB {{ a.pagamento_ispb }} }
-                      </p>
-                    }
                     @if (a.pagamento_comprovante_nome) {
                       <button mat-stroked-button type="button" (click)="abrirComprovante(a.id)">
                         <mat-icon>attach_file</mat-icon>
@@ -834,7 +791,6 @@ export class AtendimentoDetailPage {
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly snackBar = inject(MatSnackBar);
-  private readonly dialog = inject(MatDialog);
 
   protected readonly atendimento = signal<AtendimentoComRelacoes | null>(null);
   protected readonly loading = signal(false);
@@ -851,23 +807,7 @@ export class AtendimentoDetailPage {
   protected readonly pixQrCode = signal<string | null>(null);
   protected readonly pixRecebedores = signal<PixRecebedorResumo[]>([]);
   protected readonly pixRecebedorId = signal<string | null>(null);
-  protected readonly endToEndId = signal('');
   protected readonly comprovanteSelecionado = signal<File | null>(null);
-  protected readonly endToEndPreview = computed(() => {
-    const value = this.endToEndId().trim();
-    if (!value) return null;
-    try {
-      const parsed = parseE2EId(value);
-      return {
-        ispb: parsed.ispb,
-      };
-    } catch {
-      return null;
-    }
-  });
-  protected readonly endToEndIdInvalido = computed(
-    () => this.endToEndId().trim().length > 0 && !this.endToEndPreview(),
-  );
 
   protected readonly servicosParaCobranca = computed<CobrancaServicoItem[]>(() => {
     const atendimento = this.atendimento();
@@ -1030,7 +970,6 @@ export class AtendimentoDetailPage {
       this.pixRecebedorId.set(
         a?.pix_recebedor_id ?? recebedores.find((recebedor) => recebedor.padrao)?.id ?? recebedores[0]?.id ?? null,
       );
-      this.endToEndId.set('');
       this.comprovanteSelecionado.set(null);
       await this.atualizarQrCode(a?.pix_brcode ?? null);
       this.descontoCentavos.set(Math.max(a?.desconto_centavos ?? 0, 0));
@@ -1070,18 +1009,6 @@ export class AtendimentoDetailPage {
 
   onPixRecebedorChange(value: unknown): void {
     this.pixRecebedorId.set(typeof value === 'string' && value ? value : null);
-  }
-
-  onEndToEndIdChange(event: Event): void {
-    const input = event.target as HTMLInputElement | null;
-    this.endToEndId.set((input?.value ?? '').replace(/\s+/g, '').toUpperCase());
-  }
-
-  abrirAjudaEndToEndId(): void {
-    this.dialog.open(EndToEndIdHelpDialog, {
-      autoFocus: false,
-      width: 'min(92vw, 32rem)',
-    });
   }
 
   onComprovanteChange(event: Event): void {
@@ -1308,7 +1235,6 @@ export class AtendimentoDetailPage {
         }
         await this.svc.confirmarPagamento({
           atendimento_id: a.id,
-          end_to_end_id: this.endToEndId().trim() || null,
           comprovante_path: comprovante?.path ?? null,
           comprovante_nome: comprovante?.nome ?? null,
           comprovante_tipo: comprovante?.tipo ?? null,

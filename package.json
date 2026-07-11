@@ -34,8 +34,6 @@
     "@maskito/core": "^5.2.2",
     "@maskito/kit": "^5.2.2",
     "@supabase/supabase-js": "^2.106.0",
-    "@thiagoprazeres/ispb-participants": "^1.2.0",
-    "@thiagoprazeres/parse-e2eid": "^1.0.1",
     "@thiagoprazeres/pix-static-brcode": "^1.0.1",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",

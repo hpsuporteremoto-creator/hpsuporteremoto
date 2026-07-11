@@ -38,9 +38,6 @@ export type AtendimentoComRelacoes = {
   pix_brcode: string | null;
   pix_recebedor_id: string | null;
   pix_recebedor: { id: string; receiver_name: string; pix_key: string; receiver_city: string } | null;
-  pagamento_end_to_end_id: string | null;
-  pagamento_ispb: string | null;
-  pagamento_instituicao: string | null;
   pagamento_comprovante_nome: string | null;
   pagamento_comprovante_tipo: string | null;
   pagamento_confirmado_em: string | null;
@@ -154,9 +151,6 @@ export async function listAtendimentosComRelacoes(
               receiver_city: row.pixRecebedor.receiverCity,
             }
           : null,
-        pagamento_end_to_end_id: atendimento.pagamentoEndToEndId,
-        pagamento_ispb: atendimento.pagamentoIspb,
-        pagamento_instituicao: atendimento.pagamentoInstituicao,
         pagamento_comprovante_nome: atendimento.pagamentoComprovanteNome,
         pagamento_comprovante_tipo: atendimento.pagamentoComprovanteTipo,
         pagamento_confirmado_em: atendimento.pagamentoConfirmadoEm,

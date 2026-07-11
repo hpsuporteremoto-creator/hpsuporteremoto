@@ -169,7 +169,6 @@ export class AtendimentosService {
 
   async confirmarPagamento(input: {
     atendimento_id: string;
-    end_to_end_id?: string | null;
     comprovante_path?: string | null;
     comprovante_nome?: string | null;
     comprovante_tipo?: string | null;
