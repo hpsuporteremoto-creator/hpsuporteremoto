@@ -114,10 +114,16 @@ arquivos versionados. O remetente padrão é `HP Suporte
 <contato@hpsuporteremoto.com.br>` e o domínio precisa estar verificado no
 Resend.
 
-Os dados do recebedor do PIX são configurados no próprio sistema em
-`/admin/financeiro/recebedor-pix`. A tela grava a chave PIX, nome do recebedor
-e cidade na tabela `pix_recebedor_config`, usada pela função
-`functions/api/generate-pix.ts` na hora de gerar o BR Code.
+As chaves PIX são configuradas no próprio sistema em
+`/admin/financeiro/recebedor-pix`. É possível cadastrar várias chaves, marcar
+uma como padrão e escolher a chave na geração de cada cobrança. Os dados ficam
+na tabela `pix_recebedores`; `pix_recebedor_config` permanece apenas como
+fallback legado para instalações anteriores.
+
+Ao finalizar um atendimento em pagamento, o sistema exige uma comprovação:
+EndToEndId validado (com ISPB e instituição de origem) ou comprovante em PDF,
+JPG, PNG ou WebP de até 10 MB. Os comprovantes ficam no bucket privado
+`payment-receipts` e são abertos por URLs temporárias autenticadas.
 
 `PIX_KEY`, `PIX_RECEIVER_NAME` e `PIX_RECEIVER_CITY` ainda podem existir como
 fallback legado de runtime, mas não são a forma principal de configuração.

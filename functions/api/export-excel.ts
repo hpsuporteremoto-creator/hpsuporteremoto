@@ -4,7 +4,7 @@ import { strToU8, zipSync } from 'fflate';
 import {
   clientes as clientesTable,
   marketingCampanhas,
-  pixRecebedorConfig,
+  pixRecebedores,
   profiles as profilesTable,
   servicoCategorias,
   servicoComentarios,
@@ -99,11 +99,13 @@ type ComentarioRow = {
   updated_at: string;
 };
 
-type PixRecebedorConfigRow = {
-  id: number;
+type PixRecebedorRow = {
+  id: string;
   pix_key: string;
   receiver_name: string;
   receiver_city: string;
+  ativo: boolean;
+  padrao: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -119,7 +121,7 @@ type ExportData = {
   readonly atendimentos: readonly AtendimentoComRelacoes[];
   readonly transacoes: readonly TransacaoRow[];
   readonly comentarios: readonly ComentarioRow[];
-  readonly pixConfigs: readonly PixRecebedorConfigRow[];
+  readonly pixConfigs: readonly PixRecebedorRow[];
 };
 
 const PAGE_SIZE = 1000;
@@ -219,8 +221,9 @@ async function loadExportData(
           .from(servicoComentarios)
           .orderBy(desc(servicoComentarios.createdAt)),
         db
-          .select({ id: pixRecebedorConfig.id, pix_key: pixRecebedorConfig.pixKey, receiver_name: pixRecebedorConfig.receiverName, receiver_city: pixRecebedorConfig.receiverCity, created_at: pixRecebedorConfig.createdAt, updated_at: pixRecebedorConfig.updatedAt })
-          .from(pixRecebedorConfig),
+          .select({ id: pixRecebedores.id, pix_key: pixRecebedores.pixKey, receiver_name: pixRecebedores.receiverName, receiver_city: pixRecebedores.receiverCity, ativo: pixRecebedores.ativo, padrao: pixRecebedores.padrao, created_at: pixRecebedores.createdAt, updated_at: pixRecebedores.updatedAt })
+          .from(pixRecebedores)
+          .orderBy(desc(pixRecebedores.padrao), asc(pixRecebedores.receiverName)),
         latestAccessByUserIds(
           db,
           users.map((user) => user.id),
@@ -334,6 +337,13 @@ function buildAtendimentosSheet(atendimentos: readonly AtendimentoComRelacoes[])
         'Acréscimo R$',
         'Valor final R$',
         'Financeiro contabilizado',
+        'Chave PIX',
+        'EndToEndId',
+        'ISPB pagador',
+        'Instituição pagadora',
+        'Comprovante',
+        'Pagamento confirmado em',
+        'Pagamento confirmado por',
         'Criado por',
         'Vendido por',
         'Atendido por',
@@ -353,6 +363,13 @@ function buildAtendimentosSheet(atendimentos: readonly AtendimentoComRelacoes[])
         centavosToReais(atendimento.acrescimo_centavos),
         centavosToReais(valorFinalAtendimento(atendimento)),
         atendimento.financeiro_contabilizado,
+        atendimento.pix_recebedor?.pix_key ?? '',
+        atendimento.pagamento_end_to_end_id,
+        atendimento.pagamento_ispb,
+        atendimento.pagamento_instituicao,
+        atendimento.pagamento_comprovante_nome,
+        atendimento.pagamento_confirmado_em,
+        userLabel(atendimento.pagamento_confirmado_por),
         userLabel(atendimento.criado_por),
         userLabel(atendimento.vendido_por),
         userLabel(atendimento.atendido_por),
@@ -568,16 +585,18 @@ function buildComentariosSheet(
   };
 }
 
-function buildPixSheet(configs: readonly PixRecebedorConfigRow[]): ExcelSheet {
+function buildPixSheet(configs: readonly PixRecebedorRow[]): ExcelSheet {
   return {
     name: 'Config PIX',
     rows: [
-      ['ID', 'Chave PIX', 'Recebedor', 'Cidade', 'Criado em', 'Atualizado em'],
+      ['ID', 'Chave PIX', 'Recebedor', 'Cidade', 'Ativa', 'Padrão', 'Criado em', 'Atualizado em'],
       ...configs.map((config) => [
         config.id,
         config.pix_key,
         config.receiver_name,
         config.receiver_city,
+        config.ativo,
+        config.padrao,
         config.created_at,
         config.updated_at,
       ]),

@@ -1,5 +1,5 @@
 import { desc, eq, inArray, or, type SQL } from 'drizzle-orm';
-import { atendimentos, clientes, profiles, servicos, transacoes } from '../../drizzle/schema';
+import { atendimentos, clientes, pixRecebedores, profiles, servicos, transacoes } from '../../drizzle/schema';
 import type { UserRole } from './admin-auth';
 import type { AppDatabase } from '../lib/db';
 
@@ -36,6 +36,15 @@ export type AtendimentoComRelacoes = {
   state: AtendimentoState;
   valor_centavos: number | null;
   pix_brcode: string | null;
+  pix_recebedor_id: string | null;
+  pix_recebedor: { id: string; receiver_name: string; pix_key: string; receiver_city: string } | null;
+  pagamento_end_to_end_id: string | null;
+  pagamento_ispb: string | null;
+  pagamento_instituicao: string | null;
+  pagamento_comprovante_nome: string | null;
+  pagamento_comprovante_tipo: string | null;
+  pagamento_confirmado_em: string | null;
+  pagamento_confirmado_por_user_id: string | null;
   descricao_solicitacao: string | null;
   criado_por_user_id: string | null;
   vendido_por_user_id: string | null;
@@ -54,6 +63,7 @@ export type AtendimentoComRelacoes = {
   criado_por: AtendimentoUserRef | null;
   vendido_por: AtendimentoUserRef | null;
   atendido_por: AtendimentoUserRef | null;
+  pagamento_confirmado_por: AtendimentoUserRef | null;
   transacoes?: AtendimentoTransacaoRef[];
   financeiro_contabilizado: boolean;
   financeiro_transacao_id: string | null;
@@ -106,11 +116,18 @@ export async function listAtendimentosComRelacoes(
         valor_centavos: servicos.valorCentavos,
       },
       transacao: { id: transacoes.id },
+      pixRecebedor: {
+        id: pixRecebedores.id,
+        receiverName: pixRecebedores.receiverName,
+        pixKey: pixRecebedores.pixKey,
+        receiverCity: pixRecebedores.receiverCity,
+      },
     })
     .from(atendimentos)
     .innerJoin(clientes, eq(atendimentos.clienteId, clientes.id))
     .leftJoin(servicos, eq(atendimentos.servicoId, servicos.id))
     .leftJoin(transacoes, eq(atendimentos.id, transacoes.atendimentoId))
+    .leftJoin(pixRecebedores, eq(atendimentos.pixRecebedorId, pixRecebedores.id))
     .orderBy(desc(atendimentos.createdAt));
   const rows = condition ? await baseQuery.where(condition) : await baseQuery;
   return hydrateServicosSolicitados(
@@ -128,6 +145,22 @@ export async function listAtendimentosComRelacoes(
         state: normalizeAtendimentoState(atendimento.state),
         valor_centavos: atendimento.valorCentavos,
         pix_brcode: atendimento.pixBrcode,
+        pix_recebedor_id: atendimento.pixRecebedorId,
+        pix_recebedor: row.pixRecebedor?.id
+          ? {
+              id: row.pixRecebedor.id,
+              receiver_name: row.pixRecebedor.receiverName,
+              pix_key: row.pixRecebedor.pixKey,
+              receiver_city: row.pixRecebedor.receiverCity,
+            }
+          : null,
+        pagamento_end_to_end_id: atendimento.pagamentoEndToEndId,
+        pagamento_ispb: atendimento.pagamentoIspb,
+        pagamento_instituicao: atendimento.pagamentoInstituicao,
+        pagamento_comprovante_nome: atendimento.pagamentoComprovanteNome,
+        pagamento_comprovante_tipo: atendimento.pagamentoComprovanteTipo,
+        pagamento_confirmado_em: atendimento.pagamentoConfirmadoEm,
+        pagamento_confirmado_por_user_id: atendimento.pagamentoConfirmadoPorUserId,
         descricao_solicitacao: atendimento.descricaoSolicitacao,
         criado_por_user_id: atendimento.criadoPorUserId,
         vendido_por_user_id: atendimento.vendidoPorUserId,
@@ -142,6 +175,7 @@ export async function listAtendimentosComRelacoes(
         criado_por: null,
         vendido_por: null,
         atendido_por: null,
+        pagamento_confirmado_por: null,
         transacoes: transacao,
         financeiro_contabilizado: transacao.length > 0,
         financeiro_transacao_id: transacao[0]?.id ?? null,
@@ -192,7 +226,12 @@ async function hydrateAtendimentoUsers(
 ): Promise<AtendimentoComRelacoes[]> {
   const ids = Array.from(
     new Set(
-      rows.flatMap((row) => [row.criado_por_user_id, row.vendido_por_user_id, row.atendido_por_user_id]),
+      rows.flatMap((row) => [
+        row.criado_por_user_id,
+        row.vendido_por_user_id,
+        row.atendido_por_user_id,
+        row.pagamento_confirmado_por_user_id,
+      ]),
     ),
   ).filter((id): id is string => Boolean(id));
   if (ids.length === 0) return [...rows];
@@ -206,6 +245,9 @@ async function hydrateAtendimentoUsers(
     criado_por: row.criado_por_user_id ? (usersById.get(row.criado_por_user_id) ?? null) : null,
     vendido_por: row.vendido_por_user_id ? (usersById.get(row.vendido_por_user_id) ?? null) : null,
     atendido_por: row.atendido_por_user_id ? (usersById.get(row.atendido_por_user_id) ?? null) : null,
+    pagamento_confirmado_por: row.pagamento_confirmado_por_user_id
+      ? (usersById.get(row.pagamento_confirmado_por_user_id) ?? null)
+      : null,
   }));
 }
 

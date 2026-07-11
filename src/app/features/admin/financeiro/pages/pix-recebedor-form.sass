@@ -1,7 +1,84 @@
 .content
   padding: 1rem
-  max-width: 36rem
+  max-width: 44rem
   margin: 0 auto
+  display: flex
+  flex-direction: column
+  gap: 1rem
+
+.spacer
+  flex: 1
+
+.recebedores
+  display: flex
+  flex-direction: column
+  gap: 0.75rem
+
+.empty
+  margin: 0
+  padding: 1rem
+  color: var(--mat-sys-on-surface-variant)
+  text-align: center
+
+.recebedor
+  background: var(--mat-sys-surface-container)
+
+  &.inativo
+    opacity: 0.66
+
+  mat-card-content
+    display: flex
+    flex-direction: column
+    gap: 0.875rem
+    padding: 1rem !important
+
+.recebedor-main,
+.recebedor-actions,
+.badges
+  display: flex
+  align-items: center
+
+.recebedor-main
+  justify-content: space-between
+  gap: 1rem
+
+  > div:first-child
+    min-width: 0
+    display: flex
+    flex-direction: column
+    gap: 0.2rem
+
+  strong,
+  .pix-key
+    overflow-wrap: anywhere
+
+  small
+    color: var(--mat-sys-on-surface-variant)
+
+.pix-key
+  color: var(--mat-sys-primary)
+
+.badges
+  flex-wrap: wrap
+  justify-content: flex-end
+  gap: 0.4rem
+
+.badge
+  border-radius: 999px
+  padding: 0.2rem 0.55rem
+  color: var(--mat-sys-on-surface-variant)
+  background: var(--mat-sys-surface-container-high)
+  font-size: 0.75rem
+  font-weight: 700
+
+  &.primary
+    color: var(--mat-sys-on-primary-container)
+    background: var(--mat-sys-primary-container)
+
+.recebedor-actions
+  justify-content: flex-end
+  gap: 0.35rem
+  flex-wrap: wrap
 
 .card-content
   padding: 1.5rem !important
@@ -14,9 +91,10 @@
   mat-form-field
     width: 100%
 
-  .actions
+  .form-actions
     display: flex
     justify-content: flex-end
+    gap: 0.75rem
     margin-top: 0.5rem
 
   button[mat-flat-button]
@@ -24,3 +102,17 @@
     display: inline-flex
     align-items: center
     gap: 0.5rem
+
+@media (max-width: 40rem)
+  .content
+    padding: 0.75rem
+
+  .recebedor-main
+    align-items: flex-start
+    flex-direction: column
+
+  .badges
+    justify-content: flex-start
+
+  .recebedor-actions
+    justify-content: flex-start

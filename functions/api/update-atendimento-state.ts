@@ -37,6 +37,12 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (!parsed.ok) return json({ error: parsed.error }, 400);
   const { id, state } = parsed.data;
   if (!ALLOWED_STATES.has(state as AtendimentoState)) return json({ error: 'state inválido' }, 400);
+  if (state === 'concluido') {
+    return json(
+      { error: 'Confirme o pagamento com EndToEndId ou comprovante antes de finalizar' },
+      400,
+    );
+  }
   if (state === 'recusado' && staffCheck.role !== 'admin') {
     return json({ error: 'Apenas administradores podem cancelar atendimentos' }, 403);
   }

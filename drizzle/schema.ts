@@ -87,6 +87,15 @@ export const atendimentos = pgTable('atendimentos', {
   vendidoPorUserId: uuid('vendido_por_user_id'),
   atendidoPorUserId: uuid('atendido_por_user_id'),
   acrescimoCentavos: integer('acrescimo_centavos').default(0).notNull(),
+  pixRecebedorId: uuid('pix_recebedor_id'),
+  pagamentoEndToEndId: text('pagamento_end_to_end_id'),
+  pagamentoIspb: text('pagamento_ispb'),
+  pagamentoInstituicao: text('pagamento_instituicao'),
+  pagamentoComprovantePath: text('pagamento_comprovante_path'),
+  pagamentoComprovanteNome: text('pagamento_comprovante_nome'),
+  pagamentoComprovanteTipo: text('pagamento_comprovante_tipo'),
+  pagamentoConfirmadoEm: timestamp('pagamento_confirmado_em', { withTimezone: true, mode: 'string' }),
+  pagamentoConfirmadoPorUserId: uuid('pagamento_confirmado_por_user_id'),
 });
 
 export const transacoes = pgTable('transacoes', {
@@ -105,6 +114,17 @@ export const pixRecebedorConfig = pgTable('pix_recebedor_config', {
   pixKey: text('pix_key').default('').notNull(),
   receiverName: text('receiver_name').default('').notNull(),
   receiverCity: text('receiver_city').default('').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+});
+
+export const pixRecebedores = pgTable('pix_recebedores', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  pixKey: text('pix_key').notNull(),
+  receiverName: text('receiver_name').notNull(),
+  receiverCity: text('receiver_city').notNull(),
+  ativo: boolean('ativo').default(true).notNull(),
+  padrao: boolean('padrao').default(false).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 });

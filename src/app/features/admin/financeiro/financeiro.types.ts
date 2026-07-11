@@ -56,16 +56,18 @@ export interface ResumoFinanceiro {
   saldo: number;
 }
 
-export interface PixRecebedorConfig {
-  id: number;
+export interface PixRecebedor {
+  id: string;
   pix_key: string;
   receiver_name: string;
   receiver_city: string;
+  ativo: boolean;
+  padrao: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface PixRecebedorConfigFormData {
+export interface PixRecebedorFormData {
   pix_key: string;
   receiver_name: string;
   receiver_city: string;

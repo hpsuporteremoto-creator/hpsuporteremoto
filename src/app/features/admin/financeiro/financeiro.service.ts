@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { AuthService } from '../../../core/auth/auth.service';
 import {
-  PixRecebedorConfig,
-  PixRecebedorConfigFormData,
+  PixRecebedor,
+  PixRecebedorFormData,
   ResumoFinanceiro,
   Transacao,
   TransacaoFormData,
@@ -38,20 +38,38 @@ export class FinanceiroService {
     await this.postApi('/api/financeiro', { action: 'delete', id });
   }
 
-  async getPixRecebedorConfig(): Promise<PixRecebedorConfig | null> {
-    const payload = await this.fetchApi<{ config?: PixRecebedorConfig | null; error?: string }>(
+  async listPixRecebedores(): Promise<PixRecebedor[]> {
+    const payload = await this.fetchApi<{ recebedores?: PixRecebedor[]; error?: string }>(
       '/api/financeiro?action=pix',
     );
-    return payload.config ?? null;
+    return payload.recebedores ?? [];
   }
 
-  async savePixRecebedorConfig(input: PixRecebedorConfigFormData): Promise<PixRecebedorConfig> {
-    const payload = await this.postApi<{ config?: PixRecebedorConfig; error?: string }>('/api/financeiro', {
-      action: 'save-pix',
+  async createPixRecebedor(input: PixRecebedorFormData): Promise<PixRecebedor> {
+    const payload = await this.postApi<{ recebedor?: PixRecebedor; error?: string }>('/api/financeiro', {
+      action: 'create-pix',
       ...input,
     });
-    if (!payload.config) throw new Error('Falha ao salvar recebedor PIX');
-    return payload.config;
+    if (!payload.recebedor) throw new Error('Falha ao cadastrar chave PIX');
+    return payload.recebedor;
+  }
+
+  async updatePixRecebedor(id: string, input: PixRecebedorFormData): Promise<PixRecebedor> {
+    const payload = await this.postApi<{ recebedor?: PixRecebedor; error?: string }>('/api/financeiro', {
+      action: 'update-pix',
+      id,
+      ...input,
+    });
+    if (!payload.recebedor) throw new Error('Falha ao atualizar chave PIX');
+    return payload.recebedor;
+  }
+
+  async togglePixRecebedor(id: string, ativo: boolean): Promise<void> {
+    await this.postApi('/api/financeiro', { action: 'toggle-pix', id, ativo });
+  }
+
+  async definirPixRecebedorPadrao(id: string): Promise<void> {
+    await this.postApi('/api/financeiro', { action: 'set-default-pix', id });
   }
 
   static calcularResumo(transacoes: ReadonlyArray<Transacao>): ResumoFinanceiro {

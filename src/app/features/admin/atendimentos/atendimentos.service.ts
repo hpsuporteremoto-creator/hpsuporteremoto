@@ -8,6 +8,7 @@ import {
   AtendimentoState,
   AtualizarAtendimentoEmAndamentoData,
   CriarAtendimentoParaClienteData,
+  PixRecebedorResumo,
 } from './atendimentos.types';
 
 @Injectable({ providedIn: 'root' })
@@ -96,6 +97,7 @@ export class AtendimentosService {
     desconto_centavos: number,
     acrescimo_centavos: number,
     descricao_solicitacao?: string | null,
+    pix_recebedor_id?: string | null,
   ): Promise<{ pix_brcode: string; valor_centavos: number }> {
     const token = await this.auth.getAccessToken();
     if (!token) throw new Error('Sessão inválida');
@@ -112,6 +114,7 @@ export class AtendimentosService {
         desconto_centavos,
         acrescimo_centavos,
         descricao_solicitacao,
+        pix_recebedor_id,
       }),
     });
 
@@ -128,6 +131,58 @@ export class AtendimentosService {
       pix_brcode: payload.pix_brcode ?? '',
       valor_centavos: payload.valor_centavos ?? 0,
     };
+  }
+
+  async listPixRecebedores(): Promise<PixRecebedorResumo[]> {
+    const payload = await this.fetchApi<{ recebedores?: PixRecebedorResumo[]; error?: string }>(
+      '/api/pix-recebedores',
+    );
+    return payload.recebedores ?? [];
+  }
+
+  async enviarComprovante(atendimentoId: string, file: File): Promise<{
+    path: string;
+    nome: string;
+    tipo: string;
+  }> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const body = new FormData();
+    body.append('atendimento_id', atendimentoId);
+    body.append('file', file);
+    const response = await fetch('/api/payment-receipt', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      comprovante?: { path?: string; nome?: string; tipo?: string };
+    };
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    const comprovante = payload.comprovante;
+    if (!comprovante?.path || !comprovante.nome || !comprovante.tipo) {
+      throw new Error('Falha ao anexar comprovante');
+    }
+    return { path: comprovante.path, nome: comprovante.nome, tipo: comprovante.tipo };
+  }
+
+  async confirmarPagamento(input: {
+    atendimento_id: string;
+    end_to_end_id?: string | null;
+    comprovante_path?: string | null;
+    comprovante_nome?: string | null;
+    comprovante_tipo?: string | null;
+  }): Promise<void> {
+    await this.postApi('/api/confirm-payment', input);
+  }
+
+  async abrirComprovante(atendimentoId: string): Promise<string> {
+    const payload = await this.fetchApi<{ url?: string; error?: string }>(
+      `/api/payment-receipt?atendimento_id=${encodeURIComponent(atendimentoId)}`,
+    );
+    if (!payload.url) throw new Error('Comprovante indisponível');
+    return payload.url;
   }
 
   private async fetchApi<T extends { error?: string }>(url: string): Promise<T> {

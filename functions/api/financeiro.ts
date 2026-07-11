@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
-import { atendimentos, pixRecebedorConfig, transacoes } from '../../drizzle/schema';
+import { atendimentos, pixRecebedores, transacoes } from '../../drizzle/schema';
 import { requireAdmin } from './admin-auth';
 import { listAtendimentosComRelacoes } from './atendimentos-shared';
 import { type DatabaseEnv, withDatabase } from '../lib/db';
@@ -9,14 +9,19 @@ import { isoDateSchema, positiveIntegerSchema, readJson, uuidSchema, z } from '.
 type Env = DatabaseEnv & { SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string };
 type Context = { request: Request; env: Env };
 
+const pixReceiverDataSchema = z.object({
+  pix_key: z.string().trim().min(1, 'Preencha os dados da chave PIX').max(512),
+  receiver_name: z.string().trim().min(2, 'Preencha o nome do recebedor').max(120),
+  receiver_city: z.string().trim().min(2, 'Preencha a cidade do recebedor').max(80),
+});
+
 const financialMutationSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('delete'), id: uuidSchema }),
-  z.object({
-    action: z.literal('save-pix'),
-    pix_key: z.string().trim().min(1, 'Preencha os dados do recebedor PIX').max(512),
-    receiver_name: z.string().trim().min(2, 'Preencha os dados do recebedor PIX').max(120),
-    receiver_city: z.string().trim().min(2, 'Preencha os dados do recebedor PIX').max(80),
-  }),
+  z.object({ action: z.literal('save-pix'), ...pixReceiverDataSchema.shape }),
+  z.object({ action: z.literal('create-pix'), ...pixReceiverDataSchema.shape }),
+  z.object({ action: z.literal('update-pix'), id: uuidSchema, ...pixReceiverDataSchema.shape }),
+  z.object({ action: z.literal('toggle-pix'), id: uuidSchema, ativo: z.boolean() }),
+  z.object({ action: z.literal('set-default-pix'), id: uuidSchema }),
   z.object({
     action: z.literal('create'),
     tipo: z.enum(['entrada', 'saida']),
@@ -39,11 +44,14 @@ export const onRequestGet = async ({ request, env }: Context): Promise<Response>
   const action = url.searchParams.get('action') ?? 'list';
   try {
     if (action === 'pix') {
-      const config = await withDatabase(env, async (db) => {
-        const [row] = await db.select().from(pixRecebedorConfig).where(eq(pixRecebedorConfig.id, 1));
-        return row ? toPixConfig(row) : null;
-      });
-      return json({ config });
+      const recebedores = await withDatabase(env, (db) =>
+        db
+          .select()
+          .from(pixRecebedores)
+          .orderBy(desc(pixRecebedores.ativo), desc(pixRecebedores.padrao), asc(pixRecebedores.receiverName)),
+      );
+      const list = recebedores.map(toPixRecebedor);
+      return json({ recebedores: list, config: list.find((item) => item.padrao) ?? list[0] ?? null });
     }
     const from = url.searchParams.get('from') ?? '';
     const to = url.searchParams.get('to') ?? '';
@@ -89,17 +97,71 @@ export const onRequestPost = async ({ request, env }: Context): Promise<Response
       await withDatabase(env, (db) => db.delete(transacoes).where(eq(transacoes.id, body.id)));
       return json({ ok: true });
     }
-    if (body.action === 'save-pix') {
+    if (body.action === 'save-pix' || body.action === 'create-pix') {
       const { pix_key: pixKey, receiver_name: receiverName, receiver_city: receiverCity } = body;
-      const config = await withDatabase(env, async (db) => {
-        const [row] = await db
-          .insert(pixRecebedorConfig)
-          .values({ id: 1, pixKey, receiverName, receiverCity })
-          .onConflictDoUpdate({ target: pixRecebedorConfig.id, set: { pixKey, receiverName, receiverCity } })
+      const recebedor = await withDatabase(env, async (db) => {
+        if (body.action === 'save-pix') {
+          const [existing] = await db
+            .select()
+            .from(pixRecebedores)
+            .where(and(eq(pixRecebedores.ativo, true), eq(pixRecebedores.padrao, true)));
+          if (existing) {
+            const [updated] = await db
+              .update(pixRecebedores)
+              .set({ pixKey, receiverName, receiverCity })
+              .where(eq(pixRecebedores.id, existing.id))
+              .returning();
+            return updated ?? null;
+          }
+        }
+        const [activeDefault] = await db
+          .select({ id: pixRecebedores.id })
+          .from(pixRecebedores)
+          .where(and(eq(pixRecebedores.ativo, true), eq(pixRecebedores.padrao, true)));
+        const [created] = await db
+          .insert(pixRecebedores)
+          .values({ pixKey, receiverName, receiverCity, ativo: true, padrao: !activeDefault })
           .returning();
-        return row ? toPixConfig(row) : null;
+        return created ?? null;
       });
-      return json({ config });
+      if (!recebedor) return json({ error: 'Falha ao salvar chave PIX' }, 500);
+      return json({ recebedor: toPixRecebedor(recebedor), config: toPixRecebedor(recebedor) }, body.action === 'create-pix' ? 201 : 200);
+    }
+    if (body.action === 'update-pix') {
+      const { id, pix_key: pixKey, receiver_name: receiverName, receiver_city: receiverCity } = body;
+      const recebedor = await withDatabase(env, async (db) => {
+        const [updated] = await db
+          .update(pixRecebedores)
+          .set({ pixKey, receiverName, receiverCity })
+          .where(eq(pixRecebedores.id, id))
+          .returning();
+        return updated ?? null;
+      });
+      if (!recebedor) return json({ error: 'Chave PIX não encontrada' }, 404);
+      return json({ recebedor: toPixRecebedor(recebedor) });
+    }
+    if (body.action === 'toggle-pix') {
+      const result = await withDatabase(env, async (db) => {
+        const [current] = await db.select().from(pixRecebedores).where(eq(pixRecebedores.id, body.id));
+        if (!current) return 'not-found' as const;
+        if (current.padrao && !body.ativo) return 'default' as const;
+        await db.update(pixRecebedores).set({ ativo: body.ativo }).where(eq(pixRecebedores.id, body.id));
+        return 'ok' as const;
+      });
+      if (result === 'not-found') return json({ error: 'Chave PIX não encontrada' }, 404);
+      if (result === 'default') return json({ error: 'Defina outra chave padrão antes de desativar esta.' }, 409);
+      return json({ ok: true });
+    }
+    if (body.action === 'set-default-pix') {
+      const result = await withDatabase(env, async (db) => {
+        const [current] = await db.select().from(pixRecebedores).where(eq(pixRecebedores.id, body.id));
+        if (!current || !current.ativo) return false;
+        await db.update(pixRecebedores).set({ padrao: false }).where(eq(pixRecebedores.padrao, true));
+        await db.update(pixRecebedores).set({ padrao: true }).where(eq(pixRecebedores.id, body.id));
+        return true;
+      });
+      if (!result) return json({ error: 'Chave PIX ativa não encontrada' }, 404);
+      return json({ ok: true });
     }
     if (body.action === 'create') {
       const { tipo, valor_centavos: valorCentavos, descricao, data, atendimento_id: atendimentoId } = body;
@@ -119,8 +181,17 @@ function toTransacao(row: typeof transacoes.$inferSelect) {
   return { id: row.id, tipo: row.tipo, valor_centavos: row.valorCentavos, descricao: row.descricao, atendimento_id: row.atendimentoId, data: row.data, created_at: row.createdAt, updated_at: row.updatedAt };
 }
 
-function toPixConfig(row: typeof pixRecebedorConfig.$inferSelect) {
-  return { id: row.id, pix_key: row.pixKey, receiver_name: row.receiverName, receiver_city: row.receiverCity, created_at: row.createdAt, updated_at: row.updatedAt };
+function toPixRecebedor(row: typeof pixRecebedores.$inferSelect) {
+  return {
+    id: row.id,
+    pix_key: row.pixKey,
+    receiver_name: row.receiverName,
+    receiver_city: row.receiverCity,
+    ativo: row.ativo,
+    padrao: row.padrao,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+  };
 }
 
 function isDate(value: string): boolean {

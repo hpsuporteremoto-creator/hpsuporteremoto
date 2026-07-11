@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import {
   buildBrCodeRef,
   generateStaticBrCode,
@@ -9,7 +9,12 @@ import {
 import { requireStaff } from './admin-auth';
 import { canStaffAccessAtendimento } from './atendimentos-shared';
 import type { AtendimentoOwnership } from './atendimentos-shared';
-import { atendimentos, pixRecebedorConfig, servicos as servicosTable } from '../../drizzle/schema';
+import {
+  atendimentos,
+  pixRecebedorConfig,
+  pixRecebedores,
+  servicos as servicosTable,
+} from '../../drizzle/schema';
 import { type DatabaseEnv, withDatabase } from '../lib/db';
 import { nonNegativeIntegerSchema, readJson, uuidSchema, z } from '../lib/validation';
 
@@ -24,6 +29,7 @@ type Env = DatabaseEnv & {
 type Context = { request: Request; env: Env };
 
 type PixReceiverConfig = {
+  id: string | null;
   pixKey: string;
   receiverName: string;
   receiverCity: string;
@@ -54,6 +60,7 @@ const pixGenerationSchema = z
     servico_itens: z.array(servicoItemSchema).min(1, 'Escolha ao menos um serviço').optional(),
     desconto_centavos: nonNegativeIntegerSchema.optional(),
     acrescimo_centavos: nonNegativeIntegerSchema.optional(),
+    pix_recebedor_id: uuidSchema.nullable().optional().transform((value) => value ?? null),
     descricao_solicitacao: z
       .string()
       .trim()
@@ -170,7 +177,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   }
 
   const totalCentavos = subtotalCentavos + acrescimoCentavos - descontoCentavos;
-  const receiverConfig = await getPixReceiverConfig(env);
+  const receiverConfig = await getPixReceiverConfig(env, input.pix_recebedor_id);
   if ('error' in receiverConfig) return json({ error: receiverConfig.error }, 500);
 
   let brcode: string;
@@ -201,6 +208,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
           descontoCentavos,
           acrescimoCentavos,
           descricaoSolicitacao,
+          pixRecebedorId: receiverConfig.id,
           servicoId: servicoIds[0] ?? null,
           servicoIds,
           vendidoPorUserId: staffCheck.user.id,
@@ -220,18 +228,53 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
       desconto_centavos: descontoCentavos,
       acrescimo_centavos: acrescimoCentavos,
       valor_centavos: totalCentavos,
+      pix_recebedor_id: receiverConfig.id,
       state: 'pagamento',
     },
     200,
   );
 };
 
-async function getPixReceiverConfig(env: Env): Promise<PixReceiverConfig | { error: string }> {
-  let data: { pixKey: string; receiverName: string; receiverCity: string } | null;
+async function getPixReceiverConfig(
+  env: Env,
+  selectedReceiverId: string | null,
+): Promise<PixReceiverConfig | { error: string }> {
+  let receiver: { id: string; pixKey: string; receiverName: string; receiverCity: string } | null;
   try {
-    data = await withDatabase(env, async (db) => {
+    receiver = await withDatabase(env, async (db) => {
+      const query = db
+        .select({
+          id: pixRecebedores.id,
+          pixKey: pixRecebedores.pixKey,
+          receiverName: pixRecebedores.receiverName,
+          receiverCity: pixRecebedores.receiverCity,
+        })
+        .from(pixRecebedores);
+      const rows = selectedReceiverId
+        ? await query.where(and(eq(pixRecebedores.id, selectedReceiverId), eq(pixRecebedores.ativo, true)))
+        : await query
+            .where(eq(pixRecebedores.ativo, true))
+            .orderBy(desc(pixRecebedores.padrao), asc(pixRecebedores.receiverName));
+      return rows[0] ?? null;
+    });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Erro ao carregar recebedor PIX' };
+  }
+
+  if (selectedReceiverId && !receiver) {
+    return { error: 'A chave PIX selecionada não está disponível' };
+  }
+  if (receiver && isCompleteReceiverConfig(receiver)) return receiver;
+
+  let legacy: { pixKey: string; receiverName: string; receiverCity: string } | null;
+  try {
+    legacy = await withDatabase(env, async (db) => {
       const [row] = await db
-        .select({ pixKey: pixRecebedorConfig.pixKey, receiverName: pixRecebedorConfig.receiverName, receiverCity: pixRecebedorConfig.receiverCity })
+        .select({
+          pixKey: pixRecebedorConfig.pixKey,
+          receiverName: pixRecebedorConfig.receiverName,
+          receiverCity: pixRecebedorConfig.receiverCity,
+        })
         .from(pixRecebedorConfig)
         .where(eq(pixRecebedorConfig.id, 1));
       return row ?? null;
@@ -241,13 +284,15 @@ async function getPixReceiverConfig(env: Env): Promise<PixReceiverConfig | { err
   }
 
   const dbConfig = {
-    pixKey: data?.pixKey.trim() ?? '',
-    receiverName: data?.receiverName.trim() ?? '',
-    receiverCity: data?.receiverCity.trim() ?? '',
+    id: null,
+    pixKey: legacy?.pixKey.trim() ?? '',
+    receiverName: legacy?.receiverName.trim() ?? '',
+    receiverCity: legacy?.receiverCity.trim() ?? '',
   };
   if (isCompleteReceiverConfig(dbConfig)) return dbConfig;
 
   const envConfig = {
+    id: null,
     pixKey: env.PIX_KEY?.trim() ?? '',
     receiverName: env.PIX_RECEIVER_NAME?.trim() ?? '',
     receiverCity: env.PIX_RECEIVER_CITY?.trim() ?? '',

@@ -23,6 +23,15 @@ export interface Atendimento {
   state: AtendimentoState;
   valor_centavos: number | null;
   pix_brcode: string | null;
+  pix_recebedor_id: string | null;
+  pix_recebedor: PixRecebedorResumo | null;
+  pagamento_end_to_end_id: string | null;
+  pagamento_ispb: string | null;
+  pagamento_instituicao: string | null;
+  pagamento_comprovante_nome: string | null;
+  pagamento_comprovante_tipo: string | null;
+  pagamento_confirmado_em: string | null;
+  pagamento_confirmado_por_user_id: string | null;
   descricao_solicitacao: string | null;
   criado_por_user_id: string | null;
   vendido_por_user_id: string | null;
@@ -72,6 +81,15 @@ export interface AtendimentoUserRef {
   full_name: string | null;
 }
 
+export interface PixRecebedorResumo {
+  id: string;
+  pix_key: string;
+  receiver_name: string;
+  receiver_city: string;
+  ativo?: boolean;
+  padrao?: boolean;
+}
+
 export interface AtendimentoComRelacoes extends Atendimento {
   cliente: AtendimentoClienteRef;
   servico: AtendimentoServicoRef | null;
@@ -79,6 +97,7 @@ export interface AtendimentoComRelacoes extends Atendimento {
   criado_por: AtendimentoUserRef | null;
   vendido_por: AtendimentoUserRef | null;
   atendido_por: AtendimentoUserRef | null;
+  pagamento_confirmado_por: AtendimentoUserRef | null;
   financeiro_contabilizado: boolean;
   financeiro_transacao_id: string | null;
 }
