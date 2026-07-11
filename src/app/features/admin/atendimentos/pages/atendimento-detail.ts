@@ -3,6 +3,7 @@ import { CurrencyPipe, DatePipe, Location } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -10,6 +11,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { isValidBrCode } from '@thiagoprazeres/pix-static-brcode';
 import { parseE2EId } from '@thiagoprazeres/parse-e2eid';
 import { toDataURL } from 'qrcode';
@@ -17,6 +19,7 @@ import { AuthService } from '../../../../core/auth/auth.service';
 import { ServicosService } from '../../servicos/servicos.service';
 import { Servico } from '../../servicos/servicos.types';
 import { AtendimentosService } from '../atendimentos.service';
+import { EndToEndIdHelpDialog } from '../components/end-to-end-id-help-dialog';
 import {
   ATENDIMENTO_STATE_LABEL,
   AtendimentoComRelacoes,
@@ -53,6 +56,7 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
     MatProgressBarModule,
     MatSelectModule,
     MatToolbarModule,
+    MatTooltipModule,
   ],
   template: `
     <mat-toolbar color="primary">
@@ -710,6 +714,16 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                       (input)="onEndToEndIdChange($event)"
                       [disabled]="updating()"
                     />
+                    <button
+                      mat-icon-button
+                      matIconSuffix
+                      type="button"
+                      aria-label="Entender o EndToEndId"
+                      matTooltip="O que é o EndToEndId?"
+                      (click)="abrirAjudaEndToEndId()"
+                    >
+                      <mat-icon>help_outline</mat-icon>
+                    </button>
                     @if (endToEndIdInvalido()) {
                       <mat-error>EndToEndId inválido</mat-error>
                     }
@@ -820,6 +834,7 @@ export class AtendimentoDetailPage {
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly atendimento = signal<AtendimentoComRelacoes | null>(null);
   protected readonly loading = signal(false);
@@ -1060,6 +1075,13 @@ export class AtendimentoDetailPage {
   onEndToEndIdChange(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     this.endToEndId.set((input?.value ?? '').replace(/\s+/g, '').toUpperCase());
+  }
+
+  abrirAjudaEndToEndId(): void {
+    this.dialog.open(EndToEndIdHelpDialog, {
+      autoFocus: false,
+      width: 'min(92vw, 32rem)',
+    });
   }
 
   onComprovanteChange(event: Event): void {
