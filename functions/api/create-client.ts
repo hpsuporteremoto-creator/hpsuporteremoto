@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { clientes } from '../../drizzle/schema';
 import { requireStaff } from './admin-auth';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
+import { toClienteResponse } from '../lib/clientes';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -59,25 +62,29 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: 'Email inválido' }, 400);
   }
 
-  const { data, error } = await admin
-    .from('clientes')
-    .insert({
-      nome,
-      whatsapp,
-      instagram,
-      email,
-      observacao,
-      ativo: input.ativo === false ? false : true,
-      marketing_opt_in: input.marketing_opt_in !== false,
-      marketing_opt_in_at: input.marketing_opt_in === false ? null : new Date().toISOString(),
-      marketing_opt_out_at: input.marketing_opt_in === false ? new Date().toISOString() : null,
-      cadastrado_por_user_id: staffCheck.user.id,
-    })
-    .select('*')
-    .single();
-
-  if (error) return json({ error: toClienteErrorMessage(error) }, 400);
-  return json({ cliente: data }, 201);
+  try {
+    const now = new Date().toISOString();
+    const [cliente] = await withDatabase(env, (db) =>
+      db
+        .insert(clientes)
+        .values({
+          nome,
+          whatsapp,
+          instagram,
+          email,
+          observacao,
+          ativo: input.ativo !== false,
+          marketingOptIn: input.marketing_opt_in !== false,
+          marketingOptInAt: input.marketing_opt_in === false ? null : now,
+          marketingOptOutAt: input.marketing_opt_in === false ? now : null,
+          cadastradoPorUserId: staffCheck.user.id,
+        })
+        .returning(),
+    );
+    return json({ cliente: cliente ? toClienteResponse(cliente) : null }, 201);
+  } catch (error) {
+    return json({ error: toClienteErrorMessage(error) }, 400);
+  }
 };
 
 function normalizeRequiredText(value: unknown): string | null {
@@ -98,9 +105,10 @@ function normalizeWhatsapp(value: unknown): string | null {
   return digits.length >= 10 && digits.length <= 15 ? digits : null;
 }
 
-function toClienteErrorMessage(error: { code?: string; message: string }): string {
-  if (error.code === '23505') {
+function toClienteErrorMessage(error: unknown): string {
+  const candidate = error as { code?: string; message?: string };
+  if (candidate.code === '23505') {
     return 'Já existe um cliente cadastrado com este WhatsApp.';
   }
-  return error.message;
+  return typeof candidate.message === 'string' ? candidate.message : 'Erro ao cadastrar cliente';
 }

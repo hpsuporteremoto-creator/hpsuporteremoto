@@ -1,14 +1,22 @@
+import { asc, desc, eq } from 'drizzle-orm';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { strToU8, zipSync } from 'fflate';
-import { getUserRole, isAdminUser, listAllUsers, metadataText, requireAdmin } from './admin-auth';
 import {
-  ATENDIMENTO_SELECT,
-  hydrateServicosSolicitados,
-  type AtendimentoComRelacoes,
-} from './atendimentos-shared';
+  clientes as clientesTable,
+  marketingCampanhas,
+  pixRecebedorConfig,
+  profiles as profilesTable,
+  servicoCategorias,
+  servicoComentarios,
+  servicos as servicosTable,
+  transacoes as transacoesTable,
+} from '../../drizzle/schema';
+import { getUserRole, isAdminUser, listAllUsers, metadataText, requireAdmin } from './admin-auth';
+import { listAtendimentosComRelacoes, type AtendimentoComRelacoes } from './atendimentos-shared';
 import { accessFromMetadata, latestAccessByUserIds, type UserAccessRef } from './user-access';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -140,11 +148,13 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
 
   try {
     const generatedAt = new Date().toISOString();
-    const data = await loadExportData(admin, generatedAt);
+    const data = await loadExportData(admin, env, generatedAt);
     const workbook = buildXlsx(buildSheets(data));
     const filename = `hp-suporte-remoto-${generatedAt.slice(0, 10)}.xlsx`;
+    const responseBytes = new Uint8Array(workbook.byteLength);
+    responseBytes.set(workbook);
 
-    return new Response(workbook, {
+    return new Response(responseBytes.buffer, {
       status: 200,
       headers: {
         'Content-Type': XLSX_MIME,
@@ -162,121 +172,76 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   }
 };
 
-async function loadExportData(admin: SupabaseClient, generatedAt: string): Promise<ExportData> {
-  const [
-    users,
-    profiles,
-    clientes,
-    categorias,
-    servicos,
-    atendimentosRaw,
-    transacoes,
-    comentarios,
-    pixConfigs,
-  ] = await Promise.all([
-    listAllUsers(admin),
-    selectAllRows<ProfileRow>(
-      admin,
-      'profiles',
-      'id, email, full_name, avatar_url, created_at, updated_at',
-      'email',
-    ),
-    selectAllRows<ClienteRow>(
-      admin,
-      'clientes',
-      'id, nome, whatsapp, instagram, email, observacao, ativo, cadastrado_por_user_id, created_at, updated_at',
-      'nome',
-    ),
-    selectAllRows<ServicoCategoriaRow>(
-      admin,
-      'servico_categorias',
-      'id, nome, descricao, ativo, created_at, updated_at',
-      'nome',
-    ),
-    selectAllRows<ServicoRow>(
-      admin,
-      'servicos',
-      `
-        id, nome, categoria_id, descricao, imagem_url,
-        valor_centavos, ativo, vitrine, created_at,
-        categoria:servico_categorias ( id, nome, descricao, ativo )
-      `,
-      'nome',
-    ),
-    selectAllRows<AtendimentoComRelacoes>(
-      admin,
-      'atendimentos',
-      ATENDIMENTO_SELECT,
-      'created_at',
-      false,
-    ),
-    selectAllRows<TransacaoRow>(
-      admin,
-      'transacoes',
-      'id, tipo, valor_centavos, descricao, atendimento_id, data, created_at, updated_at',
-      'data',
-      false,
-    ),
-    selectAllRows<ComentarioRow>(
-      admin,
-      'servico_comentarios',
-      'id, servico_id, parent_id, user_id, author_name, author_email, texto, created_at, updated_at',
-      'created_at',
-      false,
-    ),
-    selectAllRows<PixRecebedorConfigRow>(
-      admin,
-      'pix_recebedor_config',
-      'id, pix_key, receiver_name, receiver_city, created_at, updated_at',
-      'id',
-    ),
-  ]);
-
-  const atendimentos = await hydrateServicosSolicitados(
-    admin,
-    atendimentosRaw as AtendimentoComRelacoes[],
-  );
-  const latestAccessByUserId = await latestAccessByUserIds(
-    admin,
-    users.map((user) => user.id),
-  );
+async function loadExportData(
+  admin: SupabaseClient,
+  env: DatabaseEnv,
+  generatedAt: string,
+): Promise<ExportData> {
+  const users = await listAllUsers(admin);
+  const databaseData = await withDatabase(env, async (db) => {
+    const [profiles, clientes, categorias, servicos, atendimentos, transacoes, comentarios, pixConfigs, latestAccessByUserId] =
+      await Promise.all([
+        db
+          .select({ id: profilesTable.id, email: profilesTable.email, full_name: profilesTable.fullName, avatar_url: profilesTable.avatarUrl, created_at: profilesTable.createdAt, updated_at: profilesTable.updatedAt })
+          .from(profilesTable)
+          .orderBy(asc(profilesTable.email)),
+        db
+          .select({ id: clientesTable.id, nome: clientesTable.nome, whatsapp: clientesTable.whatsapp, instagram: clientesTable.instagram, email: clientesTable.email, observacao: clientesTable.observacao, ativo: clientesTable.ativo, cadastrado_por_user_id: clientesTable.cadastradoPorUserId, created_at: clientesTable.createdAt, updated_at: clientesTable.updatedAt })
+          .from(clientesTable)
+          .orderBy(asc(clientesTable.nome)),
+        db
+          .select({ id: servicoCategorias.id, nome: servicoCategorias.nome, descricao: servicoCategorias.descricao, ativo: servicoCategorias.ativo, created_at: servicoCategorias.createdAt, updated_at: servicoCategorias.updatedAt })
+          .from(servicoCategorias)
+          .orderBy(asc(servicoCategorias.nome)),
+        db
+          .select({
+            id: servicosTable.id,
+            nome: servicosTable.nome,
+            categoria_id: servicosTable.categoriaId,
+            descricao: servicosTable.descricao,
+            imagem_url: servicosTable.imagemUrl,
+            valor_centavos: servicosTable.valorCentavos,
+            ativo: servicosTable.ativo,
+            vitrine: servicosTable.vitrine,
+            created_at: servicosTable.createdAt,
+            categoria: { id: servicoCategorias.id, nome: servicoCategorias.nome, descricao: servicoCategorias.descricao, ativo: servicoCategorias.ativo },
+          })
+          .from(servicosTable)
+          .leftJoin(servicoCategorias, eq(servicosTable.categoriaId, servicoCategorias.id))
+          .orderBy(asc(servicosTable.nome)),
+        listAtendimentosComRelacoes(db),
+        db
+          .select({ id: transacoesTable.id, tipo: transacoesTable.tipo, valor_centavos: transacoesTable.valorCentavos, descricao: transacoesTable.descricao, atendimento_id: transacoesTable.atendimentoId, data: transacoesTable.data, created_at: transacoesTable.createdAt, updated_at: transacoesTable.updatedAt })
+          .from(transacoesTable)
+          .orderBy(desc(transacoesTable.data)),
+        db
+          .select({ id: servicoComentarios.id, servico_id: servicoComentarios.servicoId, parent_id: servicoComentarios.parentId, user_id: servicoComentarios.userId, author_name: servicoComentarios.authorName, author_email: servicoComentarios.authorEmail, texto: servicoComentarios.texto, created_at: servicoComentarios.createdAt, updated_at: servicoComentarios.updatedAt })
+          .from(servicoComentarios)
+          .orderBy(desc(servicoComentarios.createdAt)),
+        db
+          .select({ id: pixRecebedorConfig.id, pix_key: pixRecebedorConfig.pixKey, receiver_name: pixRecebedorConfig.receiverName, receiver_city: pixRecebedorConfig.receiverCity, created_at: pixRecebedorConfig.createdAt, updated_at: pixRecebedorConfig.updatedAt })
+          .from(pixRecebedorConfig),
+        latestAccessByUserIds(
+          db,
+          users.map((user) => user.id),
+        ),
+      ]);
+    return { profiles, clientes, categorias, servicos, atendimentos, transacoes, comentarios, pixConfigs, latestAccessByUserId };
+  });
 
   return {
     generatedAt,
     users,
-    latestAccessByUserId,
-    profiles,
-    clientes,
-    categorias,
-    servicos,
-    atendimentos,
-    transacoes,
-    comentarios,
-    pixConfigs,
+    latestAccessByUserId: databaseData.latestAccessByUserId,
+    profiles: databaseData.profiles,
+    clientes: databaseData.clientes,
+    categorias: databaseData.categorias,
+    servicos: databaseData.servicos.map((servico) => ({ ...servico, categoria: servico.categoria?.id ? servico.categoria : null })),
+    atendimentos: databaseData.atendimentos,
+    transacoes: databaseData.transacoes,
+    comentarios: databaseData.comentarios,
+    pixConfigs: databaseData.pixConfigs,
   };
-}
-
-async function selectAllRows<T extends Record<string, unknown>>(
-  admin: SupabaseClient,
-  table: string,
-  select: string,
-  orderColumn: string,
-  ascending = true,
-): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await admin
-      .from(table)
-      .select(select)
-      .order(orderColumn, { ascending })
-      .range(from, from + PAGE_SIZE - 1);
-
-    if (error) throw new Error(`${table}: ${error.message}`);
-
-    const page = (data ?? []) as unknown as T[];
-    rows.push(...page);
-    if (page.length < PAGE_SIZE) return rows;
-  }
 }
 
 function buildSheets(data: ExportData): ExcelSheet[] {

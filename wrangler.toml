@@ -1,3 +1,8 @@
 name = "hpsuporteremoto"
 compatibility_date = "2025-05-19"
+compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "./dist/hp-suporte-remoto-client/browser"
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "2b9e91b8f2db4c9e9534cf0be7e852a5"

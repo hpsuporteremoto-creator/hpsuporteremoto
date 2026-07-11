@@ -1,4 +1,6 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { desc, inArray } from 'drizzle-orm';
+import { userLoginDevices } from '../../drizzle/schema';
+import type { AppDatabase } from '../lib/db';
 
 export type UserAccessRow = {
   user_id: string;
@@ -56,26 +58,24 @@ export function isMissingUserLoginDevicesTable(error: DatabaseErrorLike): boolea
 }
 
 export async function latestAccessByUserIds(
-  admin: SupabaseClient,
+  db: AppDatabase,
   userIds: readonly string[],
 ): Promise<ReadonlyMap<string, UserAccessRef>> {
   if (userIds.length === 0) return new Map();
-
-  const { data, error } = await admin
-    .from('user_login_devices')
-    .select('user_id, device_label, ip_address, country, last_seen_at')
-    .in('user_id', [...new Set(userIds)])
-    .order('last_seen_at', { ascending: false });
-
-  if (error) {
-    if (isMissingUserLoginDevicesTable(error)) {
-      return new Map();
-    }
-    throw new Error(error.message);
-  }
+  const rows = await db
+    .select({
+      user_id: userLoginDevices.userId,
+      device_label: userLoginDevices.deviceLabel,
+      ip_address: userLoginDevices.ipAddress,
+      country: userLoginDevices.country,
+      last_seen_at: userLoginDevices.lastSeenAt,
+    })
+    .from(userLoginDevices)
+    .where(inArray(userLoginDevices.userId, [...new Set(userIds)]))
+    .orderBy(desc(userLoginDevices.lastSeenAt));
 
   const latestByUserId = new Map<string, UserAccessRef>();
-  for (const row of (data ?? []) as UserAccessRow[]) {
+  for (const row of rows as UserAccessRow[]) {
     if (latestByUserId.has(row.user_id)) continue;
     latestByUserId.set(row.user_id, {
       last_access_at: row.last_seen_at,

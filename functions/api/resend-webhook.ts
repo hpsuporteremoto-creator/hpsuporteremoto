@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { and, eq, ilike } from 'drizzle-orm';
 import { Resend, type WebhookEventPayload } from 'resend';
+import { clientes, marketingCampanhaDestinatarios, marketingCampanhas, marketingEventos } from '../../drizzle/schema';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   RESEND_API_KEY?: string;
@@ -64,16 +67,14 @@ export const onRequestPost = async ({ request, env }: Context): Promise<Response
     return json({ error: 'Assinatura inválida' }, 400);
   }
 
-  const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
   try {
     if (event.type === 'contact.updated' && event.data.unsubscribed) {
-      await admin
-        .from('clientes')
-        .update({ marketing_opt_in: false, marketing_opt_out_at: new Date().toISOString() })
-        .ilike('email', event.data.email);
+      await withDatabase(env, (db) =>
+        db
+          .update(clientes)
+          .set({ marketingOptIn: false, marketingOptOutAt: new Date().toISOString() })
+          .where(ilike(clientes.email, event.data.email)),
+      );
       return json({ ok: true });
     }
 
@@ -82,31 +83,28 @@ export const onRequestPost = async ({ request, env }: Context): Promise<Response
     const email = event.data.to[0]?.trim().toLowerCase();
     if (!broadcastId || !email) return json({ ok: true });
 
-    const { data: campaign, error: campaignError } = await admin
-      .from('marketing_campanhas')
-      .select('id')
-      .eq('resend_broadcast_id', broadcastId)
-      .maybeSingle<{ id: string }>();
-    if (campaignError) throw new Error(campaignError.message);
-    if (!campaign) return json({ ok: true });
-
-    const status = RECIPIENT_STATUS[event.type];
-    if (status) {
-      const { error } = await admin
-        .from('marketing_campanha_destinatarios')
-        .update({ status })
-        .eq('campanha_id', campaign.id)
-        .ilike('email', email);
-      if (error) throw new Error(error.message);
-    }
-
-    const { error: eventError } = await admin.from('marketing_eventos').insert({
-      campanha_id: campaign.id,
-      tipo: event.type,
-      resend_email_id: event.data.email_id,
-      payload: event,
+    const campaign = await withDatabase(env, async (db) => {
+      const [row] = await db
+        .select({ id: marketingCampanhas.id })
+        .from(marketingCampanhas)
+        .where(eq(marketingCampanhas.resendBroadcastId, broadcastId));
+      if (!row) return null;
+      const status = RECIPIENT_STATUS[event.type];
+      if (status) {
+        await db
+          .update(marketingCampanhaDestinatarios)
+          .set({ status })
+          .where(and(eq(marketingCampanhaDestinatarios.campanhaId, row.id), ilike(marketingCampanhaDestinatarios.email, email)));
+      }
+      await db.insert(marketingEventos).values({
+        campanhaId: row.id,
+        tipo: event.type,
+        resendEmailId: event.data.email_id,
+        payload: JSON.parse(JSON.stringify(event)) as Record<string, unknown>,
+      });
+      return row;
     });
-    if (eventError) throw new Error(eventError.message);
+    if (!campaign) return json({ ok: true });
     return json({ ok: true });
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : 'Erro ao processar webhook' }, 500);

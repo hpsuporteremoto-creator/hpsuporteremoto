@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { and, eq, inArray } from 'drizzle-orm';
+import { atendimentos, clientes, servicos } from '../../drizzle/schema';
 import { requireStaff } from './admin-auth';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -82,57 +85,48 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: 'Escolha ao menos um serviço' }, 400);
   }
 
-  const { data: cliente, error: clienteError } = await admin
-    .from('clientes')
-    .select('id, ativo')
-    .eq('id', clienteId)
-    .eq('ativo', true)
-    .maybeSingle<{ id: string; ativo: boolean }>();
-  if (clienteError) return json({ error: clienteError.message }, 500);
-  if (!cliente) return json({ error: 'Cliente ativo não encontrado' }, 404);
-
-  const { data: servicos, error: servicosError } = await admin
-    .from('servicos')
-    .select('id, valor_centavos')
-    .in('id', uniqueServicoIds)
-    .eq('ativo', true);
-  if (servicosError) return json({ error: servicosError.message }, 500);
-  const rows = (servicos ?? []) as ServicoRow[];
-  if (rows.length !== uniqueServicoIds.length) {
-    return json({ error: 'Um ou mais serviços não estão ativos' }, 400);
+  try {
+    const id = await withDatabase(env, async (db) => {
+      const [cliente] = await db
+        .select({ id: clientes.id })
+        .from(clientes)
+        .where(and(eq(clientes.id, clienteId), eq(clientes.ativo, true)));
+      if (!cliente) return null;
+      const rows = await db
+        .select({ id: servicos.id, valor_centavos: servicos.valorCentavos })
+        .from(servicos)
+        .where(and(inArray(servicos.id, uniqueServicoIds), eq(servicos.ativo, true)));
+      if (rows.length !== uniqueServicoIds.length) throw new Error('Um ou mais serviços não estão ativos');
+      const byId = new Map(rows.map((servico) => [servico.id, servico]));
+      const subtotal = servicoItens.reduce(
+        (total, item) => total + (byId.get(item.servico_id)?.valor_centavos ?? 0) * item.quantidade,
+        0,
+      );
+      if (subtotal + acrescimoCentavos - descontoCentavos <= 0) {
+        throw new Error('Os ajustes precisam deixar o total maior que zero');
+      }
+      const [atendimento] = await db
+        .insert(atendimentos)
+        .values({
+          clienteId,
+          servicoId: servicoIds[0] ?? null,
+          servicoIds,
+          descontoCentavos,
+          acrescimoCentavos,
+          descricaoSolicitacao,
+          criadoPorUserId: staffCheck.user.id,
+          vendidoPorUserId: staffCheck.user.id,
+          atendidoPorUserId: staffCheck.user.id,
+          state: 'em_andamento',
+        })
+        .returning({ id: atendimentos.id });
+      return atendimento?.id ?? null;
+    });
+    if (!id) return json({ error: 'Cliente ativo não encontrado' }, 404);
+    return json({ id }, 201);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Falha ao criar atendimento' }, 400);
   }
-
-  const byId = new Map(rows.map((servico) => [servico.id, servico]));
-  const subtotal = servicoItens.reduce((total, item) => {
-    const servico = byId.get(item.servico_id);
-    return total + (servico?.valor_centavos ?? 0) * item.quantidade;
-  }, 0);
-  if (subtotal + acrescimoCentavos - descontoCentavos <= 0) {
-    return json({ error: 'Os ajustes precisam deixar o total maior que zero' }, 400);
-  }
-
-  const { data, error } = await admin
-    .from('atendimentos')
-    .insert({
-      cliente_id: clienteId,
-      servico_id: servicoIds[0] ?? null,
-      servico_ids: servicoIds,
-      desconto_centavos: descontoCentavos,
-      acrescimo_centavos: acrescimoCentavos,
-      descricao_solicitacao: descricaoSolicitacao,
-      criado_por_user_id: staffCheck.user.id,
-      vendido_por_user_id: staffCheck.user.id,
-      atendido_por_user_id: staffCheck.user.id,
-      state: 'em_andamento',
-    })
-    .select('id')
-    .single<{ id: string }>();
-
-  if (error || !data) {
-    return json({ error: error?.message ?? 'Falha ao criar atendimento' }, 500);
-  }
-
-  return json({ id: data.id }, 201);
 };
 
 function isUuidString(value: unknown): value is string {

@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
+import { profiles } from '../../drizzle/schema';
 import { getUserRole, isAdminUser, listAllUsers, metadataText, requireAdmin } from './admin-auth';
 import { accessFromMetadata, emptyUserAccess, latestAccessByUserIds } from './user-access';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -40,18 +42,27 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   if (!adminCheck.ok) return json({ error: adminCheck.error }, adminCheck.status);
 
   const users = await listAllUsers(admin);
-  const { data: profiles, error } = await admin
-    .from('profiles')
-    .select('id, email, full_name, avatar_url, created_at, updated_at');
-  if (error) return json({ error: error.message }, 500);
+  const databaseData = await withDatabase(env, async (db) => ({
+    profiles: await db
+      .select({
+        id: profiles.id,
+        email: profiles.email,
+        full_name: profiles.fullName,
+        avatar_url: profiles.avatarUrl,
+        created_at: profiles.createdAt,
+        updated_at: profiles.updatedAt,
+      })
+      .from(profiles),
+    latestAccessById: await latestAccessByUserIds(
+      db,
+      users.map((user) => user.id),
+    ),
+  }));
 
   const profilesById = new Map(
-    ((profiles ?? []) as ProfileRow[]).map((profile) => [profile.id, profile]),
+    (databaseData.profiles as ProfileRow[]).map((profile) => [profile.id, profile]),
   );
-  const latestAccessById = await latestAccessByUserIds(
-    admin,
-    users.map((user) => user.id),
-  );
+  const latestAccessById = databaseData.latestAccessById;
 
   return json(
     {

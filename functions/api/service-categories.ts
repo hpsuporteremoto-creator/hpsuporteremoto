@@ -1,7 +1,10 @@
+import { asc, desc, eq } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
+import { servicoCategorias } from '../../drizzle/schema';
 import { requireStaff } from './admin-auth';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -23,28 +26,28 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   const staffCheck = await requireStaff(admin, request);
   if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
 
-  const url = new URL(request.url);
-  const id = url.searchParams.get('id');
-  if (id) {
-    const { data, error } = await admin
-      .from('servico_categorias')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-    if (error) return json({ error: error.message }, 500);
-    return json({ categoria: data ?? null }, 200);
+  try {
+    const url = new URL(request.url);
+    const id = url.searchParams.get('id')?.trim();
+    const apenasAtivas = url.searchParams.get('ativas') === 'true';
+    const payload = await withDatabase(env, async (db) => {
+      if (id) {
+        const [categoria] = await db
+          .select()
+          .from(servicoCategorias)
+          .where(eq(servicoCategorias.id, id));
+        return { categoria: categoria ?? null };
+      }
+      const query = db.select().from(servicoCategorias);
+      const categorias = apenasAtivas
+        ? await query.where(eq(servicoCategorias.ativo, true)).orderBy(asc(servicoCategorias.nome))
+        : await query.orderBy(desc(servicoCategorias.ativo), asc(servicoCategorias.nome));
+      return { categorias };
+    });
+    return json(payload, 200);
+  } catch (error) {
+    return json({ error: databaseErrorMessage(error) }, 500);
   }
-
-  let query = admin
-    .from('servico_categorias')
-    .select('*')
-    .order('ativo', { ascending: false })
-    .order('nome', { ascending: true });
-  if (url.searchParams.get('ativas') === 'true') query = query.eq('ativo', true);
-
-  const { data, error } = await query;
-  if (error) return json({ error: error.message }, 500);
-  return json({ categorias: data ?? [] }, 200);
 };
 
 export const onRequestPost = async (context: Context): Promise<Response> => {
@@ -63,47 +66,52 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   }
 
   const action = body['action'];
-  const id = body['id'];
-  if ((action === 'update' || action === 'toggle' || action === 'delete') && typeof id !== 'string') {
+  const id = typeof body['id'] === 'string' ? body['id'] : null;
+  if ((action === 'update' || action === 'toggle' || action === 'delete') && !id) {
     return json({ error: 'id obrigatório' }, 400);
   }
 
-  if (action === 'delete') {
-    const { error } = await admin.from('servico_categorias').delete().eq('id', id);
-    if (error) return json({ error: toCategoriaError(error) }, 400);
-    return json({ ok: true }, 200);
+  try {
+    if (action === 'delete') {
+      if (!id) return json({ error: 'id obrigatório' }, 400);
+      await withDatabase(env, (db) =>
+        db.delete(servicoCategorias).where(eq(servicoCategorias.id, id)),
+      );
+      return json({ ok: true }, 200);
+    }
+
+    if (action === 'toggle') {
+      if (!id) return json({ error: 'id obrigatório' }, 400);
+      await withDatabase(env, (db) =>
+        db
+          .update(servicoCategorias)
+          .set({ ativo: body['ativo'] === true })
+          .where(eq(servicoCategorias.id, id)),
+      );
+      return json({ ok: true }, 200);
+    }
+
+    const input = buildInput(body);
+    if ('error' in input) return json({ error: input.error }, 400);
+
+    const categoria = await withDatabase(env, async (db) => {
+      if (action === 'update') {
+        if (!id) return null;
+        const [updated] = await db
+          .update(servicoCategorias)
+          .set(input)
+          .where(eq(servicoCategorias.id, id))
+          .returning();
+        return updated ?? null;
+      }
+      const [created] = await db.insert(servicoCategorias).values(input).returning();
+      return created ?? null;
+    });
+    if (!categoria) return json({ error: 'Categoria não encontrada' }, 404);
+    return json({ categoria }, action === 'update' ? 200 : 201);
+  } catch (error) {
+    return json({ error: databaseErrorMessage(error) }, 400);
   }
-
-  if (action === 'toggle') {
-    const { error } = await admin
-      .from('servico_categorias')
-      .update({ ativo: body['ativo'] === true })
-      .eq('id', id);
-    if (error) return json({ error: error.message }, 500);
-    return json({ ok: true }, 200);
-  }
-
-  const input = buildInput(body);
-  if ('error' in input) return json({ error: input.error }, 400);
-
-  if (action === 'update') {
-    const { data, error } = await admin
-      .from('servico_categorias')
-      .update(input)
-      .eq('id', id)
-      .select('*')
-      .single();
-    if (error) return json({ error: toCategoriaError(error) }, 400);
-    return json({ categoria: data }, 200);
-  }
-
-  const { data, error } = await admin
-    .from('servico_categorias')
-    .insert(input)
-    .select('*')
-    .single();
-  if (error) return json({ error: toCategoriaError(error) }, 400);
-  return json({ categoria: data }, 201);
 };
 
 function buildInput(body: Record<string, unknown>) {
@@ -112,7 +120,7 @@ function buildInput(body: Record<string, unknown>) {
   return {
     nome,
     descricao: normalizeOptionalText(body['descricao']),
-    ativo: body['ativo'] === false ? false : true,
+    ativo: body['ativo'] !== false,
   };
 }
 
@@ -122,8 +130,9 @@ function normalizeOptionalText(value: unknown): string | null {
   return text.length > 0 ? text : null;
 }
 
-function toCategoriaError(error: { code?: string; message: string }): string {
-  if (error.code === '23505') return 'Já existe uma categoria com este nome.';
-  if (error.code === '23503') return 'Esta categoria está em uso por serviços cadastrados.';
-  return error.message;
+function databaseErrorMessage(error: unknown): string {
+  const candidate = error as { code?: string; message?: string };
+  if (candidate.code === '23505') return 'Já existe uma categoria com este nome.';
+  if (candidate.code === '23503') return 'Esta categoria está em uso por serviços cadastrados.';
+  return typeof candidate.message === 'string' ? candidate.message : 'Erro ao salvar categoria';
 }

@@ -1,13 +1,15 @@
+import { and, eq, inArray, type SQL } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
+import { atendimentos } from '../../drizzle/schema';
 import { requireStaff } from './admin-auth';
 import {
-  ATENDIMENTO_SELECT,
-  atendimentoOwnershipFilter,
-  hydrateServicosSolicitados,
+  atendimentoOwnershipCondition,
+  listAtendimentosComRelacoes,
+  type AtendimentoState,
 } from './atendimentos-shared';
-import type { AtendimentoComRelacoes, AtendimentoState } from './atendimentos-shared';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -30,60 +32,40 @@ function json(body: unknown, status: number): Response {
 
 export const onRequestGet = async (context: Context): Promise<Response> => {
   const { request, env } = context;
-
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-    return json({ error: 'Servidor mal configurado (env vars ausentes)' }, 500);
-  }
-
   const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-
   const staffCheck = await requireStaff(admin, request);
   if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
 
   const url = new URL(request.url);
   const filter = url.searchParams.get('filter') ?? 'em_andamento';
-  if (!ALLOWED_FILTERS.has(filter as AtendimentoState)) {
-    return json({ error: 'Filtro inválido' }, 400);
-  }
+  if (!ALLOWED_FILTERS.has(filter as AtendimentoState)) return json({ error: 'Filtro inválido' }, 400);
   const clienteId = url.searchParams.get('clienteId')?.trim();
   const todosOsStatus = url.searchParams.get('todosOsStatus') === 'true';
 
-  let query = admin
-    .from('atendimentos')
-    .select(ATENDIMENTO_SELECT)
-    .order('created_at', { ascending: false });
-
-  if (!todosOsStatus) {
-    if (filter === 'em_andamento') {
-      query = query.in('state', ['aguardando_confirmacao', 'em_andamento']);
-    } else {
-      query = query.eq('state', filter);
-    }
-  }
-
-  if (clienteId) {
-    query = query.eq('cliente_id', clienteId);
-  }
-
-  if (staffCheck.role === 'vendedor') {
-    query = query.or(atendimentoOwnershipFilter(staffCheck.user.id));
-  }
-
-  const { data, error } = await query;
-  if (error) return json({ error: error.message }, 500);
-
   try {
-    const atendimentos = await hydrateServicosSolicitados(
-      admin,
-      (data ?? []) as unknown as AtendimentoComRelacoes[],
-    );
-    const visibleAtendimentos = atendimentos.filter((atendimento) => {
-      return atendimento.state !== 'concluido' || atendimento.financeiro_contabilizado;
+    const atendimentosVisiveis = await withDatabase(env, async (db) => {
+      const conditions: SQL[] = [];
+      if (!todosOsStatus) {
+        conditions.push(
+          filter === 'em_andamento'
+            ? inArray(atendimentos.state, ['aguardando_confirmacao', 'em_andamento'])
+            : eq(atendimentos.state, filter as typeof atendimentos.$inferSelect.state),
+        );
+      }
+      if (clienteId) conditions.push(eq(atendimentos.clienteId, clienteId));
+      if (staffCheck.role === 'vendedor') conditions.push(atendimentoOwnershipCondition(staffCheck.user.id));
+      const atendimentoRows = await listAtendimentosComRelacoes(
+        db,
+        conditions.length > 0 ? and(...conditions) : undefined,
+      );
+      return atendimentoRows.filter(
+        (atendimento) => atendimento.state !== 'concluido' || atendimento.financeiro_contabilizado,
+      );
     });
-    return json({ atendimentos: visibleAtendimentos }, 200);
-  } catch (err) {
-    return json({ error: err instanceof Error ? err.message : 'Erro ao carregar serviços' }, 500);
+    return json({ atendimentos: atendimentosVisiveis }, 200);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Erro ao carregar atendimentos' }, 500);
   }
 };

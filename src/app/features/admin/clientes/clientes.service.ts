@@ -1,6 +1,5 @@
 import { Injectable, inject } from '@angular/core';
 import { AuthService } from '../../../core/auth/auth.service';
-import { SupabaseService } from '../../../core/supabase/supabase.service';
 import { Cliente, ClienteFormData } from './clientes.types';
 
 export interface ClientesListQuery {
@@ -23,8 +22,6 @@ export interface ClientesCounts {
 @Injectable({ providedIn: 'root' })
 export class ClientesService {
   private readonly auth = inject(AuthService);
-  private readonly supabase = inject(SupabaseService).client;
-  private readonly table = 'clientes';
 
   async list(query: ClientesListQuery): Promise<ClientesListResult> {
     const params = new URLSearchParams({
@@ -118,13 +115,4 @@ export class ClientesService {
     if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
     return payload;
   }
-}
-
-// 23505 = violação de índice único do Postgres. Em clientes o único índice
-// único é o do WhatsApp, então a colisão é sempre o número já cadastrado.
-function toClienteError(error: { code: string; message: string }): Error {
-  if (error.code === '23505') {
-    return new Error('Já existe um cliente cadastrado com este WhatsApp.');
-  }
-  return new Error(error.message);
 }

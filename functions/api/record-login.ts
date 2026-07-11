@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
+import { userLoginDevices } from '../../drizzle/schema';
 import { mergeAppMetadata } from './admin-auth';
-import { isMissingUserLoginDevicesTable } from './user-access';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -57,33 +58,29 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: metadataError.message }, 500);
   }
 
-  const { error } = await admin.from('user_login_devices').upsert(
-    {
-      user_id: user.id,
-      email: user.email?.toLowerCase() ?? null,
-      device_hash: hashDevice(userAgent || deviceLabel),
-      device_label: deviceLabel,
-      user_agent: userAgent,
-      ip_address: ipAddress,
-      country,
-      last_seen_at: now,
-      updated_at: now,
-    },
-    { onConflict: 'user_id,device_hash' },
-  );
-
-  if (error) {
-    if (isMissingUserLoginDevicesTable(error)) {
-      return json(
-        {
-          ok: true,
-          fallback: 'Dados de acesso salvos no app_metadata',
-          skipped: 'Tabela de acessos ainda não existe',
-        },
-        200,
-      );
-    }
-    return json({ error: error.message }, 500);
+  try {
+    await withDatabase(env, (db) =>
+      db
+        .insert(userLoginDevices)
+        .values({
+          userId: user.id,
+          email: user.email?.toLowerCase() ?? null,
+          deviceHash: hashDevice(userAgent || deviceLabel),
+          deviceLabel,
+          userAgent,
+          ipAddress,
+          country,
+          firstSeenAt: now,
+          lastSeenAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [userLoginDevices.userId, userLoginDevices.deviceHash],
+          set: { email: user.email?.toLowerCase() ?? null, deviceLabel, userAgent, ipAddress, country, lastSeenAt: now, updatedAt: now },
+        }),
+    );
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Erro ao registrar acesso' }, 500);
   }
 
   return json({ ok: true }, 200);

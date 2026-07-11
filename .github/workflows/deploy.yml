@@ -36,6 +36,7 @@ jobs:
           --outdir dist/hp-suporte-remoto-client/browser
           --output-routes-path dist/hp-suporte-remoto-client/browser/_routes.json
           --compatibility-date 2025-05-19
+          --compatibility-flags nodejs_compat
 
       - name: Deploy client to Cloudflare Pages
         env:

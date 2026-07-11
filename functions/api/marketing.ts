@@ -1,8 +1,20 @@
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import {
+  atendimentos,
+  clientes,
+  marketingCampanhaDestinatarios,
+  marketingCampanhas,
+  marketingEventos,
+  profiles,
+  servicos,
+  transacoes,
+} from '../../drizzle/schema';
 import { requireAdmin } from './admin-auth';
+import { type AppDatabase, type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   RESEND_API_KEY?: string;
@@ -89,7 +101,9 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   const somenteContabilizados = url.searchParams.get('somenteContabilizados') !== 'false';
 
   try {
-    const audience = await resolveAudience(admin, servicoId, somenteContabilizados);
+    const audience = await withDatabase(env, (db) =>
+      resolveAudience(db, servicoId, somenteContabilizados),
+    );
 
     if (action === 'download') {
       const field = url.searchParams.get('field');
@@ -104,12 +118,13 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
     }
 
     if (action === 'campaigns') {
-      return json({ campanhas: await listCampaigns(admin) }, 200);
+      const campanhas = await withDatabase(env, listCampaigns);
+      return json({ campanhas }, 200);
     }
 
     if (action !== 'overview') return json({ error: 'Ação inválida' }, 400);
 
-    const campanhas = await listCampaigns(admin);
+    const campanhas = await withDatabase(env, listCampaigns);
     return json(
       {
         ...audienceResponse(audience),
@@ -146,7 +161,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return sendTestEmail(env, record);
   }
   if (action === 'create') {
-    return createCampaign(admin, env, adminCheck.user.id, record);
+    return withDatabase(env, (db) => createCampaign(db, env, adminCheck.user.id, record));
   }
   return json({ error: 'Ação inválida' }, 400);
 };
@@ -182,7 +197,7 @@ async function sendTestEmail(env: Env, record: Record<string, unknown>): Promise
 }
 
 async function createCampaign(
-  admin: SupabaseClient,
+  db: AppDatabase,
   env: Env,
   userId: string,
   record: Record<string, unknown>,
@@ -195,7 +210,7 @@ async function createCampaign(
 
   try {
     const recipients = await resolveAudience(
-      admin,
+      db,
       input.servico_id,
       input.somente_vendas_contabilizadas,
     );
@@ -203,20 +218,26 @@ async function createCampaign(
       return json({ error: 'Nenhum cliente com email e consentimento foi encontrado para este público.' }, 400);
     }
 
-    const { data: campaign, error: campaignError } = await admin
-      .from('marketing_campanhas')
-      .insert({
-        ...input,
+    const [campaignRecord] = await db
+      .insert(marketingCampanhas)
+      .values({
+        nome: input.nome,
+        assunto: input.assunto,
+        mensagem: input.mensagem,
+        textoPrevia: input.texto_previa,
+        servicoId: input.servico_id,
+        somenteVendasContabilizadas: input.somente_vendas_contabilizadas,
+        agendadaPara: input.agendada_para,
         status: 'rascunho',
-        total_destinatarios: recipients.length,
-        criado_por_user_id: userId,
+        totalDestinatarios: recipients.length,
+        criadoPorUserId: userId,
       })
-      .select('*')
-      .single<MarketingCampaignRow>();
-    if (campaignError || !campaign) throw new Error(campaignError?.message ?? 'Falha ao criar campanha');
+      .returning();
+    if (!campaignRecord) throw new Error('Falha ao criar campanha');
+    const campaign = toCampaignRow(campaignRecord);
 
     try {
-      await insertRecipients(admin, campaign.id, recipients);
+      await insertRecipients(db, campaign.id, recipients);
       const resend = new Resend(env.RESEND_API_KEY);
       const segmentResult = await resend.segments.create({
         name: `${safeSegmentName(input.nome)} ${campaign.id.slice(0, 8)}`,
@@ -226,7 +247,7 @@ async function createCampaign(
       }
 
       const deliverable = await syncRecipientsToSegment(
-        admin,
+        db,
         resend,
         campaign.id,
         segmentResult.data.id,
@@ -265,27 +286,22 @@ async function createCampaign(
       const status: CampaignStatus = input.agendada_para ? 'agendada' : 'enviada';
       const recipientStatus = input.agendada_para ? 'agendado' : 'enviado';
       const now = new Date().toISOString();
-      const { error: updateError } = await admin
-        .from('marketing_campanhas')
-        .update({
+      await db
+        .update(marketingCampanhas)
+        .set({
           status,
-          resend_segment_id: segmentResult.data.id,
-          resend_broadcast_id: broadcastResult.data.id,
-          enviada_em: input.agendada_para ? null : now,
+          resendSegmentId: segmentResult.data.id,
+          resendBroadcastId: broadcastResult.data.id,
+          enviadaEm: input.agendada_para ? null : now,
           erro: null,
         })
-        .eq('id', campaign.id);
-      if (updateError) throw new Error(updateError.message);
-
-      const { error: recipientsUpdateError } = await admin
-        .from('marketing_campanha_destinatarios')
-        .update({ status: recipientStatus })
-        .eq('campanha_id', campaign.id)
-        .eq('status', 'pendente');
-      if (recipientsUpdateError) throw new Error(recipientsUpdateError.message);
-
-      await admin.from('marketing_eventos').insert({
-        campanha_id: campaign.id,
+        .where(eq(marketingCampanhas.id, campaign.id));
+      await db
+        .update(marketingCampanhaDestinatarios)
+        .set({ status: recipientStatus })
+        .where(and(eq(marketingCampanhaDestinatarios.campanhaId, campaign.id), eq(marketingCampanhaDestinatarios.status, 'pendente')));
+      await db.insert(marketingEventos).values({
+        campanhaId: campaign.id,
         tipo: input.agendada_para ? 'broadcast.agendado' : 'broadcast.enviado',
         payload: {
           resend_broadcast_id: broadcastResult.data.id,
@@ -308,10 +324,10 @@ async function createCampaign(
         201,
       );
     } catch (err) {
-      await admin
-        .from('marketing_campanhas')
-        .update({ status: 'falhou', erro: errorMessage(err, 'Falha ao enviar campanha') })
-        .eq('id', campaign.id);
+      await db
+        .update(marketingCampanhas)
+        .set({ status: 'falhou', erro: errorMessage(err, 'Falha ao enviar campanha') })
+        .where(eq(marketingCampanhas.id, campaign.id));
       return json({ error: errorMessage(err, 'Falha ao enviar campanha'), campanhaId: campaign.id }, 502);
     }
   } catch (err) {
@@ -320,28 +336,25 @@ async function createCampaign(
 }
 
 async function insertRecipients(
-  admin: SupabaseClient,
+  db: AppDatabase,
   campaignId: string,
   recipients: readonly AudienceRecipient[],
 ): Promise<void> {
   const rows = recipients.map((recipient) => ({
-    campanha_id: campaignId,
-    cliente_id: recipient.id,
+    campanhaId: campaignId,
+    clienteId: recipient.id,
     nome: recipient.nome,
     email: recipient.email,
     whatsapp: recipient.whatsapp || null,
-    resend_contact_id: recipient.resend_contact_id,
+    resendContactId: recipient.resend_contact_id,
   }));
   for (let index = 0; index < rows.length; index += PAGE_SIZE) {
-    const { error } = await admin
-      .from('marketing_campanha_destinatarios')
-      .insert(rows.slice(index, index + PAGE_SIZE));
-    if (error) throw new Error(error.message);
+    await db.insert(marketingCampanhaDestinatarios).values(rows.slice(index, index + PAGE_SIZE));
   }
 }
 
 async function syncRecipientsToSegment(
-  admin: SupabaseClient,
+  db: AppDatabase,
   resend: Resend,
   campaignId: string,
   segmentId: string,
@@ -352,11 +365,11 @@ async function syncRecipientsToSegment(
     try {
       const contact = await ensureResendContact(resend, recipient);
       if (contact.unsubscribed) {
-        await markRecipient(admin, campaignId, recipient, 'descadastrado');
-        await admin
-          .from('clientes')
-          .update({ marketing_opt_in: false, marketing_opt_out_at: new Date().toISOString() })
-          .eq('id', recipient.id);
+        await markRecipient(db, campaignId, recipient, 'descadastrado');
+        await db
+          .update(clientes)
+          .set({ marketingOptIn: false, marketingOptOutAt: new Date().toISOString() })
+          .where(eq(clientes.id, recipient.id));
         continue;
       }
 
@@ -366,11 +379,11 @@ async function syncRecipientsToSegment(
       });
       if (membership.error) throw new Error(membership.error.message);
 
-      await markRecipient(admin, campaignId, recipient, 'pendente', null, contact.id);
-      await admin.from('clientes').update({ resend_contact_id: contact.id }).eq('id', recipient.id);
+      await markRecipient(db, campaignId, recipient, 'pendente', null, contact.id);
+      await db.update(clientes).set({ resendContactId: contact.id }).where(eq(clientes.id, recipient.id));
       deliverable += 1;
     } catch (err) {
-      await markRecipient(admin, campaignId, recipient, 'falhou', errorMessage(err, 'Falha no Resend'));
+      await markRecipient(db, campaignId, recipient, 'falhou', errorMessage(err, 'Falha no Resend'));
     }
   }
   return deliverable;
@@ -400,34 +413,30 @@ async function ensureResendContact(
 }
 
 async function markRecipient(
-  admin: SupabaseClient,
+  db: AppDatabase,
   campaignId: string,
   recipient: AudienceRecipient,
   status: string,
   erro: string | null = null,
   resendContactId: string | null = null,
 ): Promise<void> {
-  const patch: Record<string, unknown> = { status, erro };
-  if (resendContactId) patch['resend_contact_id'] = resendContactId;
-  const { error } = await admin
-    .from('marketing_campanha_destinatarios')
-    .update(patch)
-    .eq('campanha_id', campaignId)
-    .eq('email', recipient.email);
-  if (error) throw new Error(error.message);
+  await db
+    .update(marketingCampanhaDestinatarios)
+    .set({ status, erro, ...(resendContactId ? { resendContactId } : {}) })
+    .where(and(eq(marketingCampanhaDestinatarios.campanhaId, campaignId), eq(marketingCampanhaDestinatarios.email, recipient.email)));
 }
 
 async function resolveAudience(
-  admin: SupabaseClient,
+  db: AppDatabase,
   servicoId: string | null,
   somenteContabilizados: boolean,
 ): Promise<AudienceRecipient[]> {
   const purchasedIds = servicoId
-    ? await listPurchasedClientIds(admin, servicoId, somenteContabilizados)
+    ? await listPurchasedClientIds(db, servicoId, somenteContabilizados)
     : null;
   if (purchasedIds && purchasedIds.size === 0) return [];
 
-  const clients = await listMarketingClients(admin);
+  const clients = await listMarketingClients(db);
   const byEmail = new Map<string, AudienceRecipient>();
   for (const client of clients) {
     if (!client.marketing_opt_in || client.marketing_opt_out_at || !client.email) continue;
@@ -445,63 +454,69 @@ async function resolveAudience(
   return [...byEmail.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
-async function listMarketingClients(admin: SupabaseClient): Promise<ClienteMarketingRow[]> {
-  const rows: ClienteMarketingRow[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await admin
-      .from('clientes')
-      .select('id, nome, email, whatsapp, marketing_opt_in, marketing_opt_out_at, resend_contact_id')
-      .eq('ativo', true)
-      .eq('marketing_opt_in', true)
-      .is('marketing_opt_out_at', null)
-      .not('email', 'is', null)
-      .order('nome', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(error.message);
-    const page = (data ?? []) as ClienteMarketingRow[];
-    rows.push(...page);
-    if (page.length < PAGE_SIZE) return rows;
-  }
+async function listMarketingClients(db: AppDatabase): Promise<ClienteMarketingRow[]> {
+  return db
+    .select({ id: clientes.id, nome: clientes.nome, email: clientes.email, whatsapp: clientes.whatsapp, marketing_opt_in: clientes.marketingOptIn, marketing_opt_out_at: clientes.marketingOptOutAt, resend_contact_id: clientes.resendContactId })
+    .from(clientes)
+    .where(and(eq(clientes.ativo, true), eq(clientes.marketingOptIn, true), isNull(clientes.marketingOptOutAt)))
+    .orderBy(asc(clientes.nome));
 }
 
 async function listPurchasedClientIds(
-  admin: SupabaseClient,
+  db: AppDatabase,
   servicoId: string,
   somenteContabilizados: boolean,
 ): Promise<Set<string>> {
-  const ids = new Set<string>();
-  for (let from = 0; ; from += PAGE_SIZE) {
-    let query = admin
-      .from('atendimentos')
-      .select(somenteContabilizados ? 'cliente_id, transacoes!inner(id)' : 'cliente_id')
-      .eq('state', 'concluido')
-      .contains('servico_ids', [servicoId])
-      .range(from, from + PAGE_SIZE - 1);
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-    const page = (data ?? []) as unknown as AtendimentoClienteRow[];
-    for (const row of page) ids.add(row.cliente_id);
-    if (page.length < PAGE_SIZE) return ids;
-  }
+  const query = db
+    .selectDistinct({ cliente_id: atendimentos.clienteId })
+    .from(atendimentos)
+    .where(
+      and(
+        eq(atendimentos.state, 'concluido'),
+        sql`${atendimentos.servicoIds} @> ARRAY[${servicoId}]::uuid[]`,
+      ),
+    );
+  const rows = somenteContabilizados
+    ? await query.innerJoin(transacoes, eq(atendimentos.id, transacoes.atendimentoId))
+    : await query;
+  return new Set(rows.map((row) => row.cliente_id));
 }
 
-async function listCampaigns(admin: SupabaseClient): Promise<MarketingCampaignRow[]> {
-  const { data, error } = await admin
-    .from('marketing_campanhas')
-    .select(
-      `
-        id, nome, assunto, mensagem, texto_previa, servico_id,
-        somente_vendas_contabilizadas, status, total_destinatarios,
-        agendada_para, enviada_em, resend_segment_id, resend_broadcast_id,
-        erro, criado_por_user_id, created_at, updated_at,
-        servico:servicos ( id, nome ),
-        criado_por:profiles ( id, email, full_name )
-      `,
-    )
-    .order('created_at', { ascending: false })
+async function listCampaigns(db: AppDatabase): Promise<MarketingCampaignRow[]> {
+  const rows = await db
+    .select({ campaign: marketingCampanhas, servico: { id: servicos.id, nome: servicos.nome }, criado_por: { id: profiles.id, email: profiles.email, full_name: profiles.fullName } })
+    .from(marketingCampanhas)
+    .leftJoin(servicos, eq(marketingCampanhas.servicoId, servicos.id))
+    .leftJoin(profiles, eq(marketingCampanhas.criadoPorUserId, profiles.id))
+    .orderBy(desc(marketingCampanhas.createdAt))
     .limit(100);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as MarketingCampaignRow[];
+  return rows.map((row) => ({
+    ...toCampaignRow(row.campaign),
+    servico: row.servico?.id ? row.servico : null,
+    criado_por: row.criado_por?.id ? row.criado_por : null,
+  }));
+}
+
+function toCampaignRow(campaign: typeof marketingCampanhas.$inferSelect): MarketingCampaignRow {
+  return {
+    id: campaign.id,
+    nome: campaign.nome,
+    assunto: campaign.assunto,
+    mensagem: campaign.mensagem,
+    texto_previa: campaign.textoPrevia,
+    servico_id: campaign.servicoId,
+    somente_vendas_contabilizadas: campaign.somenteVendasContabilizadas,
+    status: campaign.status as CampaignStatus,
+    total_destinatarios: campaign.totalDestinatarios,
+    agendada_para: campaign.agendadaPara,
+    enviada_em: campaign.enviadaEm,
+    resend_segment_id: campaign.resendSegmentId,
+    resend_broadcast_id: campaign.resendBroadcastId,
+    erro: campaign.erro,
+    criado_por_user_id: campaign.criadoPorUserId,
+    created_at: campaign.createdAt,
+    updated_at: campaign.updatedAt,
+  };
 }
 
 function audienceResponse(audience: readonly AudienceRecipient[]): Record<string, unknown> {

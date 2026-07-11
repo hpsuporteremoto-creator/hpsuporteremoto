@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { eq, inArray } from 'drizzle-orm';
 import {
   buildBrCodeRef,
   generateStaticBrCode,
@@ -8,8 +9,10 @@ import {
 import { requireStaff } from './admin-auth';
 import { canStaffAccessAtendimento } from './atendimentos-shared';
 import type { AtendimentoOwnership } from './atendimentos-shared';
+import { atendimentos, pixRecebedorConfig, servicos as servicosTable } from '../../drizzle/schema';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   PIX_KEY?: string;
@@ -93,15 +96,21 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     return json({ error: 'servico_ids obrigatório' }, 400);
   }
 
-  const { data: atendimento, error: fetchError } = await admin
-    .from('atendimentos')
-    .select(
-      'id, state, desconto_centavos, acrescimo_centavos, criado_por_user_id, vendido_por_user_id, atendido_por_user_id',
-    )
-    .eq('id', atendimento_id)
-    .maybeSingle<AtendimentoPixRow>();
-
-  if (fetchError) return json({ error: fetchError.message }, 500);
+  const atendimento = await withDatabase(env, async (db) => {
+    const [row] = await db
+      .select({
+        id: atendimentos.id,
+        state: atendimentos.state,
+        desconto_centavos: atendimentos.descontoCentavos,
+        acrescimo_centavos: atendimentos.acrescimoCentavos,
+        criado_por_user_id: atendimentos.criadoPorUserId,
+        vendido_por_user_id: atendimentos.vendidoPorUserId,
+        atendido_por_user_id: atendimentos.atendidoPorUserId,
+      })
+      .from(atendimentos)
+      .where(eq(atendimentos.id, atendimento_id));
+    return row ?? null;
+  });
   if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
   if (!canStaffAccessAtendimento(atendimento, staffCheck.role, staffCheck.user.id)) {
     return json({ error: 'Acesso restrito aos seus atendimentos' }, 403);
@@ -120,19 +129,13 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     );
   }
 
-  const { data: servicosData, error: servicoError } = await admin
-    .from('servicos')
-    .select('id, nome, valor_centavos, ativo')
-    .in('id', uniqueServicoIds);
-
-  if (servicoError) return json({ error: servicoError.message }, 500);
-
-  const servicos = (servicosData ?? []) as {
-    id: string;
-    nome: string;
-    valor_centavos: number;
-    ativo: boolean;
-  }[];
+  const servicosData = await withDatabase(env, (db) =>
+    db
+      .select({ id: servicosTable.id, nome: servicosTable.nome, valor_centavos: servicosTable.valorCentavos, ativo: servicosTable.ativo })
+      .from(servicosTable)
+      .where(inArray(servicosTable.id, uniqueServicoIds)),
+  );
+  const servicos = servicosData;
   const byId = new Map(servicos.map((servico) => [servico.id, servico]));
   const orderedServicos = servicoItens.flatMap((item) => {
     const servico = byId.get(item.servico_id);
@@ -180,7 +183,7 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   }
 
   const totalCentavos = subtotalCentavos + acrescimoCentavos - descontoCentavos;
-  const receiverConfig = await getPixReceiverConfig(admin, env);
+  const receiverConfig = await getPixReceiverConfig(env);
   if ('error' in receiverConfig) return json({ error: receiverConfig.error }, 500);
 
   let brcode: string;
@@ -201,23 +204,27 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
     );
   }
 
-  const { error: updateError } = await admin
-    .from('atendimentos')
-    .update({
-      pix_brcode: brcode,
-      valor_centavos: totalCentavos,
-      desconto_centavos: descontoCentavos,
-      acrescimo_centavos: acrescimoCentavos,
-      descricao_solicitacao: descricaoSolicitacao,
-      servico_id: servicoIds[0],
-      servico_ids: servicoIds,
-      vendido_por_user_id: staffCheck.user.id,
-      atendido_por_user_id: staffCheck.user.id,
-      state: 'pagamento',
-    })
-    .eq('id', atendimento_id);
-
-  if (updateError) return json({ error: updateError.message }, 500);
+  try {
+    await withDatabase(env, (db) =>
+      db
+        .update(atendimentos)
+        .set({
+          pixBrcode: brcode,
+          valorCentavos: totalCentavos,
+          descontoCentavos,
+          acrescimoCentavos,
+          descricaoSolicitacao,
+          servicoId: servicoIds[0] ?? null,
+          servicoIds,
+          vendidoPorUserId: staffCheck.user.id,
+          atendidoPorUserId: staffCheck.user.id,
+          state: 'pagamento',
+        })
+        .where(eq(atendimentos.id, atendimento_id)),
+    );
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Erro ao salvar PIX' }, 500);
+  }
 
   return json(
     {
@@ -232,26 +239,24 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   );
 };
 
-async function getPixReceiverConfig(
-  admin: SupabaseClient,
-  env: Env,
-): Promise<PixReceiverConfig | { error: string }> {
-  const { data, error } = await admin
-    .from('pix_recebedor_config')
-    .select('pix_key, receiver_name, receiver_city')
-    .eq('id', 1)
-    .maybeSingle<{
-      pix_key: string | null;
-      receiver_name: string | null;
-      receiver_city: string | null;
-    }>();
-
-  if (error) return { error: error.message };
+async function getPixReceiverConfig(env: Env): Promise<PixReceiverConfig | { error: string }> {
+  let data: { pixKey: string; receiverName: string; receiverCity: string } | null;
+  try {
+    data = await withDatabase(env, async (db) => {
+      const [row] = await db
+        .select({ pixKey: pixRecebedorConfig.pixKey, receiverName: pixRecebedorConfig.receiverName, receiverCity: pixRecebedorConfig.receiverCity })
+        .from(pixRecebedorConfig)
+        .where(eq(pixRecebedorConfig.id, 1));
+      return row ?? null;
+    });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Erro ao carregar recebedor PIX' };
+  }
 
   const dbConfig = {
-    pixKey: data?.pix_key?.trim() ?? '',
-    receiverName: data?.receiver_name?.trim() ?? '',
-    receiverCity: data?.receiver_city?.trim() ?? '',
+    pixKey: data?.pixKey.trim() ?? '',
+    receiverName: data?.receiverName.trim() ?? '',
+    receiverCity: data?.receiverCity.trim() ?? '',
   };
   if (isCompleteReceiverConfig(dbConfig)) return dbConfig;
 

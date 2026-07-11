@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { profiles } from '../../drizzle/schema';
 import {
   getUserRole,
   isAdminUser,
@@ -7,8 +8,9 @@ import {
   requireAdmin,
 } from './admin-auth';
 import type { UserRole } from './admin-auth';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -96,15 +98,19 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (error) return json({ error: error.message }, 500);
 
   if (data.user.email) {
-    const { error: profileError } = await admin.from('profiles').upsert(
-      {
-        id: data.user.id,
-        email: data.user.email.toLowerCase(),
-        full_name: normalizedName,
-      },
-      { onConflict: 'id' },
-    );
-    if (profileError) return json({ error: profileError.message }, 500);
+    try {
+      await withDatabase(env, (db) =>
+        db
+          .insert(profiles)
+          .values({ id: data.user.id, email: data.user.email!.toLowerCase(), fullName: normalizedName })
+          .onConflictDoUpdate({
+            target: profiles.id,
+            set: { email: data.user.email!.toLowerCase(), fullName: normalizedName },
+          }),
+      );
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : 'Erro ao atualizar perfil' }, 500);
+    }
   }
 
   return json(

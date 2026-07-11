@@ -1,9 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
+import { and, eq, inArray } from 'drizzle-orm';
+import { atendimentos, servicos } from '../../drizzle/schema';
 import { requireStaff } from './admin-auth';
 import { canStaffAccessAtendimento } from './atendimentos-shared';
 import type { AtendimentoOwnership } from './atendimentos-shared';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -91,61 +94,58 @@ export const onRequestPost = async (context: Context): Promise<Response> => {
   if (descontoCentavos < 0) return json({ error: 'Desconto inválido' }, 400);
   if (acrescimoCentavos < 0) return json({ error: 'Acréscimo inválido' }, 400);
 
-  const { data: atendimento, error: atendimentoError } = await admin
-    .from('atendimentos')
-    .select('id, state, criado_por_user_id, vendido_por_user_id, atendido_por_user_id')
-    .eq('id', id)
-    .maybeSingle<AtendimentoEditRow>();
-  if (atendimentoError) return json({ error: atendimentoError.message }, 500);
-  if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
-  if (!canStaffAccessAtendimento(atendimento, staffCheck.role, staffCheck.user.id)) {
-    return json({ error: 'Acesso restrito aos seus atendimentos' }, 403);
+  try {
+    const result = await withDatabase(env, async (db) => {
+      const [atendimento] = await db
+        .select({
+          state: atendimentos.state,
+          criado_por_user_id: atendimentos.criadoPorUserId,
+          vendido_por_user_id: atendimentos.vendidoPorUserId,
+          atendido_por_user_id: atendimentos.atendidoPorUserId,
+        })
+        .from(atendimentos)
+        .where(eq(atendimentos.id, id));
+      if (!atendimento) return 'not-found' as const;
+      if (!canStaffAccessAtendimento(atendimento, staffCheck.role, staffCheck.user.id)) return 'forbidden' as const;
+      if (!EDITABLE_STATES.has(atendimento.state)) return 'locked' as const;
+      const rows = await db
+        .select({ id: servicos.id, valor_centavos: servicos.valorCentavos, ativo: servicos.ativo })
+        .from(servicos)
+        .where(inArray(servicos.id, uniqueServicoIds));
+      if (rows.length !== uniqueServicoIds.length) return 'missing-services' as const;
+      if (rows.some((servico) => !servico.ativo)) return 'inactive-services' as const;
+      const byId = new Map(rows.map((servico) => [servico.id, servico]));
+      const subtotal = servicoItens.reduce(
+        (total, item) => total + (byId.get(item.servico_id)?.valor_centavos ?? 0) * item.quantidade,
+        0,
+      );
+      if (subtotal + acrescimoCentavos - descontoCentavos <= 0) return 'invalid-total' as const;
+      await db
+        .update(atendimentos)
+        .set({
+          servicoId: servicoIds[0] ?? null,
+          servicoIds,
+          descontoCentavos,
+          acrescimoCentavos,
+          descricaoSolicitacao,
+          pixBrcode: null,
+          valorCentavos: null,
+          state: 'em_andamento',
+          ...(!atendimento.atendido_por_user_id ? { atendidoPorUserId: staffCheck.user.id } : {}),
+        })
+        .where(eq(atendimentos.id, id));
+      return 'ok' as const;
+    });
+    if (result === 'not-found') return json({ error: 'Atendimento não encontrado' }, 404);
+    if (result === 'forbidden') return json({ error: 'Acesso restrito aos seus atendimentos' }, 403);
+    if (result === 'locked') return json({ error: 'Somente pedidos em andamento podem ser editados' }, 409);
+    if (result === 'missing-services') return json({ error: 'Um ou mais serviços não foram encontrados' }, 404);
+    if (result === 'inactive-services') return json({ error: 'Um ou mais serviços estão inativos' }, 400);
+    if (result === 'invalid-total') return json({ error: 'Os ajustes precisam deixar o total maior que zero' }, 400);
+    return json({ ok: true }, 200);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Erro ao atualizar atendimento' }, 500);
   }
-  if (!EDITABLE_STATES.has(atendimento.state)) {
-    return json({ error: 'Somente pedidos em andamento podem ser editados' }, 409);
-  }
-
-  const { data: servicos, error: servicosError } = await admin
-    .from('servicos')
-    .select('id, valor_centavos, ativo')
-    .in('id', uniqueServicoIds);
-  if (servicosError) return json({ error: servicosError.message }, 500);
-
-  const rows = (servicos ?? []) as ServicoRow[];
-  if (rows.length !== uniqueServicoIds.length) {
-    return json({ error: 'Um ou mais serviços não foram encontrados' }, 404);
-  }
-  if (rows.some((servico) => !servico.ativo)) {
-    return json({ error: 'Um ou mais serviços estão inativos' }, 400);
-  }
-
-  const byId = new Map(rows.map((servico) => [servico.id, servico]));
-  const subtotal = servicoItens.reduce((total, item) => {
-    const servico = byId.get(item.servico_id);
-    return total + (servico?.valor_centavos ?? 0) * item.quantidade;
-  }, 0);
-  if (subtotal + acrescimoCentavos - descontoCentavos <= 0) {
-    return json({ error: 'Os ajustes precisam deixar o total maior que zero' }, 400);
-  }
-
-  const patch: Record<string, unknown> = {
-    servico_id: servicoIds[0] ?? null,
-    servico_ids: servicoIds,
-    desconto_centavos: descontoCentavos,
-    acrescimo_centavos: acrescimoCentavos,
-    descricao_solicitacao: descricaoSolicitacao,
-    pix_brcode: null,
-    valor_centavos: null,
-    state: 'em_andamento',
-  };
-  if (!atendimento.atendido_por_user_id) {
-    patch['atendido_por_user_id'] = staffCheck.user.id;
-  }
-
-  const { error } = await admin.from('atendimentos').update(patch).eq('id', id);
-  if (error) return json({ error: error.message }, 500);
-
-  return json({ ok: true }, 200);
 };
 
 function isUuidString(value: unknown): value is string {

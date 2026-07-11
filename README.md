@@ -5,7 +5,8 @@ Sistema administrativo de suporte remoto para operação ponta a ponta.
 ## Stack
 
 - Angular 22, standalone components, signals e lazy routes.
-- Supabase Auth, Postgres, RLS e Realtime.
+- Supabase Auth, Storage e Realtime.
+- Drizzle ORM sobre PostgreSQL, conectado em produção via Cloudflare Hyperdrive.
 - Apache ECharts com `ngx-echarts` no dashboard administrativo.
 - Cloudflare Pages para hospedagem.
 - Cloudflare Pages Functions para endpoints admin em `/api/*`.
@@ -90,6 +91,23 @@ RESEND_API_KEY
 RESEND_WEBHOOK_SECRET
 ```
 
+O acesso ao PostgreSQL não usa uma URL ou senha como secret de Pages. O binding
+`HYPERDRIVE` no [wrangler.toml](wrangler.toml) aponta para a configuração
+Cloudflare Hyperdrive `hpsuporteremoto-postgres`; as Functions abrem a conexão
+por `functions/lib/db.ts` e executam consultas com Drizzle.
+
+Para comandos locais do Drizzle, crie um `.env.local` ignorado pelo Git com a
+URL do pooler do Supabase:
+
+```txt
+DATABASE_URL=postgresql://postgres.<project-ref>:<senha>@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=no-verify
+```
+
+Nunca inclua `DATABASE_URL` ou senha do banco em arquivos versionados. As
+migrations SQL em `supabase/migrations/` seguem como histórico e mecanismo de
+aplicação do schema remoto; as migrations em `drizzle/` são o baseline e a
+fonte de diffs para o ORM, e não devem ser reaplicadas em uma base já existente.
+
 `RESEND_API_KEY` é usada somente pelas Functions do módulo de Marketing e deve
 ser criada como secret no projeto Pages `hpsuporteremoto`; nunca a inclua em
 arquivos versionados. O remetente padrão é `HP Suporte
@@ -144,7 +162,9 @@ O workflow `.github/workflows/deploy.yml` roda em push na `main`:
 
 1. Instala dependências com `npm ci`.
 2. Executa `npm run build`.
-3. Publica o app no projeto Pages `hpsuporteremoto`.
+3. Compila as Pages Functions com `nodejs_compat`, exigido por `pg` e
+   Hyperdrive.
+4. Publica o app no projeto Pages `hpsuporteremoto`.
 
 O ADMIN é servido pela rota `/admin`; a raiz do domínio redireciona para essa rota.
 
@@ -174,9 +194,12 @@ src/app/
   client.routes.ts        # app administrativo com redirect da raiz para /admin
 
 functions/api/
-  create-user.ts
-  delete-user.ts
-  generate-pix.ts
+  *.ts                    # HTTP API; Auth/Storage no Supabase e dados no Drizzle
+functions/lib/db.ts        # conexão curta por request via Hyperdrive
+
+drizzle/
+  schema.ts                # schema tipado do PostgreSQL para Drizzle
+  meta/                    # baseline de geração de diffs
 
 supabase/migrations/
 ```
@@ -188,3 +211,7 @@ supabase/migrations/
 | `npm start` | Sobe o app admin em dev |
 | `npm run build` | Builda o app admin |
 | `npm run build:client` | Builda o mesmo app admin |
+| `npm run typecheck:functions` | Faz typecheck estrito das Pages Functions e do schema Drizzle |
+| `npm run db:generate` | Gera o próximo diff/baseline Drizzle a partir de `drizzle/schema.ts` |
+| `npm run db:introspect` | Reintrospecta o schema remoto usando `DATABASE_URL` |
+| `npm run db:studio` | Abre o Drizzle Studio usando `DATABASE_URL` |

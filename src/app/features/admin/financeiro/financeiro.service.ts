@@ -1,197 +1,89 @@
 import { Injectable, inject } from '@angular/core';
-import { SupabaseService } from '../../../core/supabase/supabase.service';
+import { AuthService } from '../../../core/auth/auth.service';
 import {
   PixRecebedorConfig,
   PixRecebedorConfigFormData,
   ResumoFinanceiro,
   Transacao,
-  TransacaoAtendimentoRef,
   TransacaoFormData,
-  TransacaoServicoRef,
-  TransacaoUserRef,
 } from './financeiro.types';
-
-type TransacaoRow = Omit<Transacao, 'atendimento'> & {
-  atendimento?: TransacaoAtendimentoRef | TransacaoAtendimentoRef[] | null;
-};
-
-type ServicoBase = Omit<TransacaoServicoRef, 'quantidade' | 'subtotal_centavos'>;
 
 @Injectable({ providedIn: 'root' })
 export class FinanceiroService {
-  private readonly supabase = inject(SupabaseService).client;
-  private readonly table = 'transacoes';
-  private readonly pixConfigTable = 'pix_recebedor_config';
+  private readonly auth = inject(AuthService);
 
   async list(from: string, to: string): Promise<Transacao[]> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select(
-        `
-          id, tipo, valor_centavos, descricao, atendimento_id,
-          data, created_at, updated_at,
-          atendimento:atendimentos (
-            id,
-            servico_id,
-            servico_ids,
-            descricao_solicitacao,
-            vendido_por_user_id,
-            cliente:clientes ( id, nome )
-          )
-        `,
-      )
-      .gte('data', from)
-      .lte('data', to)
-      .order('data', { ascending: false })
-      .order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
-    return this.hydrateTransacoes((data ?? []) as unknown as TransacaoRow[]);
+    const params = new URLSearchParams({ from, to });
+    const payload = await this.fetchApi<{ transacoes?: Transacao[]; error?: string }>(
+      `/api/financeiro?${params.toString()}`,
+    );
+    return payload.transacoes ?? [];
   }
 
   async get(id: string): Promise<Transacao | null> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .select('*')
-      .eq('id', id)
-      .maybeSingle<Transacao>();
-    if (error) throw new Error(error.message);
-    return data;
+    const all = await this.list('1900-01-01', '2999-12-31');
+    return all.find((transacao) => transacao.id === id) ?? null;
   }
 
   async create(input: TransacaoFormData): Promise<Transacao> {
-    const { data, error } = await this.supabase
-      .from(this.table)
-      .insert(input)
-      .select()
-      .single<Transacao>();
-    if (error) throw new Error(error.message);
-    return data;
+    const payload = await this.postApi<{ transacao?: Transacao; error?: string }>('/api/financeiro', {
+      action: 'create',
+      ...input,
+    });
+    if (!payload.transacao) throw new Error('Falha ao criar transação');
+    return payload.transacao;
   }
 
   async remove(id: string): Promise<void> {
-    const { error } = await this.supabase.from(this.table).delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    await this.postApi('/api/financeiro', { action: 'delete', id });
   }
 
   async getPixRecebedorConfig(): Promise<PixRecebedorConfig | null> {
-    const { data, error } = await this.supabase
-      .from(this.pixConfigTable)
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle<PixRecebedorConfig>();
-    if (error) throw new Error(error.message);
-    return data;
+    const payload = await this.fetchApi<{ config?: PixRecebedorConfig | null; error?: string }>(
+      '/api/financeiro?action=pix',
+    );
+    return payload.config ?? null;
   }
 
   async savePixRecebedorConfig(input: PixRecebedorConfigFormData): Promise<PixRecebedorConfig> {
-    const { data, error } = await this.supabase
-      .from(this.pixConfigTable)
-      .upsert({ id: 1, ...input }, { onConflict: 'id' })
-      .select()
-      .single<PixRecebedorConfig>();
-    if (error) throw new Error(error.message);
-    return data;
+    const payload = await this.postApi<{ config?: PixRecebedorConfig; error?: string }>('/api/financeiro', {
+      action: 'save-pix',
+      ...input,
+    });
+    if (!payload.config) throw new Error('Falha ao salvar recebedor PIX');
+    return payload.config;
   }
 
   static calcularResumo(transacoes: ReadonlyArray<Transacao>): ResumoFinanceiro {
-    let entradas = 0;
-    let saidas = 0;
-    for (const t of transacoes) {
-      if (t.tipo === 'entrada') entradas += t.valor_centavos;
-      else saidas += t.valor_centavos;
-    }
-    return { entradas, saidas, saldo: entradas - saidas };
+    return transacoes.reduce(
+      (resumo, transacao) => ({
+        entradas: resumo.entradas + (transacao.tipo === 'entrada' ? transacao.valor_centavos : 0),
+        saidas: resumo.saidas + (transacao.tipo === 'saida' ? transacao.valor_centavos : 0),
+        saldo: resumo.saldo + (transacao.tipo === 'entrada' ? transacao.valor_centavos : -transacao.valor_centavos),
+      }),
+      { entradas: 0, saidas: 0, saldo: 0 },
+    );
   }
 
-  private async hydrateTransacoes(rows: readonly TransacaoRow[]): Promise<Transacao[]> {
-    const normalizedRows = rows.map((row) => ({
-      ...row,
-      atendimento: Array.isArray(row.atendimento)
-        ? (row.atendimento[0] ?? null)
-        : (row.atendimento ?? null),
-    }));
-    const servicoIds = Array.from(
-      new Set(
-        normalizedRows.flatMap((row) => {
-          const atendimento = row.atendimento;
-          if (!atendimento) return [];
-          const ids = atendimento.servico_ids ?? [];
-          return ids.length > 0 ? ids : atendimento.servico_id ? [atendimento.servico_id] : [];
-        }),
-      ),
-    );
-    const userIds = Array.from(
-      new Set(
-        normalizedRows.flatMap((row) =>
-          row.atendimento?.vendido_por_user_id ? [row.atendimento.vendido_por_user_id] : [],
-        ),
-      ),
-    );
-    const [servicosById, usersById] = await Promise.all([
-      this.getServicosById(servicoIds),
-      this.getUsersById(userIds),
-    ]);
+  private async fetchApi<T extends { error?: string }>(url: string): Promise<T> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const payload = (await response.json().catch(() => ({}))) as T;
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload;
+  }
 
-    return normalizedRows.map((row) => {
-      const atendimento = row.atendimento;
-      if (!atendimento) return { ...row, atendimento: null };
-
-      const ids =
-        atendimento.servico_ids && atendimento.servico_ids.length > 0
-          ? atendimento.servico_ids
-          : atendimento.servico_id
-            ? [atendimento.servico_id]
-            : [];
-      const quantities = new Map<string, number>();
-      for (const id of ids) {
-        quantities.set(id, (quantities.get(id) ?? 0) + 1);
-      }
-
-      return {
-        ...row,
-        atendimento: {
-          ...atendimento,
-          vendido_por: atendimento.vendido_por_user_id
-            ? (usersById.get(atendimento.vendido_por_user_id) ?? null)
-            : null,
-          servicos_solicitados: Array.from(quantities.entries()).flatMap(([id, quantidade]) => {
-            const servico = servicosById.get(id);
-            return servico
-              ? [
-                  {
-                    ...servico,
-                    quantidade,
-                    subtotal_centavos: servico.valor_centavos * quantidade,
-                  },
-                ]
-              : [];
-          }),
-        },
-      };
+  private async postApi<T extends { error?: string } = { error?: string }>(url: string, body: unknown): Promise<T> {
+    const token = await this.auth.getAccessToken();
+    if (!token) throw new Error('Sessão inválida');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
     });
-  }
-
-  private async getServicosById(ids: readonly string[]): Promise<Map<string, ServicoBase>> {
-    if (ids.length === 0) return new Map();
-
-    const { data, error } = await this.supabase
-      .from('servicos')
-      .select('id, nome, valor_centavos')
-      .in('id', ids);
-    if (error) throw new Error(error.message);
-
-    return new Map(((data ?? []) as ServicoBase[]).map((servico) => [servico.id, servico]));
-  }
-
-  private async getUsersById(ids: readonly string[]): Promise<Map<string, TransacaoUserRef>> {
-    if (ids.length === 0) return new Map();
-
-    const { data, error } = await this.supabase
-      .from('profiles')
-      .select('id, email, full_name')
-      .in('id', ids);
-    if (error) throw new Error(error.message);
-
-    return new Map(((data ?? []) as TransacaoUserRef[]).map((user) => [user.id, user]));
+    const payload = (await response.json().catch(() => ({}))) as T;
+    if (!response.ok) throw new Error(payload.error ?? `Erro ${response.status}`);
+    return payload;
   }
 }

@@ -1,16 +1,11 @@
+import { eq } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
+import { atendimentos } from '../../drizzle/schema';
 import { requireStaff } from './admin-auth';
-import {
-  ATENDIMENTO_OWNERSHIP_SELECT,
-  canStaffAccessAtendimento,
-} from './atendimentos-shared';
-import type { AtendimentoOwnership, AtendimentoState } from './atendimentos-shared';
+import { canStaffAccessAtendimento, type AtendimentoState } from './atendimentos-shared';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
-  SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
-};
-
+type Env = DatabaseEnv & { SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string };
 type Context = { request: Request; env: Env };
 
 const ALLOWED_STATES = new Set<AtendimentoState>([
@@ -22,62 +17,58 @@ const ALLOWED_STATES = new Set<AtendimentoState>([
 ]);
 
 function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
 export const onRequestPost = async (context: Context): Promise<Response> => {
   const { request, env } = context;
-
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-    return json({ error: 'Servidor mal configurado (env vars ausentes)' }, 500);
-  }
-
   const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-
   const staffCheck = await requireStaff(admin, request);
   if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
-
-  let body: unknown;
+  let body: { id?: unknown; state?: unknown };
   try {
-    body = await request.json();
+    body = (await request.json()) as { id?: unknown; state?: unknown };
   } catch {
     return json({ error: 'Corpo JSON inválido' }, 400);
   }
-
-  const { id, state } = (body ?? {}) as { id?: unknown; state?: unknown };
-  if (typeof id !== 'string' || id.length === 0) {
-    return json({ error: 'id obrigatório' }, 400);
-  }
-  if (typeof state !== 'string' || !ALLOWED_STATES.has(state as AtendimentoState)) {
+  if (typeof body.id !== 'string' || !body.id) return json({ error: 'id obrigatório' }, 400);
+  if (typeof body.state !== 'string' || !ALLOWED_STATES.has(body.state as AtendimentoState)) {
     return json({ error: 'state inválido' }, 400);
   }
-  if (state === 'recusado' && staffCheck.role !== 'admin') {
+  if (body.state === 'recusado' && staffCheck.role !== 'admin') {
     return json({ error: 'Apenas administradores podem cancelar atendimentos' }, 403);
   }
 
-  const { data: atendimento, error: atendimentoError } = await admin
-    .from('atendimentos')
-    .select(ATENDIMENTO_OWNERSHIP_SELECT)
-    .eq('id', id)
-    .maybeSingle<AtendimentoOwnership>();
-  if (atendimentoError) return json({ error: atendimentoError.message }, 500);
-  if (!atendimento) return json({ error: 'Atendimento não encontrado' }, 404);
-  if (!canStaffAccessAtendimento(atendimento, staffCheck.role, staffCheck.user.id)) {
-    return json({ error: 'Acesso restrito aos seus atendimentos' }, 403);
+  try {
+    const result = await withDatabase(env, async (db) => {
+      const [atendimento] = await db
+        .select({
+          id: atendimentos.id,
+          criado_por_user_id: atendimentos.criadoPorUserId,
+          vendido_por_user_id: atendimentos.vendidoPorUserId,
+          atendido_por_user_id: atendimentos.atendidoPorUserId,
+        })
+        .from(atendimentos)
+        .where(eq(atendimentos.id, body.id as string));
+      if (!atendimento) return 'not-found' as const;
+      if (!canStaffAccessAtendimento(atendimento, staffCheck.role, staffCheck.user.id)) {
+        return 'forbidden' as const;
+      }
+      await db
+        .update(atendimentos)
+        .set({
+          state: body.state as typeof atendimentos.$inferSelect.state,
+          ...(body.state === 'em_andamento' ? { atendidoPorUserId: staffCheck.user.id } : {}),
+        })
+        .where(eq(atendimentos.id, body.id as string));
+      return 'ok' as const;
+    });
+    if (result === 'not-found') return json({ error: 'Atendimento não encontrado' }, 404);
+    if (result === 'forbidden') return json({ error: 'Acesso restrito aos seus atendimentos' }, 403);
+    return json({ ok: true }, 200);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Erro ao atualizar atendimento' }, 500);
   }
-
-  const patch: Record<string, unknown> = { state };
-  if (state === 'em_andamento') {
-    patch['atendido_por_user_id'] = staffCheck.user.id;
-  }
-
-  const { error } = await admin.from('atendimentos').update(patch).eq('id', id);
-  if (error) return json({ error: error.message }, 500);
-
-  return json({ ok: true }, 200);
 };

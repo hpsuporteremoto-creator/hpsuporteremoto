@@ -1,13 +1,11 @@
+import { eq } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
+import { atendimentos } from '../../drizzle/schema';
 import { requireStaff } from './admin-auth';
-import {
-  ATENDIMENTO_SELECT,
-  canStaffAccessAtendimento,
-  hydrateServicosSolicitados,
-} from './atendimentos-shared';
-import type { AtendimentoComRelacoes } from './atendimentos-shared';
+import { canStaffAccessAtendimento, listAtendimentosComRelacoes } from './atendimentos-shared';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -23,48 +21,24 @@ function json(body: unknown, status: number): Response {
 
 export const onRequestGet = async (context: Context): Promise<Response> => {
   const { request, env } = context;
-
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-    return json({ error: 'Servidor mal configurado (env vars ausentes)' }, 500);
-  }
-
   const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-
   const staffCheck = await requireStaff(admin, request);
   if (!staffCheck.ok) return json({ error: staffCheck.error }, staffCheck.status);
 
-  const url = new URL(request.url);
-  const id = url.searchParams.get('id')?.trim() ?? '';
+  const id = new URL(request.url).searchParams.get('id')?.trim() ?? '';
   if (!id) return json({ error: 'id obrigatório' }, 400);
 
-  const { data, error } = await admin
-    .from('atendimentos')
-    .select(ATENDIMENTO_SELECT)
-    .eq('id', id)
-    .maybeSingle();
-  if (error) return json({ error: error.message }, 500);
-  if (!data) return json({ atendimento: null }, 200);
-  if (
-    !canStaffAccessAtendimento(
-      data as unknown as AtendimentoComRelacoes,
-      staffCheck.role,
-      staffCheck.user.id,
-    )
-  ) {
-    return json({ atendimento: null }, 200);
-  }
-
   try {
-    const [atendimento] = await hydrateServicosSolicitados(admin, [
-      data as unknown as AtendimentoComRelacoes,
-    ]);
-    return json({ atendimento: atendimento ?? null }, 200);
-  } catch (err) {
-    return json(
-      { error: err instanceof Error ? err.message : 'Erro ao carregar serviços' },
-      500,
+    const [atendimento] = await withDatabase(env, (db) =>
+      listAtendimentosComRelacoes(db, eq(atendimentos.id, id)),
     );
+    if (!atendimento || !canStaffAccessAtendimento(atendimento, staffCheck.role, staffCheck.user.id)) {
+      return json({ atendimento: null }, 200);
+    }
+    return json({ atendimento }, 200);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : 'Erro ao carregar atendimento' }, 500);
   }
 };

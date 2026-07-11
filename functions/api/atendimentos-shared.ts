@@ -1,5 +1,7 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { desc, eq, inArray, or, type SQL } from 'drizzle-orm';
+import { atendimentos, clientes, profiles, servicos, transacoes } from '../../drizzle/schema';
 import type { UserRole } from './admin-auth';
+import type { AppDatabase } from '../lib/db';
 
 export type AtendimentoState =
   | 'aguardando_confirmacao'
@@ -22,9 +24,7 @@ export type AtendimentoUserRef = {
   full_name: string | null;
 };
 
-type AtendimentoTransacaoRef = {
-  id: string;
-};
+type AtendimentoTransacaoRef = { id: string };
 
 export type AtendimentoComRelacoes = {
   id: string;
@@ -54,171 +54,171 @@ export type AtendimentoComRelacoes = {
   criado_por: AtendimentoUserRef | null;
   vendido_por: AtendimentoUserRef | null;
   atendido_por: AtendimentoUserRef | null;
-  transacoes?: AtendimentoTransacaoRef[] | AtendimentoTransacaoRef | null;
+  transacoes?: AtendimentoTransacaoRef[];
   financeiro_contabilizado: boolean;
   financeiro_transacao_id: string | null;
 };
-
-export const ATENDIMENTO_SELECT = `
-  id, cliente_id, servico_id, servico_ids, desconto_centavos, acrescimo_centavos,
-  state, valor_centavos, pix_brcode, descricao_solicitacao,
-  criado_por_user_id, vendido_por_user_id, atendido_por_user_id,
-  created_at, updated_at,
-  cliente:clientes ( id, nome, whatsapp, instagram, email ),
-  servico:servicos ( id, nome, valor_centavos ),
-  transacoes ( id )
-`;
 
 export type AtendimentoOwnership = Pick<
   AtendimentoComRelacoes,
   'criado_por_user_id' | 'vendido_por_user_id' | 'atendido_por_user_id'
 >;
 
-export const ATENDIMENTO_OWNERSHIP_SELECT =
-  'id, criado_por_user_id, vendido_por_user_id, atendido_por_user_id';
-
-export function atendimentoOwnershipFilter(userId: string): string {
-  return [
-    `criado_por_user_id.eq.${userId}`,
-    `vendido_por_user_id.eq.${userId}`,
-    `atendido_por_user_id.eq.${userId}`,
-  ].join(',');
-}
-
 export function canStaffAccessAtendimento(
   atendimento: AtendimentoOwnership | null | undefined,
   role: UserRole,
   userId: string,
 ): boolean {
-  if (role === 'admin') return true;
-  if (!atendimento) return false;
-  return (
-    atendimento.criado_por_user_id === userId ||
-    atendimento.vendido_por_user_id === userId ||
-    atendimento.atendido_por_user_id === userId
+  return Boolean(
+    role === 'admin' ||
+      (atendimento &&
+        (atendimento.criado_por_user_id === userId ||
+          atendimento.vendido_por_user_id === userId ||
+          atendimento.atendido_por_user_id === userId)),
+  );
+}
+
+export function atendimentoOwnershipCondition(userId: string): SQL {
+  return or(
+    eq(atendimentos.criadoPorUserId, userId),
+    eq(atendimentos.vendidoPorUserId, userId),
+    eq(atendimentos.atendidoPorUserId, userId),
+  ) as SQL;
+}
+
+export async function listAtendimentosComRelacoes(
+  db: AppDatabase,
+  condition?: SQL,
+): Promise<AtendimentoComRelacoes[]> {
+  const baseQuery = db
+    .select({
+      atendimento: atendimentos,
+      cliente: {
+        id: clientes.id,
+        nome: clientes.nome,
+        whatsapp: clientes.whatsapp,
+        instagram: clientes.instagram,
+        email: clientes.email,
+      },
+      servico: {
+        id: servicos.id,
+        nome: servicos.nome,
+        valor_centavos: servicos.valorCentavos,
+      },
+      transacao: { id: transacoes.id },
+    })
+    .from(atendimentos)
+    .innerJoin(clientes, eq(atendimentos.clienteId, clientes.id))
+    .leftJoin(servicos, eq(atendimentos.servicoId, servicos.id))
+    .leftJoin(transacoes, eq(atendimentos.id, transacoes.atendimentoId))
+    .orderBy(desc(atendimentos.createdAt));
+  const rows = condition ? await baseQuery.where(condition) : await baseQuery;
+  return hydrateServicosSolicitados(
+    db,
+    rows.map((row) => {
+      const atendimento = row.atendimento;
+      const transacao = row.transacao?.id ? [{ id: row.transacao.id }] : [];
+      return {
+        id: atendimento.id,
+        cliente_id: atendimento.clienteId,
+        servico_id: atendimento.servicoId,
+        servico_ids: atendimento.servicoIds,
+        desconto_centavos: atendimento.descontoCentavos,
+        acrescimo_centavos: atendimento.acrescimoCentavos,
+        state: normalizeAtendimentoState(atendimento.state),
+        valor_centavos: atendimento.valorCentavos,
+        pix_brcode: atendimento.pixBrcode,
+        descricao_solicitacao: atendimento.descricaoSolicitacao,
+        criado_por_user_id: atendimento.criadoPorUserId,
+        vendido_por_user_id: atendimento.vendidoPorUserId,
+        atendido_por_user_id: atendimento.atendidoPorUserId,
+        created_at: atendimento.createdAt,
+        updated_at: atendimento.updatedAt,
+        cliente: row.cliente,
+        servico: row.servico?.id
+          ? { ...row.servico, quantidade: 1, subtotal_centavos: row.servico.valor_centavos ?? 0 }
+          : null,
+        servicos_solicitados: [],
+        criado_por: null,
+        vendido_por: null,
+        atendido_por: null,
+        transacoes: transacao,
+        financeiro_contabilizado: transacao.length > 0,
+        financeiro_transacao_id: transacao[0]?.id ?? null,
+      };
+    }),
   );
 }
 
 export async function hydrateServicosSolicitados(
-  admin: SupabaseClient,
-  rows: AtendimentoComRelacoes[],
+  db: AppDatabase,
+  rows: readonly AtendimentoComRelacoes[],
 ): Promise<AtendimentoComRelacoes[]> {
-  const ids = Array.from(
-    new Set(
-      rows.flatMap((row) => {
-        return getServicoIdsFromRow(row);
-      }),
-    ),
-  );
-  if (ids.length === 0) {
-    return hydrateAtendimentoUsers(
-      admin,
-      rows.map((row) => ({
-        ...row,
-        state: normalizeAtendimentoState(row.state),
-        ...getFinanceiroStatus(row),
-        servicos_solicitados: [],
-      })),
-    );
-  }
-
-  const { data, error } = await admin
-    .from('servicos')
-    .select('id, nome, valor_centavos')
-    .in('id', ids);
-  if (error) throw new Error(error.message);
-
-  const byId = new Map(
-    ((data ?? []) as Array<Omit<AtendimentoServicoRef, 'quantidade' | 'subtotal_centavos'>>).map(
-      (servico) => [servico.id, servico],
-    ),
-  );
-  const hydratedRows = rows.map((row) => {
-    const rowIds = getServicoIdsFromRow(row);
+  const serviceIds = Array.from(new Set(rows.flatMap(getServicoIdsFromRow)));
+  const serviceRows = serviceIds.length
+    ? await db
+        .select({ id: servicos.id, nome: servicos.nome, valor_centavos: servicos.valorCentavos })
+        .from(servicos)
+        .where(inArray(servicos.id, serviceIds))
+    : [];
+  const servicesById = new Map(serviceRows.map((servico) => [servico.id, servico]));
+  const hydrated = rows.map((row) => {
     const quantities = new Map<string, number>();
-    for (const id of rowIds) {
-      quantities.set(id, (quantities.get(id) ?? 0) + 1);
-    }
-
+    for (const id of getServicoIdsFromRow(row)) quantities.set(id, (quantities.get(id) ?? 0) + 1);
+    const servicosSolicitados = Array.from(quantities.entries()).flatMap(([id, quantidade]) => {
+      const servico = servicesById.get(id);
+      return servico
+        ? [
+            {
+              ...servico,
+              quantidade,
+              subtotal_centavos: servico.valor_centavos * quantidade,
+            },
+          ]
+        : [];
+    });
     return {
       ...row,
       state: normalizeAtendimentoState(row.state),
-      ...getFinanceiroStatus(row),
-      servicos_solicitados: Array.from(quantities.entries()).flatMap(([id, quantidade]) => {
-        const servico = byId.get(id);
-        return servico
-          ? [
-              {
-                ...servico,
-                quantidade,
-                subtotal_centavos: servico.valor_centavos * quantidade,
-              },
-            ]
-          : [];
-      }),
+      servicos_solicitados: servicosSolicitados,
     };
   });
-  return hydrateAtendimentoUsers(admin, hydratedRows);
+  return hydrateAtendimentoUsers(db, hydrated);
 }
 
 async function hydrateAtendimentoUsers(
-  admin: SupabaseClient,
-  rows: AtendimentoComRelacoes[],
+  db: AppDatabase,
+  rows: readonly AtendimentoComRelacoes[],
 ): Promise<AtendimentoComRelacoes[]> {
   const ids = Array.from(
     new Set(
-      rows.flatMap((row) => [
-        row.criado_por_user_id,
-        row.vendido_por_user_id,
-        row.atendido_por_user_id,
-      ]),
+      rows.flatMap((row) => [row.criado_por_user_id, row.vendido_por_user_id, row.atendido_por_user_id]),
     ),
-  ).filter((id): id is string => typeof id === 'string' && id.length > 0);
-
-  if (ids.length === 0) {
-    return rows.map((row) => ({
-      ...row,
-      criado_por: null,
-      vendido_por: null,
-      atendido_por: null,
-    }));
-  }
-
-  const { data, error } = await admin.from('profiles').select('id, email, full_name').in('id', ids);
-  if (error) throw new Error(error.message);
-
-  const usersById = new Map(((data ?? []) as AtendimentoUserRef[]).map((user) => [user.id, user]));
+  ).filter((id): id is string => Boolean(id));
+  if (ids.length === 0) return [...rows];
+  const users = await db
+    .select({ id: profiles.id, email: profiles.email, full_name: profiles.fullName })
+    .from(profiles)
+    .where(inArray(profiles.id, ids));
+  const usersById = new Map(users.map((user) => [user.id, user]));
   return rows.map((row) => ({
     ...row,
     criado_por: row.criado_por_user_id ? (usersById.get(row.criado_por_user_id) ?? null) : null,
     vendido_por: row.vendido_por_user_id ? (usersById.get(row.vendido_por_user_id) ?? null) : null,
-    atendido_por: row.atendido_por_user_id
-      ? (usersById.get(row.atendido_por_user_id) ?? null)
-      : null,
+    atendido_por: row.atendido_por_user_id ? (usersById.get(row.atendido_por_user_id) ?? null) : null,
   }));
 }
 
-function getFinanceiroStatus(row: AtendimentoComRelacoes): {
-  financeiro_contabilizado: boolean;
-  financeiro_transacao_id: string | null;
-} {
-  const transacoes = Array.isArray(row.transacoes)
-    ? row.transacoes
-    : row.transacoes
-      ? [row.transacoes]
-      : [];
-  const transacao = transacoes[0] ?? null;
-  return {
-    financeiro_contabilizado: Boolean(transacao),
-    financeiro_transacao_id: transacao?.id ?? null,
-  };
-}
-
 function getServicoIdsFromRow(row: AtendimentoComRelacoes): string[] {
-  if (row.servico_ids && row.servico_ids.length > 0) return row.servico_ids;
-  return row.servico_id ? [row.servico_id] : [];
+  return row.servico_ids && row.servico_ids.length > 0
+    ? row.servico_ids
+    : row.servico_id
+      ? [row.servico_id]
+      : [];
 }
 
-function normalizeAtendimentoState(state: AtendimentoState): AtendimentoState {
-  return state === 'aguardando_confirmacao' ? 'em_andamento' : state;
+function normalizeAtendimentoState(state: string): AtendimentoState {
+  if (state === 'aguardando_confirmacao') return 'em_andamento';
+  if (state === 'faturamento') return 'pagamento';
+  return state as AtendimentoState;
 }

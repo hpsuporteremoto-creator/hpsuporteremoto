@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
+import { eq } from 'drizzle-orm';
+import { profiles } from '../../drizzle/schema';
 import { getUserRole, isAdminUser, metadataText, requireAdmin } from './admin-auth';
 import { accessFromMetadata, emptyUserAccess, latestAccessByUserIds } from './user-access';
+import { type DatabaseEnv, withDatabase } from '../lib/db';
 
-type Env = {
+type Env = DatabaseEnv & {
   SUPABASE_URL: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
 };
@@ -48,17 +51,26 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
     return json({ error: 'Usuário não encontrado no Auth' }, 404);
   }
 
-  const { data: profile, error: profileError } = await admin
-    .from('profiles')
-    .select('id, email, full_name, avatar_url, created_at, updated_at')
-    .eq('id', userId)
-    .maybeSingle<ProfileRow>();
-  if (profileError) return json({ error: profileError.message }, 500);
+  const databaseData = await withDatabase(env, async (db) => {
+    const [profile] = await db
+      .select({
+        id: profiles.id,
+        email: profiles.email,
+        full_name: profiles.fullName,
+        avatar_url: profiles.avatarUrl,
+        created_at: profiles.createdAt,
+        updated_at: profiles.updatedAt,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, userId));
+    return { profile, accessById: await latestAccessByUserIds(db, [userId]) };
+  });
+  const profile = databaseData.profile as ProfileRow | undefined;
 
   const user = target.user;
   const email = user.email?.toLowerCase() ?? profile?.email ?? '';
   if (!email) return json({ error: 'Usuário sem email cadastrado' }, 404);
-  const accessById = await latestAccessByUserIds(admin, [user.id]);
+  const accessById = databaseData.accessById;
   const access = accessById.get(user.id) ?? emptyUserAccess();
   const metadataAccess = accessFromMetadata(user.app_metadata);
 
