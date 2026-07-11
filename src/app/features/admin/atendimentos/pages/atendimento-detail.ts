@@ -698,7 +698,7 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                 }
                 <section class="payment-proof" aria-label="Comprovação de pagamento">
                   <h3>Comprovação de pagamento</h3>
-                  <p>Informe o EndToEndId do PIX ou anexe o comprovante.</p>
+                  <p>Opcional: informe o EndToEndId do PIX ou anexe o comprovante.</p>
                   <mat-form-field appearance="outline" class="full-width">
                     <mat-label>EndToEndId</mat-label>
                     <mat-icon matIconPrefix>receipt_long</mat-icon>
@@ -739,7 +739,7 @@ interface CobrancaServicoItem extends CobrancaServicoBase {
                   color="primary"
                   type="button"
                   (click)="marcarPago()"
-                  [disabled]="updating() || cobrancaAlterada() || ajusteInvalido() || !evidenciaDePagamentoValida()"
+                  [disabled]="updating() || cobrancaAlterada() || ajusteInvalido()"
                 >
                   <mat-icon>check_circle</mat-icon>
                   <span>Marcar como pago e finalizar</span>
@@ -852,9 +852,6 @@ export class AtendimentoDetailPage {
   });
   protected readonly endToEndIdInvalido = computed(
     () => this.endToEndId().trim().length > 0 && !this.endToEndPreview(),
-  );
-  protected readonly evidenciaDePagamentoValida = computed(
-    () => Boolean(this.endToEndPreview() || this.comprovanteSelecionado()),
   );
 
   protected readonly servicosParaCobranca = computed<CobrancaServicoItem[]>(() => {
@@ -1289,7 +1286,7 @@ export class AtendimentoDetailPage {
         }
         await this.svc.confirmarPagamento({
           atendimento_id: a.id,
-          end_to_end_id: this.endToEndPreview() ? this.endToEndId().trim() : null,
+          end_to_end_id: this.endToEndId().trim() || null,
           comprovante_path: comprovante?.path ?? null,
           comprovante_nome: comprovante?.nome ?? null,
           comprovante_tipo: comprovante?.tipo ?? null,

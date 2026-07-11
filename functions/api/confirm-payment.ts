@@ -29,9 +29,6 @@ const confirmPaymentSchema = z
     comprovante_nome: z.string().trim().max(255).nullable().optional().transform((value) => value || null),
     comprovante_tipo: z.string().trim().max(120).nullable().optional().transform((value) => value || null),
   })
-  .refine((value) => Boolean(value.end_to_end_id || value.comprovante_path), {
-    message: 'Informe o EndToEndId ou anexe um comprovante de pagamento',
-  })
   .refine(
     (value) =>
       !value.comprovante_path ||
