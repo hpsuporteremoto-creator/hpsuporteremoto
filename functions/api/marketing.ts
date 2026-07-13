@@ -69,6 +69,12 @@ type CampaignStatus = 'rascunho' | 'agendada' | 'enviada' | 'falhou' | 'cancelad
 
 const DEFAULT_SENDER = 'HP Suporte <contato@hpsuporteremoto.com.br>';
 const PAGE_SIZE = 1000;
+const IMMEDIATE_CAMPAIGN_SEGMENT_NAME = 'HP Suporte - Campanhas imediatas';
+
+type CampaignSegment = {
+  id: string;
+  disposable: boolean;
+};
 
 const scheduledAtSchema = z
   .string()
@@ -240,31 +246,36 @@ async function createCampaign(
     if (!campaignRecord) throw new Error('Falha ao criar campanha');
     const campaign = toCampaignRow(campaignRecord);
 
+    let segment: CampaignSegment | null = null;
+    let broadcastCreated = false;
     try {
       await insertRecipients(db, campaign.id, recipients);
       const resend = new Resend(env.RESEND_API_KEY);
-      const segmentResult = await resend.segments.create({
-        name: `${safeSegmentName(input.nome)} ${campaign.id.slice(0, 8)}`,
-      });
-      if (segmentResult.error || !segmentResult.data) {
-        throw new Error(segmentResult.error?.message ?? 'Falha ao criar segmento no Resend');
+      segment = input.agendada_para
+        ? await createScheduledCampaignSegment(resend, input.nome, campaign.id)
+        : await getImmediateCampaignSegment(resend);
+      if (!segment.disposable) {
+        await clearSegmentRecipients(resend, segment.id);
       }
 
-      const deliverable = await syncRecipientsToSegment(
+      const syncResult = await syncRecipientsToSegment(
         db,
         resend,
         campaign.id,
-        segmentResult.data.id,
+        segment.id,
         recipients,
       );
-      if (deliverable === 0) {
-        throw new Error('Nenhum destinatário pôde ser sincronizado com o Resend.');
+      if (syncResult.deliverable === 0) {
+        const details = syncResult.failures.length
+          ? ` ${syncResult.failures.slice(0, 3).join(' | ')}`
+          : '';
+        throw new Error(`Nenhum destinatário pôde ser sincronizado com o Resend.${details}`);
       }
 
       const broadcastResult = input.agendada_para
         ? await resend.broadcasts.create({
             name: input.nome,
-            segmentId: segmentResult.data.id,
+            segmentId: segment.id,
             from: DEFAULT_SENDER,
             subject: input.assunto,
             previewText: input.texto_previa ?? undefined,
@@ -275,7 +286,7 @@ async function createCampaign(
           })
         : await resend.broadcasts.create({
             name: input.nome,
-            segmentId: segmentResult.data.id,
+            segmentId: segment.id,
             from: DEFAULT_SENDER,
             subject: input.assunto,
             previewText: input.texto_previa ?? undefined,
@@ -286,6 +297,7 @@ async function createCampaign(
       if (broadcastResult.error || !broadcastResult.data) {
         throw new Error(broadcastResult.error?.message ?? 'Falha ao enviar campanha pelo Resend');
       }
+      broadcastCreated = true;
 
       const status: CampaignStatus = input.agendada_para ? 'agendada' : 'enviada';
       const recipientStatus = input.agendada_para ? 'agendado' : 'enviado';
@@ -294,7 +306,7 @@ async function createCampaign(
         .update(marketingCampanhas)
         .set({
           status,
-          resendSegmentId: segmentResult.data.id,
+          resendSegmentId: segment.id,
           resendBroadcastId: broadcastResult.data.id,
           enviadaEm: input.agendada_para ? null : now,
           erro: null,
@@ -309,8 +321,8 @@ async function createCampaign(
         tipo: input.agendada_para ? 'broadcast.agendado' : 'broadcast.enviado',
         payload: {
           resend_broadcast_id: broadcastResult.data.id,
-          resend_segment_id: segmentResult.data.id,
-          destinatarios: deliverable,
+          resend_segment_id: segment.id,
+          destinatarios: syncResult.deliverable,
         },
       });
 
@@ -319,7 +331,7 @@ async function createCampaign(
           campanha: {
             ...campaign,
             status,
-            resend_segment_id: segmentResult.data.id,
+            resend_segment_id: segment.id,
             resend_broadcast_id: broadcastResult.data.id,
             enviada_em: input.agendada_para ? null : now,
           },
@@ -328,6 +340,9 @@ async function createCampaign(
         201,
       );
     } catch (err) {
+      if (segment?.disposable && !broadcastCreated) {
+        await resendDeleteSegment(env.RESEND_API_KEY, segment.id);
+      }
       await db
         .update(marketingCampanhas)
         .set({ status: 'falhou', erro: errorMessage(err, 'Falha ao enviar campanha') })
@@ -337,6 +352,64 @@ async function createCampaign(
   } catch (err) {
     return json({ error: errorMessage(err, 'Falha ao criar campanha') }, 500);
   }
+}
+
+async function createScheduledCampaignSegment(
+  resend: Resend,
+  campaignName: string,
+  campaignId: string,
+): Promise<CampaignSegment> {
+  const result = await resend.segments.create({
+    name: `${safeSegmentName(campaignName)} ${campaignId.slice(0, 8)}`,
+  });
+  if (result.error || !result.data) {
+    throw new Error(segmentErrorMessage(result.error?.message));
+  }
+  return { id: result.data.id, disposable: true };
+}
+
+async function getImmediateCampaignSegment(resend: Resend): Promise<CampaignSegment> {
+  const listed = await resend.segments.list({ limit: 100 });
+  if (listed.error || !listed.data) {
+    throw new Error(listed.error?.message ?? 'Falha ao consultar segmentos no Resend');
+  }
+  const existing = listed.data.data.find((segment) => segment.name === IMMEDIATE_CAMPAIGN_SEGMENT_NAME);
+  if (existing) return { id: existing.id, disposable: false };
+
+  const created = await resend.segments.create({ name: IMMEDIATE_CAMPAIGN_SEGMENT_NAME });
+  if (created.error || !created.data) {
+    throw new Error(segmentErrorMessage(created.error?.message));
+  }
+  return { id: created.data.id, disposable: false };
+}
+
+async function clearSegmentRecipients(resend: Resend, segmentId: string): Promise<void> {
+  while (true) {
+    const listed = await resend.contacts.list({ segmentId, limit: 100 });
+    if (listed.error || !listed.data) {
+      throw new Error(listed.error?.message ?? 'Falha ao consultar contatos do segmento no Resend');
+    }
+    if (listed.data.data.length === 0) return;
+
+    for (const contact of listed.data.data) {
+      const removed = await resend.contacts.segments.remove({ contactId: contact.id, segmentId });
+      if (removed.error) throw new Error(removed.error.message);
+    }
+  }
+}
+
+async function resendDeleteSegment(apiKey: string, segmentId: string): Promise<void> {
+  const deleted = await new Resend(apiKey).segments.remove(segmentId);
+  if (deleted.error) {
+    console.error(`Não foi possível remover o segmento temporário ${segmentId}: ${deleted.error.message}`);
+  }
+}
+
+function segmentErrorMessage(error: string | undefined): string {
+  if (error?.includes('includes 3 segments')) {
+    return 'O limite de segmentos do plano Resend foi atingido. Remova campanhas agendadas antigas ou aguarde a conclusão delas.';
+  }
+  return error ?? 'Falha ao criar segmento no Resend';
 }
 
 async function insertRecipients(
@@ -363,8 +436,9 @@ async function syncRecipientsToSegment(
   campaignId: string,
   segmentId: string,
   recipients: readonly AudienceRecipient[],
-): Promise<number> {
+): Promise<{ deliverable: number; failures: string[] }> {
   let deliverable = 0;
+  const failures: string[] = [];
   for (const recipient of recipients) {
     try {
       const contact = await ensureResendContact(resend, recipient);
@@ -387,10 +461,12 @@ async function syncRecipientsToSegment(
       await db.update(clientes).set({ resendContactId: contact.id }).where(eq(clientes.id, recipient.id));
       deliverable += 1;
     } catch (err) {
-      await markRecipient(db, campaignId, recipient, 'falhou', errorMessage(err, 'Falha no Resend'));
+      const error = errorMessage(err, 'Falha no Resend');
+      failures.push(`${recipient.email}: ${error}`);
+      await markRecipient(db, campaignId, recipient, 'falhou', error);
     }
   }
-  return deliverable;
+  return { deliverable, failures };
 }
 
 async function ensureResendContact(
@@ -407,7 +483,6 @@ async function ensureResendContact(
   const created = await resend.contacts.create({
     email: recipient.email,
     firstName: firstName(recipient.nome),
-    properties: { CLIENTE_ID: recipient.id },
   });
   if (created.data) return { id: created.data.id, unsubscribed: false };
 
