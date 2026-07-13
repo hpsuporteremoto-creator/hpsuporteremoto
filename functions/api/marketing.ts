@@ -70,6 +70,8 @@ type CampaignStatus = 'rascunho' | 'agendada' | 'enviada' | 'falhou' | 'cancelad
 const DEFAULT_SENDER = 'HP Suporte <contato@hpsuporteremoto.com.br>';
 const PAGE_SIZE = 1000;
 const IMMEDIATE_CAMPAIGN_SEGMENT_NAME = 'HP Suporte - Campanhas imediatas';
+const CONTACT_IMPORT_TIMEOUT_MS = 20_000;
+const CONTACT_IMPORT_POLL_INTERVAL_MS = 750;
 
 type CampaignSegment = {
   id: string;
@@ -255,13 +257,11 @@ async function createCampaign(
         ? await createScheduledCampaignSegment(resend, input.nome, campaign.id)
         : await getImmediateCampaignSegment(resend);
       if (!segment.disposable) {
-        await clearSegmentRecipients(resend, segment.id);
+        segment = await resetImmediateCampaignSegment(resend, segment.id);
       }
 
       const syncResult = await syncRecipientsToSegment(
-        db,
         resend,
-        campaign.id,
         segment.id,
         recipients,
       );
@@ -383,19 +383,18 @@ async function getImmediateCampaignSegment(resend: Resend): Promise<CampaignSegm
   return { id: created.data.id, disposable: false };
 }
 
-async function clearSegmentRecipients(resend: Resend, segmentId: string): Promise<void> {
-  while (true) {
-    const listed = await resend.contacts.list({ segmentId, limit: 100 });
-    if (listed.error || !listed.data) {
-      throw new Error(listed.error?.message ?? 'Falha ao consultar contatos do segmento no Resend');
-    }
-    if (listed.data.data.length === 0) return;
+async function resetImmediateCampaignSegment(
+  resend: Resend,
+  segmentId: string,
+): Promise<CampaignSegment> {
+  const removed = await resend.segments.remove(segmentId);
+  if (removed.error) throw new Error(removed.error.message);
 
-    for (const contact of listed.data.data) {
-      const removed = await resend.contacts.segments.remove({ contactId: contact.id, segmentId });
-      if (removed.error) throw new Error(removed.error.message);
-    }
+  const created = await resend.segments.create({ name: IMMEDIATE_CAMPAIGN_SEGMENT_NAME });
+  if (created.error || !created.data) {
+    throw new Error(segmentErrorMessage(created.error?.message));
   }
+  return { id: created.data.id, disposable: false };
 }
 
 async function resendDeleteSegment(apiKey: string, segmentId: string): Promise<void> {
@@ -431,78 +430,51 @@ async function insertRecipients(
 }
 
 async function syncRecipientsToSegment(
-  db: AppDatabase,
   resend: Resend,
-  campaignId: string,
   segmentId: string,
   recipients: readonly AudienceRecipient[],
 ): Promise<{ deliverable: number; failures: string[] }> {
-  let deliverable = 0;
-  const failures: string[] = [];
-  for (const recipient of recipients) {
-    try {
-      const contact = await ensureResendContact(resend, recipient);
-      if (contact.unsubscribed) {
-        await markRecipient(db, campaignId, recipient, 'descadastrado');
-        await db
-          .update(clientes)
-          .set({ marketingOptIn: false, marketingOptOutAt: new Date().toISOString() })
-          .where(eq(clientes.id, recipient.id));
-        continue;
-      }
-
-      const membership = await resend.contacts.segments.add({
-        contactId: contact.id,
-        segmentId,
-      });
-      if (membership.error) throw new Error(membership.error.message);
-
-      await markRecipient(db, campaignId, recipient, 'pendente', null, contact.id);
-      await db.update(clientes).set({ resendContactId: contact.id }).where(eq(clientes.id, recipient.id));
-      deliverable += 1;
-    } catch (err) {
-      const error = errorMessage(err, 'Falha no Resend');
-      failures.push(`${recipient.email}: ${error}`);
-      await markRecipient(db, campaignId, recipient, 'falhou', error);
-    }
-  }
-  return { deliverable, failures };
-}
-
-async function ensureResendContact(
-  resend: Resend,
-  recipient: AudienceRecipient,
-): Promise<{ id: string; unsubscribed: boolean }> {
-  const current = recipient.resend_contact_id
-    ? await resend.contacts.get({ id: recipient.resend_contact_id })
-    : await resend.contacts.get({ email: recipient.email });
-  if (current.data) {
-    return { id: current.data.id, unsubscribed: current.data.unsubscribed };
-  }
-
-  const created = await resend.contacts.create({
-    email: recipient.email,
-    firstName: firstName(recipient.nome),
+  const imported = await resend.contacts.imports.create({
+    file: new Blob([contactImportCsv(recipients)], { type: 'text/csv;charset=utf-8' }),
+    columnMap: { email: 'email', firstName: 'first_name' },
+    onConflict: 'upsert',
+    segments: [{ id: segmentId }],
   });
-  if (created.data) return { id: created.data.id, unsubscribed: false };
-
-  const retried = await resend.contacts.get({ email: recipient.email });
-  if (retried.data) return { id: retried.data.id, unsubscribed: retried.data.unsubscribed };
-  throw new Error(created.error?.message ?? retried.error?.message ?? 'Contato não pôde ser criado');
+  if (imported.error || !imported.data) {
+    throw new Error(imported.error?.message ?? 'Falha ao iniciar importação de contatos no Resend');
+  }
+  const result = await waitForContactImport(resend, imported.data.id);
+  const deliverable = Math.max(result.counts.created + result.counts.updated, recipients.length - result.counts.failed - result.counts.skipped);
+  return {
+    deliverable,
+    failures: result.counts.failed > 0 ? [`${result.counts.failed} contato(s) recusado(s) pelo Resend`] : [],
+  };
 }
 
-async function markRecipient(
-  db: AppDatabase,
-  campaignId: string,
-  recipient: AudienceRecipient,
-  status: string,
-  erro: string | null = null,
-  resendContactId: string | null = null,
-): Promise<void> {
-  await db
-    .update(marketingCampanhaDestinatarios)
-    .set({ status, erro, ...(resendContactId ? { resendContactId } : {}) })
-    .where(and(eq(marketingCampanhaDestinatarios.campanhaId, campaignId), eq(marketingCampanhaDestinatarios.email, recipient.email)));
+async function waitForContactImport(
+  resend: Resend,
+  importId: string,
+): Promise<{ counts: { created: number; updated: number; skipped: number; failed: number } }> {
+  const deadline = Date.now() + CONTACT_IMPORT_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const current = await resend.contacts.imports.get(importId);
+    if (current.error || !current.data) {
+      throw new Error(current.error?.message ?? 'Falha ao acompanhar importação de contatos no Resend');
+    }
+    if (current.data.status === 'completed') return current.data;
+    if (current.data.status === 'failed') throw new Error('O Resend não concluiu a importação dos contatos');
+    await delay(CONTACT_IMPORT_POLL_INTERVAL_MS);
+  }
+  throw new Error('O Resend ainda está preparando o público. Tente enviar novamente em alguns segundos.');
+}
+
+function contactImportCsv(recipients: readonly AudienceRecipient[]): string {
+  const rows = recipients.map((recipient) => [recipient.email, firstName(recipient.nome)]);
+  return `email,first_name\n${rows.map((row) => row.map(escapeCsv).join(',')).join('\n')}`;
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function resolveAudience(
