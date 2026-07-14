@@ -6,6 +6,8 @@ import {
   ServicoCategoriaFormData,
   ServicoFormData,
   ServicosCounts,
+  ServicosListQuery,
+  ServicosListResult,
 } from './servicos.types';
 import { normalizeServiceImageUrl } from '../../../shared/image-url.util';
 
@@ -25,6 +27,30 @@ export class ServicosService {
       `/api/services?ativo=${String(ativo)}`,
     );
     return normalizeServicos(payload.servicos ?? []);
+  }
+
+  async listPage(query: ServicosListQuery): Promise<ServicosListResult> {
+    const params = new URLSearchParams({
+      ativo: String(query.ativo),
+      pageIndex: String(Math.max(0, query.pageIndex)),
+      pageSize: String(Math.max(1, query.pageSize)),
+    });
+    const termo = query.termo?.trim();
+    if (termo) params.set('termo', termo);
+    if (query.categoriaId) params.set('categoriaId', query.categoriaId);
+
+    const payload = await this.fetchApi<{
+      servicos?: Servico[];
+      total?: number;
+      counts?: ServicosCounts;
+      error?: string;
+    }>(`/api/services?${params.toString()}`);
+
+    return {
+      servicos: normalizeServicos(payload.servicos ?? []),
+      total: payload.total ?? 0,
+      counts: payload.counts ?? { ativos: 0, inativos: 0 },
+    };
   }
 
   async listAtivos(): Promise<Servico[]> {

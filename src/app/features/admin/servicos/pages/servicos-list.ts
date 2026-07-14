@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { CurrencyPipe, Location } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,18 +13,16 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { ServicosService } from '../servicos.service';
-import { Servico } from '../servicos.types';
+import { ServicoCategoriasService, ServicosService } from '../servicos.service';
+import { Servico, ServicoCategoria } from '../servicos.types';
 import {
   destacarBuscaServico,
-  normalizarBuscaServico,
-  servicoMatchesBusca,
-  servicoSearchScore,
   type SearchHighlightSegment,
 } from '../../../../shared/service-search.util';
 
@@ -33,6 +38,7 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatPaginatorModule,
     MatProgressBarModule,
     MatSlideToggleModule,
     MatTabsModule,
@@ -100,12 +106,12 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
             }
           </mat-form-field>
           <p class="result-count" aria-live="polite">
-            {{ servicosFiltrados()?.length ?? 0 }} serviço(s) encontrado(s)
+            {{ totalServicos() }} serviço(s) encontrado(s)
           </p>
         </section>
       }
 
-      @if (categorias().length > 0 || hasSemCategoria()) {
+      @if (categorias().length > 0 || servicos()) {
         <nav class="category-filter" aria-label="Filtrar serviços por categoria">
           <button
             type="button"
@@ -125,20 +131,18 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
               {{ categoria.nome }}
             </button>
           }
-          @if (hasSemCategoria()) {
-            <button
-              type="button"
-              [class.active]="categoriaSelecionada() === semCategoriaId"
-              [attr.aria-pressed]="categoriaSelecionada() === semCategoriaId"
-              (click)="selecionarCategoria(semCategoriaId)"
-            >
-              Sem categoria
-            </button>
-          }
+          <button
+            type="button"
+            [class.active]="categoriaSelecionada() === semCategoriaId"
+            [attr.aria-pressed]="categoriaSelecionada() === semCategoriaId"
+            (click)="selecionarCategoria(semCategoriaId)"
+          >
+            Sem categoria
+          </button>
         </nav>
       }
 
-      @if (servicosFiltrados(); as list) {
+      @if (servicos(); as list) {
         @if (list.length === 0) {
           <p class="empty">{{ emptyMessage() }}</p>
         } @else {
@@ -204,6 +208,18 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
               </mat-card>
             }
           </div>
+
+          @if (totalServicos() > pageSize()) {
+            <mat-paginator
+              [length]="totalServicos()"
+              [pageIndex]="pageIndex()"
+              [pageSize]="pageSize()"
+              [pageSizeOptions]="[10, 20, 50]"
+              [showFirstLastButtons]="true"
+              (page)="onPage($event)"
+              aria-label="Paginação de serviços"
+            />
+          }
         }
       }
     </main>
@@ -213,57 +229,26 @@ const SEM_CATEGORIA_ID = '__sem_categoria__';
 })
 export class ServicosListPage {
   private readonly svc = inject(ServicosService);
+  private readonly categoriasSvc = inject(ServicoCategoriasService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly location = inject(Location);
+  private readonly destroyRef = inject(DestroyRef);
+  private buscaTimer: ReturnType<typeof setTimeout> | null = null;
+  private requestVersion = 0;
 
   protected readonly semCategoriaId = SEM_CATEGORIA_ID;
   protected readonly servicos = signal<Servico[] | null>(null);
   protected readonly categoriaSelecionada = signal<string | null>(null);
   protected readonly termoBusca = signal('');
+  protected readonly pageIndex = signal(0);
+  protected readonly pageSize = signal(20);
+  protected readonly totalServicos = signal(0);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly tabIndex = signal(0);
   protected readonly activeTotal = signal(0);
   protected readonly inactiveTotal = signal(0);
-  protected readonly categorias = computed(() => {
-    const byId = new Map<string, { id: string; nome: string }>();
-    for (const servico of this.servicos() ?? []) {
-      if (!servico.categoria) continue;
-      byId.set(servico.categoria.id, {
-        id: servico.categoria.id,
-        nome: servico.categoria.nome,
-      });
-    }
-    return [...byId.values()].sort((a, b) => a.nome.localeCompare(b.nome));
-  });
-  protected readonly hasSemCategoria = computed(() =>
-    (this.servicos() ?? []).some((servico) => !servico.categoria),
-  );
-  protected readonly servicosFiltrados = computed(() => {
-    const list = this.servicos();
-    if (!list) return null;
-    const categoriaId = this.categoriaSelecionada();
-    const termo = normalizarBuscaServico(this.termoBusca());
-    const filtered = list.filter((servico) => {
-      const matchesCategoria =
-        !categoriaId ||
-        (categoriaId === SEM_CATEGORIA_ID
-          ? !servico.categoria
-          : servico.categoria?.id === categoriaId);
-      if (!matchesCategoria) return false;
-      if (!termo) return true;
-      return servicoMatchesBusca(
-        {
-          ...servico,
-          extras: [servico.vitrine ? 'vitrine' : '', String(servico.valor_centavos / 100)],
-        },
-        termo,
-      );
-    });
-    return termo
-      ? filtered.sort((a, b) => scoreServico(b, termo) - scoreServico(a, termo))
-      : filtered;
-  });
+  protected readonly categorias = signal<ServicoCategoria[]>([]);
   protected readonly emptyMessage = computed(() => {
     if (this.termoBusca() && this.categoriaSelecionada()) {
       return 'Nenhum serviço encontrado nesta categoria.';
@@ -276,7 +261,9 @@ export class ServicosListPage {
   });
 
   constructor() {
+    this.destroyRef.onDestroy(() => this.cancelarBuscaPendente());
     void this.carregar();
+    void this.carregarCategorias();
   }
 
   voltar(): void {
@@ -285,20 +272,38 @@ export class ServicosListPage {
 
   onTabChange(index: number): void {
     this.tabIndex.set(index);
+    this.pageIndex.set(0);
     void this.carregar();
   }
 
   selecionarCategoria(categoriaId: string | null): void {
     this.categoriaSelecionada.set(categoriaId);
+    this.pageIndex.set(0);
+    void this.carregar();
   }
 
   onBuscaChange(event: Event): void {
     const input = event.target as HTMLInputElement | null;
     this.termoBusca.set(input?.value ?? '');
+    this.pageIndex.set(0);
+    this.cancelarBuscaPendente();
+    this.buscaTimer = setTimeout(() => {
+      this.buscaTimer = null;
+      void this.carregar();
+    }, 250);
   }
 
   limparBusca(): void {
     this.termoBusca.set('');
+    this.pageIndex.set(0);
+    this.cancelarBuscaPendente();
+    void this.carregar();
+  }
+
+  onPage(event: PageEvent): void {
+    this.pageIndex.set(event.pageIndex);
+    this.pageSize.set(event.pageSize);
+    void this.carregar();
   }
 
   highlightServicoTexto(value: string): readonly SearchHighlightSegment[] {
@@ -306,27 +311,34 @@ export class ServicosListPage {
   }
 
   async carregar(): Promise<void> {
+    const requestVersion = ++this.requestVersion;
     this.loading.set(true);
     this.error.set(null);
     try {
-      const [counts, data] = await Promise.all([
-        this.svc.counts(),
-        this.svc.listByAtivo(this.tabIndex() === 0),
-      ]);
-      this.activeTotal.set(counts.ativos);
-      this.inactiveTotal.set(counts.inativos);
-      this.servicos.set(data);
-      this.ensureCategoriaValida(data);
+      const result = await this.svc.listPage({
+        ativo: this.tabIndex() === 0,
+        pageIndex: this.pageIndex(),
+        pageSize: this.pageSize(),
+        termo: this.termoBusca(),
+        categoriaId: this.categoriaSelecionada(),
+      });
+      if (requestVersion !== this.requestVersion) return;
+      this.activeTotal.set(result.counts.ativos);
+      this.inactiveTotal.set(result.counts.inativos);
+      this.totalServicos.set(result.total);
+      this.servicos.set(result.servicos);
     } catch (err) {
+      if (requestVersion !== this.requestVersion) return;
       this.error.set(err instanceof Error ? err.message : 'Erro ao carregar serviços');
     } finally {
-      this.loading.set(false);
+      if (requestVersion === this.requestVersion) this.loading.set(false);
     }
   }
 
   async onToggle(servico: Servico, ativo: boolean): Promise<void> {
     try {
       await this.svc.toggleAtivo(servico.id, ativo);
+      this.pageIndex.set(0);
       await this.carregar();
       this.snackBar.open(`Serviço ${ativo ? 'ativado' : 'desativado'}`, 'OK', { duration: 2500 });
     } catch (err) {
@@ -335,23 +347,17 @@ export class ServicosListPage {
     }
   }
 
-  private ensureCategoriaValida(servicos: readonly Servico[]): void {
-    const categoriaId = this.categoriaSelecionada();
-    if (!categoriaId) return;
-    const hasCategoria =
-      categoriaId === SEM_CATEGORIA_ID
-        ? servicos.some((servico) => !servico.categoria)
-        : servicos.some((servico) => servico.categoria?.id === categoriaId);
-    if (!hasCategoria) this.categoriaSelecionada.set(null);
+  private async carregarCategorias(): Promise<void> {
+    try {
+      this.categorias.set(await this.categoriasSvc.list());
+    } catch {
+      this.categorias.set([]);
+    }
   }
-}
 
-function scoreServico(servico: Servico, termo: string): number {
-  return servicoSearchScore(
-    {
-      ...servico,
-      extras: [servico.vitrine ? 'vitrine' : '', String(servico.valor_centavos / 100)],
-    },
-    termo,
-  );
+  private cancelarBuscaPendente(): void {
+    if (this.buscaTimer === null) return;
+    clearTimeout(this.buscaTimer);
+    this.buscaTimer = null;
+  }
 }

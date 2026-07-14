@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
 import { servicoCategorias, servicos } from '../../drizzle/schema';
 import { requireStaff } from './admin-auth';
@@ -11,6 +11,9 @@ type Env = DatabaseEnv & {
 };
 
 type Context = { request: Request; env: Env };
+
+const SEM_CATEGORIA_ID = '__sem_categoria__';
+const DEFAULT_PAGE_SIZE = 20;
 
 type ServicoInput = {
   nome: string;
@@ -67,6 +70,9 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
     const url = new URL(request.url);
     const id = url.searchParams.get('id')?.trim();
     const ativoParam = url.searchParams.get('ativo');
+    const categoriaId = url.searchParams.get('categoriaId');
+    const pagination = parsePagination(url);
+    const termo = url.searchParams.get('termo')?.trim() ?? '';
     const ids = (url.searchParams.get('ids') ?? '')
       .split(',')
       .map((value) => value.trim())
@@ -84,13 +90,22 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
         const byId = new Map(lista.map((servico) => [servico.id, servico]));
         return { servicos: ids.flatMap((servicoId) => byId.get(servicoId) ?? []) };
       }
-      const [lista, ativos, inativos] = await Promise.all([
-        listServicos(db, ativo),
+      const condition = buildServicoCondition(ativo, categoriaId);
+      const [lista, totalRow, ativos, inativos] = await Promise.all([
+        listServicos(db, condition, termo ? null : pagination),
+        countServicos(db, condition),
         db.select({ total: count() }).from(servicos).where(eq(servicos.ativo, true)),
         db.select({ total: count() }).from(servicos).where(eq(servicos.ativo, false)),
       ]);
+
+      const encontrados = termo
+        ? sortServicosBySearch(lista.filter((servico) => matchesServicoSearch(servico, termo)), termo)
+        : lista;
+      const total = termo ? encontrados.length : totalRow;
+      const pagina = termo && pagination ? slicePage(encontrados, pagination) : encontrados;
       return {
-        servicos: lista,
+        servicos: pagina,
+        total,
         counts: {
           ativos: ativos[0]?.total ?? 0,
           inativos: inativos[0]?.total ?? 0,
@@ -157,10 +172,16 @@ async function findServico(
 
 async function listServicos(
   db: AppDatabase,
-  ativo: boolean | null,
+  condition: SQL | undefined,
+  pagination: Pagination | null,
 ): Promise<ServicoResponse[]> {
-  return selectServicos(db, ativo === null ? undefined : eq(servicos.ativo, ativo));
+  return selectServicos(db, condition, pagination);
 }
+
+type Pagination = {
+  pageIndex: number;
+  pageSize: number;
+};
 
 type ServicoResponse = {
   id: string;
@@ -178,6 +199,7 @@ type ServicoResponse = {
 async function selectServicos(
   db: AppDatabase,
   condition?: SQL,
+  pagination: Pagination | null = null,
 ): Promise<ServicoResponse[]> {
   const query = db
     .select({
@@ -199,7 +221,14 @@ async function selectServicos(
     })
     .from(servicos)
     .leftJoin(servicoCategorias, eq(servicos.categoriaId, servicoCategorias.id));
-  const rows = condition ? await query.where(condition).orderBy(asc(servicos.nome)) : await query.orderBy(asc(servicos.nome));
+  const orderedQuery = condition
+    ? query.where(condition).orderBy(asc(servicos.nome))
+    : query.orderBy(asc(servicos.nome));
+  const rows = pagination
+    ? await orderedQuery
+        .limit(pagination.pageSize)
+        .offset(pagination.pageIndex * pagination.pageSize)
+    : await orderedQuery;
   return rows.map((row) => ({
     id: row.id,
     nome: row.nome,
@@ -219,6 +248,128 @@ async function selectServicos(
         }
       : null,
   }));
+}
+
+async function countServicos(db: AppDatabase, condition?: SQL): Promise<number> {
+  const query = db.select({ total: count() }).from(servicos);
+  const rows = condition ? await query.where(condition) : await query;
+  return rows[0]?.total ?? 0;
+}
+
+function buildServicoCondition(ativo: boolean | null, categoriaId: string | null): SQL | undefined {
+  const conditions: SQL[] = [];
+  if (ativo !== null) conditions.push(eq(servicos.ativo, ativo));
+  if (categoriaId === SEM_CATEGORIA_ID) conditions.push(isNull(servicos.categoriaId));
+  else if (categoriaId) conditions.push(eq(servicos.categoriaId, categoriaId));
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
+
+function parsePagination(url: URL): Pagination | null {
+  const pageIndex = url.searchParams.get('pageIndex');
+  const pageSize = url.searchParams.get('pageSize');
+  if (pageIndex === null && pageSize === null) return null;
+  return {
+    pageIndex: toBoundedInteger(pageIndex, 0, 0, 100_000),
+    pageSize: toBoundedInteger(pageSize, DEFAULT_PAGE_SIZE, 1, 100),
+  };
+}
+
+function toBoundedInteger(
+  value: string | null,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  if (value === null) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, minimum), maximum);
+}
+
+function slicePage<T>(items: readonly T[], pagination: Pagination): T[] {
+  const firstItem = pagination.pageIndex * pagination.pageSize;
+  return items.slice(firstItem, firstItem + pagination.pageSize);
+}
+
+function normalizarBuscaServico(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^\p{Letter}\p{Number}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function searchTokens(value: string): string[] {
+  return normalizarBuscaServico(value)
+    .split(' ')
+    .filter((token) => token.length >= 2);
+}
+
+function matchesServicoSearch(servico: ServicoResponse, termo: string): boolean {
+  const tokens = searchTokens(termo);
+  if (tokens.length === 0) return true;
+  const primaryTexts = [servico.nome, servico.categoria?.nome ?? ''];
+  if (matchesAllTokens(tokens, primaryTexts)) return true;
+  const shouldSearchDescription =
+    tokens.length > 1 || tokens.some((token) => token.length >= 4 && token !== 'servico');
+  return shouldSearchDescription && matchesAllTokens(tokens, [...primaryTexts, servico.descricao ?? '']);
+}
+
+function matchesAllTokens(tokens: readonly string[], texts: readonly string[]): boolean {
+  const textTokens = texts.flatMap((text) => searchTokens(text));
+  return tokens.every((token) =>
+    textTokens.some(
+      (textToken) =>
+        textToken.startsWith(token) || (token.length >= 3 && textToken.includes(token)),
+    ),
+  );
+}
+
+function sortServicosBySearch(
+  servicos: readonly ServicoResponse[],
+  termo: string,
+): ServicoResponse[] {
+  const tokens = searchTokens(termo);
+  const phrase = normalizarBuscaServico(termo);
+  return [...servicos].sort((a, b) => {
+    const score = servicoSearchScore(b, tokens, phrase) - servicoSearchScore(a, tokens, phrase);
+    return score || a.nome.localeCompare(b.nome, 'pt-BR');
+  });
+}
+
+function servicoSearchScore(
+  servico: ServicoResponse,
+  tokens: readonly string[],
+  phrase: string,
+): number {
+  const nome = normalizarBuscaServico(servico.nome);
+  const categoria = normalizarBuscaServico(servico.categoria?.nome ?? '');
+  const descricao = normalizarBuscaServico(servico.descricao ?? '');
+  let score = nome === phrase ? 1_100 : nome.startsWith(phrase) ? 750 : 0;
+  if (phrase.length >= 3 && nome.includes(phrase)) score += 500;
+  for (const token of tokens) {
+    score += scoreSearchField(nome, token, 130, 90, 55);
+    score += scoreSearchField(categoria, token, 42, 28, 16);
+    score += scoreSearchField(descricao, token, 12, 8, 4);
+  }
+  return score;
+}
+
+function scoreSearchField(
+  value: string,
+  token: string,
+  exactScore: number,
+  prefixScore: number,
+  includesScore: number,
+): number {
+  const tokens = searchTokens(value);
+  if (tokens.includes(token)) return exactScore;
+  if (tokens.some((valueToken) => valueToken.startsWith(token))) return prefixScore;
+  return token.length >= 3 && tokens.some((valueToken) => valueToken.includes(token))
+    ? includesScore
+    : 0;
 }
 
 function databaseErrorMessage(error: unknown): string {

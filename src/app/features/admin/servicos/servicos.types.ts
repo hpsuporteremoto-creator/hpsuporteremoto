@@ -45,3 +45,17 @@ export interface ServicosCounts {
   ativos: number;
   inativos: number;
 }
+
+export interface ServicosListQuery {
+  ativo: boolean;
+  pageIndex: number;
+  pageSize: number;
+  termo?: string;
+  categoriaId?: string | null;
+}
+
+export interface ServicosListResult {
+  servicos: Servico[];
+  total: number;
+  counts: ServicosCounts;
+}
