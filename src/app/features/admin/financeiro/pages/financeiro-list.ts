@@ -121,7 +121,17 @@ function isISODate(value: string | null): value is string {
               <mat-card class="transacao-card tipo-{{ t.tipo }}" appearance="filled">
                 <mat-card-content class="row">
                   <div class="info">
-                    <strong class="descricao">{{ transacaoTitulo(t) }}</strong>
+                    @if (t.atendimento?.cliente; as cliente) {
+                      <a
+                        class="descricao cliente-link"
+                        [routerLink]="['/admin/clientes', cliente.id, 'editar']"
+                        [attr.aria-label]="'Editar cliente ' + cliente.nome"
+                      >
+                        {{ cliente.nome }}
+                      </a>
+                    } @else {
+                      <strong class="descricao">{{ transacaoTitulo(t) }}</strong>
+                    }
                     @let servicosComprados = transacaoServicos(t);
                     @if (servicosComprados.length > 0) {
                       <ul class="compras-list" aria-label="Itens comprados">
