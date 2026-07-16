@@ -132,6 +132,14 @@ export const onRequestGet = async (context: Context): Promise<Response> => {
   const somenteContabilizados = url.searchParams.get('somenteContabilizados') !== 'false';
 
   try {
+    if (action === 'campaign') {
+      const parsedId = uuidSchema.safeParse(url.searchParams.get('id'));
+      if (!parsedId.success) return json({ error: 'Campanha inválida' }, 400);
+      const campanha = await withDatabase(env, (db) => getCampaign(db, parsedId.data));
+      if (!campanha) return json({ error: 'Campanha não encontrada' }, 404);
+      return json({ campanha }, 200);
+    }
+
     const audience = await withDatabase(env, (db) =>
       resolveAudience(db, servicoId, somenteContabilizados),
     );
@@ -546,6 +554,22 @@ async function listCampaigns(db: AppDatabase): Promise<MarketingCampaignRow[]> {
     servico: row.servico?.id ? row.servico : null,
     criado_por: row.criado_por?.id ? row.criado_por : null,
   }));
+}
+
+async function getCampaign(db: AppDatabase, id: string): Promise<MarketingCampaignRow | null> {
+  const [row] = await db
+    .select({ campaign: marketingCampanhas, servico: { id: servicos.id, nome: servicos.nome }, criado_por: { id: profiles.id, email: profiles.email, full_name: profiles.fullName } })
+    .from(marketingCampanhas)
+    .leftJoin(servicos, eq(marketingCampanhas.servicoId, servicos.id))
+    .leftJoin(profiles, eq(marketingCampanhas.criadoPorUserId, profiles.id))
+    .where(eq(marketingCampanhas.id, id))
+    .limit(1);
+  if (!row) return null;
+  return {
+    ...toCampaignRow(row.campaign),
+    servico: row.servico?.id ? row.servico : null,
+    criado_por: row.criado_por?.id ? row.criado_por : null,
+  };
 }
 
 function toCampaignRow(campaign: typeof marketingCampanhas.$inferSelect): MarketingCampaignRow {

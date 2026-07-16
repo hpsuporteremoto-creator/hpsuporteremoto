@@ -168,6 +168,16 @@ import { MarketingCampaign, MarketingOverview } from '../marketing.types';
                   <div class="campaign-meta">
                     <span class="status status-{{ campaign.status }}">{{ statusLabel(campaign) }}</span>
                     <small>{{ campaignDate(campaign) | date: 'short' }}</small>
+                    @if (campaign.status === 'enviada') {
+                      <a
+                        mat-stroked-button
+                        [routerLink]="[campaign.id, 'reenviar']"
+                        [attr.aria-label]="'Editar e reenviar ' + campaign.nome"
+                      >
+                        <mat-icon>edit</mat-icon>
+                        <span>Editar e reenviar</span>
+                      </a>
+                    }
                   </div>
                 </mat-card-content>
               </mat-card>

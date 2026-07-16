@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Location } from '@angular/common';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -38,7 +38,7 @@ import { MarketingAudience, MarketingCampaignInput } from '../marketing.types';
       <button mat-icon-button type="button" (click)="voltar()" aria-label="Voltar">
         <mat-icon>arrow_back</mat-icon>
       </button>
-      <span>Nova campanha</span>
+      <span>{{ isResend() ? 'Editar e reenviar' : 'Nova campanha' }}</span>
     </mat-toolbar>
 
     @if (loading() || saving()) {
@@ -48,6 +48,13 @@ import { MarketingAudience, MarketingCampaignInput } from '../marketing.types';
     <main class="campaign-page">
       @if (error(); as message) {
         <p class="error" role="alert">{{ message }}</p>
+      }
+
+      @if (isResend()) {
+        <p class="resend-notice" role="status">
+          <mat-icon>history</mat-icon>
+          <span>O envio original será preservado. Ao enviar, uma nova campanha será criada.</span>
+        </p>
       }
 
       <form [formGroup]="form" (ngSubmit)="submit()" class="campaign-form">
@@ -203,14 +210,17 @@ export class MarketingFormPage {
   private readonly marketingService = inject(MarketingService);
   private readonly servicosService = inject(ServicosService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly campaignId = this.route.snapshot.paramMap.get('id');
 
   protected readonly servicos = signal<Servico[]>([]);
   protected readonly audience = signal<MarketingAudience | null>(null);
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly isResend = signal(Boolean(this.campaignId));
   protected readonly audiencePreview = computed(() => this.audience()?.destinatarios.slice(0, 5) ?? []);
   protected readonly hasSchedule = computed(() => this.form.controls.agendada_para.value.length > 0);
   protected readonly canTest = computed(
@@ -240,12 +250,26 @@ export class MarketingFormPage {
     this.loading.set(true);
     this.error.set(null);
     try {
-      const [servicos, audience] = await Promise.all([
+      const [servicos, campaign] = await Promise.all([
         this.servicosService.list(),
-        this.marketingService.audience(null, true),
+        this.campaignId ? this.marketingService.getCampaign(this.campaignId) : Promise.resolve(null),
       ]);
       this.servicos.set(servicos);
-      this.audience.set(audience);
+      if (campaign) {
+        this.form.patchValue({
+          nome: this.resendName(campaign.nome),
+          assunto: campaign.assunto,
+          texto_previa: campaign.texto_previa ?? '',
+          mensagem: campaign.mensagem,
+          servico_id: campaign.servico_id ?? '',
+          somente_vendas_contabilizadas: campaign.somente_vendas_contabilizadas,
+          agendada_para: '',
+          email_teste: '',
+        });
+      }
+      const servicoId = campaign?.servico_id ?? null;
+      const somenteContabilizados = campaign?.somente_vendas_contabilizadas ?? true;
+      this.audience.set(await this.marketingService.audience(servicoId, somenteContabilizados));
     } catch (err) {
       this.error.set(err instanceof Error ? err.message : 'Erro ao carregar campanha');
     } finally {
@@ -295,7 +319,11 @@ export class MarketingFormPage {
     try {
       const campaign = await this.marketingService.create(input);
       this.snackBar.open(
-        campaign.status === 'agendada' ? 'Campanha agendada.' : 'Campanha enviada.',
+        campaign.status === 'agendada'
+          ? 'Campanha agendada.'
+          : this.isResend()
+            ? 'Campanha reenviada.'
+            : 'Campanha enviada.',
         'OK',
         { duration: 4000 },
       );
@@ -320,5 +348,10 @@ export class MarketingFormPage {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  private resendName(name: string): string {
+    const suffix = ' - reenvio';
+    return `${name.slice(0, 120 - suffix.length)}${suffix}`;
   }
 }

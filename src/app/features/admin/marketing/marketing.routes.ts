@@ -10,4 +10,8 @@ export const marketingRoutes: Routes = [
     path: 'nova',
     loadComponent: () => import('./pages/marketing-form').then((m) => m.MarketingFormPage),
   },
+  {
+    path: ':id/reenviar',
+    loadComponent: () => import('./pages/marketing-form').then((m) => m.MarketingFormPage),
+  },
 ];

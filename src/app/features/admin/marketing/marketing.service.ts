@@ -34,6 +34,14 @@ export class MarketingService {
     return payload.campanhas;
   }
 
+  async getCampaign(id: string): Promise<MarketingCampaign> {
+    const params = new URLSearchParams({ action: 'campaign', id });
+    const payload = await this.fetchApi<{ campanha: MarketingCampaign }>(
+      `/api/marketing?${params.toString()}`,
+    );
+    return payload.campanha;
+  }
+
   async create(input: MarketingCampaignInput): Promise<MarketingCampaign> {
     const payload = await this.postApi<{ campanha?: MarketingCampaign }>('/api/marketing', {
       action: 'create',
