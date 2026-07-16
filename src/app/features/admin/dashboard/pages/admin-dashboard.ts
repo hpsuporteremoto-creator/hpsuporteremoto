@@ -197,6 +197,48 @@ function todayISO(): string {
           </mat-card>
         </section>
 
+        <section class="ranking-charts" aria-label="Indicadores comerciais dos últimos 30 dias">
+          <mat-card appearance="filled" class="chart-card ranking-card">
+            <mat-card-header>
+              <mat-card-title>Serviços mais vendidos</mat-card-title>
+              <mat-card-subtitle>Top 5 por quantidade nos últimos 30 dias</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              @if (dashboard.servicosMaisVendidos.length > 0) {
+                <div
+                  echarts
+                  [options]="topServicesChartOptions()"
+                  class="chart ranking-chart"
+                  role="img"
+                  [attr.aria-label]="topServicesAriaLabel()"
+                ></div>
+              } @else {
+                <p class="ranking-empty">Nenhuma venda contabilizada no período.</p>
+              }
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card appearance="filled" class="chart-card ranking-card">
+            <mat-card-header>
+              <mat-card-title>Clientes que mais compram</mat-card-title>
+              <mat-card-subtitle>Top 5 por valor pago nos últimos 30 dias</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              @if (dashboard.clientesQueMaisCompram.length > 0) {
+                <div
+                  echarts
+                  [options]="topClientsChartOptions()"
+                  class="chart ranking-chart"
+                  role="img"
+                  [attr.aria-label]="topClientsAriaLabel()"
+                ></div>
+              } @else {
+                <p class="ranking-empty">Nenhuma compra contabilizada no período.</p>
+              }
+            </mat-card-content>
+          </mat-card>
+        </section>
+
         <section class="charts">
           <mat-card appearance="filled" class="chart-card wide">
             <mat-card-header>
@@ -405,6 +447,127 @@ export class AdminDashboardPage {
     };
   });
 
+  protected readonly topServicesChartOptions = computed<EChartsCoreOption>(() => {
+    const ranking = this.data()?.servicosMaisVendidos ?? [];
+    return {
+      color: ['#64b5f6'],
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        valueFormatter: (value: unknown) =>
+          `${this.formatNumber(typeof value === 'number' ? value : Number(value))} unidade(s)`,
+      },
+      grid: {
+        left: 12,
+        right: 48,
+        top: 16,
+        bottom: 12,
+        containLabel: true,
+      },
+      xAxis: {
+        type: 'value',
+        minInterval: 1,
+        axisLabel: { color: '#b3b3b3' },
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+      },
+      yAxis: {
+        type: 'category',
+        inverse: true,
+        data: ranking.map((item) => item.nome),
+        axisLabel: {
+          color: '#d8d8d8',
+          width: 190,
+          overflow: 'truncate',
+        },
+        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.16)' } },
+      },
+      series: [
+        {
+          name: 'Quantidade',
+          type: 'bar',
+          barMaxWidth: 26,
+          data: ranking.map((item) => item.quantidade),
+          label: {
+            show: true,
+            position: 'right',
+            color: '#ffffff',
+          },
+        },
+      ],
+    };
+  });
+
+  protected readonly topClientsChartOptions = computed<EChartsCoreOption>(() => {
+    const ranking = this.data()?.clientesQueMaisCompram ?? [];
+    return {
+      color: ['#5ecb8b'],
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        valueFormatter: (value: unknown) =>
+          this.formatCurrency((typeof value === 'number' ? value : Number(value)) * 100),
+      },
+      grid: {
+        left: 12,
+        right: 70,
+        top: 16,
+        bottom: 12,
+        containLabel: true,
+      },
+      xAxis: {
+        type: 'value',
+        axisLabel: {
+          color: '#b3b3b3',
+          formatter: (value: number) => this.compactCurrency(value),
+        },
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+      },
+      yAxis: {
+        type: 'category',
+        inverse: true,
+        data: ranking.map((item) => item.nome),
+        axisLabel: {
+          color: '#d8d8d8',
+          width: 190,
+          overflow: 'truncate',
+        },
+        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.16)' } },
+      },
+      series: [
+        {
+          name: 'Valor pago',
+          type: 'bar',
+          barMaxWidth: 26,
+          data: ranking.map((item) => item.valorCentavos / 100),
+          label: {
+            show: true,
+            position: 'right',
+            color: '#ffffff',
+            formatter: (params: { value?: unknown }) =>
+              this.compactCurrency(Number(params.value ?? 0)),
+          },
+        },
+      ],
+    };
+  });
+
+  protected readonly topServicesAriaLabel = computed(() => {
+    const ranking = this.data()?.servicosMaisVendidos ?? [];
+    return `Serviços mais vendidos nos últimos 30 dias: ${ranking
+      .map((item) => `${item.nome}, ${item.quantidade} unidade(s) em ${item.pedidos} pedido(s)`)
+      .join('; ')}`;
+  });
+
+  protected readonly topClientsAriaLabel = computed(() => {
+    const ranking = this.data()?.clientesQueMaisCompram ?? [];
+    return `Clientes que mais compram nos últimos 30 dias: ${ranking
+      .map(
+        (item) =>
+          `${item.nome}, ${this.formatCurrency(item.valorCentavos)} em ${item.pedidos} pedido(s)`,
+      )
+      .join('; ')}`;
+  });
+
   constructor() {
     void this.carregar();
   }
@@ -462,6 +625,15 @@ export class AdminDashboardPage {
 
   protected formatCurrency(valueCentavos: number): string {
     return this.currencyFormatter.format(valueCentavos / 100);
+  }
+
+  private compactCurrency(valueReais: number): string {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(valueReais);
   }
 
   private formatNumber(value: number): string {

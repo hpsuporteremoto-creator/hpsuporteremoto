@@ -35,6 +35,20 @@ export interface DashboardDailyPoint {
   readonly atendimentos: number;
 }
 
+export interface DashboardTopServico {
+  readonly id: string;
+  readonly nome: string;
+  readonly quantidade: number;
+  readonly pedidos: number;
+}
+
+export interface DashboardTopCliente {
+  readonly id: string;
+  readonly nome: string;
+  readonly pedidos: number;
+  readonly valorCentavos: number;
+}
+
 export interface AdminDashboardData {
   readonly clientesAtivos: number;
   readonly servicosAtivos: number;
@@ -45,4 +59,6 @@ export interface AdminDashboardData {
   readonly atendimentosHoje: DashboardTodayAtendimento[];
   readonly stateCounts: DashboardStateCount[];
   readonly daily: DashboardDailyPoint[];
+  readonly servicosMaisVendidos: DashboardTopServico[];
+  readonly clientesQueMaisCompram: DashboardTopCliente[];
 }

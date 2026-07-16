@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { atendimentos, clientes, servicos, transacoes } from '../../drizzle/schema';
 import { requireAdmin } from './admin-auth';
 import { listAtendimentosComRelacoes } from './atendimentos-shared';
-import { type DatabaseEnv, withDatabase } from '../lib/db';
+import { type AppDatabase, type DatabaseEnv, withDatabase } from '../lib/db';
 
 type Env = DatabaseEnv & { SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string };
 type Context = { request: Request; env: Env };
@@ -23,17 +23,38 @@ export const onRequestGet = async ({ request, env }: Context): Promise<Response>
       const monthStart = `${today.slice(0, 8)}01`;
       const from30 = shiftDate(today, -29);
       const tomorrow = shiftDate(today, 1);
-      const [clientesAtivos, servicosAtivos, transacoesMes, transacoes30, atendimentosRows, todayRows, ...stateCounts] = await Promise.all([
+      const [clientesAtivos, servicosAtivos, transacoesMes, transacoes30, atendimentosRows, todayRows, rankingRows, ...stateCounts] = await Promise.all([
         db.select({ total: count() }).from(clientes).where(eq(clientes.ativo, true)),
         db.select({ total: count() }).from(servicos).where(eq(servicos.ativo, true)),
         db.select({ tipo: transacoes.tipo, valor_centavos: transacoes.valorCentavos, data: transacoes.data }).from(transacoes).where(and(gte(transacoes.data, monthStart), lte(transacoes.data, today))),
         db.select({ tipo: transacoes.tipo, valor_centavos: transacoes.valorCentavos, data: transacoes.data }).from(transacoes).where(and(gte(transacoes.data, from30), lte(transacoes.data, today))),
         db.select({ created_at: atendimentos.createdAt }).from(atendimentos).where(gte(atendimentos.createdAt, `${from30}T00:00:00.000Z`)),
         listAtendimentosComRelacoes(db, and(gte(atendimentos.createdAt, `${today}T00:00:00.000Z`), lt(atendimentos.createdAt, `${tomorrow}T00:00:00.000Z`))),
+        db
+          .select({
+            atendimentoId: atendimentos.id,
+            clienteId: clientes.id,
+            clienteNome: clientes.nome,
+            servicoId: atendimentos.servicoId,
+            servicoIds: atendimentos.servicoIds,
+            valorCentavos: transacoes.valorCentavos,
+          })
+          .from(transacoes)
+          .innerJoin(atendimentos, eq(transacoes.atendimentoId, atendimentos.id))
+          .innerJoin(clientes, eq(atendimentos.clienteId, clientes.id))
+          .where(
+            and(
+              eq(transacoes.tipo, 'entrada'),
+              eq(atendimentos.state, 'concluido'),
+              gte(transacoes.data, from30),
+              lte(transacoes.data, today),
+            ),
+          ),
         ...(['em_andamento', 'pagamento', 'concluido', 'recusado'] as const).map((state) =>
           db.select({ total: count() }).from(atendimentos).where(state === 'em_andamento' ? inArray(atendimentos.state, ['aguardando_confirmacao', 'em_andamento']) : eq(atendimentos.state, state)),
         ),
       ]);
+      const rankings = await buildRankings(db, rankingRows);
       const receitaMesCentavos = sum(transacoesMes, 'entrada');
       const receitaHojeCentavos = transacoesMes.filter((row) => row.data === today && row.tipo === 'entrada').reduce((total, row) => total + row.valor_centavos, 0);
       const saldo30DiasCentavos = transacoes30.reduce((total, row) => total + (row.tipo === 'entrada' ? row.valor_centavos : -row.valor_centavos), 0);
@@ -49,6 +70,8 @@ export const onRequestGet = async ({ request, env }: Context): Promise<Response>
           .map((row) => ({ id: row.id, clienteNome: row.cliente.nome, servicos: row.servicos_solicitados, descontoCentavos: row.desconto_centavos, acrescimoCentavos: row.acrescimo_centavos, valorCentavos: row.valor_centavos ?? Math.max(row.servicos_solicitados.reduce((total, service) => total + service.subtotal_centavos, 0) + row.acrescimo_centavos - row.desconto_centavos, 0), descricaoSolicitacao: row.descricao_solicitacao, state: row.state, createdAt: row.created_at })),
         stateCounts: (['em_andamento', 'pagamento', 'concluido', 'recusado'] as State[]).map((state, index) => ({ state, label: stateLabel(state), count: stateCounts[index]?.[0]?.total ?? 0 })),
         daily: buildDaily(from30, today, transacoes30, atendimentosRows),
+        servicosMaisVendidos: rankings.servicos,
+        clientesQueMaisCompram: rankings.clientes,
       };
     });
     return json(data);
@@ -56,6 +79,105 @@ export const onRequestGet = async ({ request, env }: Context): Promise<Response>
     return json({ error: error instanceof Error ? error.message : 'Erro ao carregar painel' }, 500);
   }
 };
+
+type RankingRow = {
+  atendimentoId: string;
+  clienteId: string;
+  clienteNome: string;
+  servicoId: string | null;
+  servicoIds: string[] | null;
+  valorCentavos: number;
+};
+
+async function buildRankings(
+  db: AppDatabase,
+  rows: readonly RankingRow[],
+) {
+  const clientesRanking = new Map<
+    string,
+    { id: string; nome: string; pedidos: Set<string>; valorCentavos: number }
+  >();
+  const atendimentosUnicos = new Map<string, string[]>();
+
+  for (const row of rows) {
+    const cliente = clientesRanking.get(row.clienteId) ?? {
+      id: row.clienteId,
+      nome: row.clienteNome,
+      pedidos: new Set<string>(),
+      valorCentavos: 0,
+    };
+    cliente.pedidos.add(row.atendimentoId);
+    cliente.valorCentavos += row.valorCentavos;
+    clientesRanking.set(row.clienteId, cliente);
+
+    if (!atendimentosUnicos.has(row.atendimentoId)) {
+      atendimentosUnicos.set(
+        row.atendimentoId,
+        row.servicoIds && row.servicoIds.length > 0
+          ? row.servicoIds
+          : row.servicoId
+            ? [row.servicoId]
+            : [],
+      );
+    }
+  }
+
+  const servicosRanking = new Map<string, { quantidade: number; pedidos: Set<string> }>();
+  for (const [atendimentoId, serviceIds] of atendimentosUnicos) {
+    for (const serviceId of serviceIds) {
+      const servico = servicosRanking.get(serviceId) ?? {
+        quantidade: 0,
+        pedidos: new Set<string>(),
+      };
+      servico.quantidade += 1;
+      servico.pedidos.add(atendimentoId);
+      servicosRanking.set(serviceId, servico);
+    }
+  }
+
+  const serviceIds = [...servicosRanking.keys()];
+  const serviceRows = serviceIds.length
+    ? await db
+        .select({ id: servicos.id, nome: servicos.nome })
+        .from(servicos)
+        .where(inArray(servicos.id, serviceIds))
+    : [];
+
+  const servicosMaisVendidos = serviceRows
+    .map((servico) => {
+      const ranking = servicosRanking.get(servico.id);
+      return {
+        id: servico.id,
+        nome: servico.nome,
+        quantidade: ranking?.quantidade ?? 0,
+        pedidos: ranking?.pedidos.size ?? 0,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.quantidade - a.quantidade ||
+        b.pedidos - a.pedidos ||
+        a.nome.localeCompare(b.nome, 'pt-BR'),
+    )
+    .slice(0, 5);
+
+  const clientesQueMaisCompram = [...clientesRanking.values()]
+    .map((cliente) => ({
+      id: cliente.id,
+      nome: cliente.nome,
+      pedidos: cliente.pedidos.size,
+      valorCentavos: cliente.valorCentavos,
+    }))
+    .sort(
+      (a, b) =>
+        b.valorCentavos - a.valorCentavos ||
+        b.pedidos - a.pedidos ||
+        a.nome.localeCompare(b.nome, 'pt-BR'),
+    )
+    .slice(0, 5);
+
+  return { servicos: servicosMaisVendidos, clientes: clientesQueMaisCompram };
+}
 
 function localDate(): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
